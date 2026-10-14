@@ -1,0 +1,15 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+
+# Üretilen çıktılar ve modeller
+out/
+out_freya/
+voices/
+*.wav
+*.onnx
+
+# Gizli bilgiler
+.env
+config/api_keys.json
