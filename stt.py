@@ -24,6 +24,12 @@ import sys
 SAMPLE_RATE = 16000
 MIN_SECONDS = 0.4
 
+# Whisper'a özel isimleri ve komut kalıplarını ipucu olarak verir (yanlış yazımları azaltır).
+DEFAULT_PROMPT = (
+    "Jarvis, Firefox'u aç. Terminali aç. Sesi yüzde otuza ayarla. Parlaklığı artır. "
+    "İnternette ara. Chrome, Spotify, Visual Studio Code."
+)
+
 
 def ensure_cuda_libs():
     """nvidia-cublas-cu12 / nvidia-cudnn-cu12 kütüphanelerini LD_LIBRARY_PATH'e ekler.
@@ -58,11 +64,19 @@ import numpy as np  # noqa: E402
 
 
 class Listener:
-    def __init__(self, model: str = "large-v3-turbo", device: str = "cuda", mic=None, beam: int = 1):
+    def __init__(
+        self,
+        model: str = "large-v3-turbo",
+        device: str = "cuda",
+        mic=None,
+        beam: int = 1,
+        prompt: str = DEFAULT_PROMPT,
+    ):
         from faster_whisper import WhisperModel  # noqa: PLC0415
 
         self.mic = mic
         self.beam = beam
+        self.prompt = prompt
         compute = "float16" if device == "cuda" else "int8"
         try:
             self.model = WhisperModel(model, device=device, compute_type=compute)
@@ -82,7 +96,9 @@ class Listener:
         def callback(indata, frames, time_info, status):  # noqa: ARG001
             chunks.append(indata[:, 0].copy())
 
-        input("\n[Enter] konuşmaya başla...")
+        answer = input("\n[Enter] konuşmaya başla (çıkmak için q + Enter)...").strip().lower()
+        if answer in ("q", "quit", "exit"):
+            raise KeyboardInterrupt
         stream = sd.InputStream(
             samplerate=SAMPLE_RATE, channels=1, dtype="float32", device=self.mic, callback=callback
         )
@@ -96,7 +112,14 @@ class Listener:
     def transcribe(self, audio: np.ndarray) -> str:
         if len(audio) < MIN_SECONDS * SAMPLE_RATE:
             return ""
-        segments, _ = self.model.transcribe(audio, language="tr", beam_size=self.beam, vad_filter=True)
+        segments, _ = self.model.transcribe(
+            audio,
+            language="tr",
+            beam_size=self.beam,
+            vad_filter=True,
+            initial_prompt=self.prompt or None,
+            condition_on_previous_text=False,
+        )
         return " ".join(s.text.strip() for s in segments).strip()
 
     def listen_once(self) -> str:
