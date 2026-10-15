@@ -41,9 +41,21 @@ def tr_upper_first(s: str) -> str:
     return first + s[1:]
 
 
+_EMOJI = re.compile("[\U0001F300-\U0001FAFF\u2600-\u27BF\uFE0F]")
+
+
+def clean_for_speech(text: str) -> str:
+    """Sesli okunmayacak işaretleri (markdown, emoji, kod) temizler."""
+    text = re.sub(r"```.*?```", " ", text or "", flags=re.S)
+    text = re.sub(r"\[([^\]]+)\]\([^)]+\)", r"\1", text)  # [yazı](bağlantı) -> yazı
+    text = re.sub(r"^\s*[-*•]\s+", "", text, flags=re.M)  # madde işaretleri
+    text = re.sub(r"[*_`#>~|]", "", text)
+    return _EMOJI.sub("", text)
+
+
 def split_sentences(text: str) -> list[str]:
     """Metni cümlelere böler, boşları atar, her cümlenin ilk harfini büyütür."""
-    text = re.sub(r"\s+", " ", text or "").strip()
+    text = re.sub(r"\s+", " ", clean_for_speech(text)).strip()
     parts = [p.strip() for p in _SENTENCE_END.split(text) if p.strip()]
     out = []
     for p in parts:
@@ -110,6 +122,62 @@ class FreyaSpeaker:
         if hasattr(wav, "detach"):
             wav = wav.detach().cpu().numpy()
         return np.asarray(wav, dtype=np.float32).squeeze()
+
+    # ---- akışlı kullanım: say() cümleleri kuyruğa atar, wait() hepsi çalınana dek bekler ----
+    def _ensure_workers(self):
+        if getattr(self, "_workers", False):
+            return
+        self._text_q: "queue.Queue[str]" = queue.Queue()
+        self._audio_q: "queue.Queue[np.ndarray | None]" = queue.Queue(maxsize=3)
+        self._pending = 0
+        self._cv = threading.Condition()
+        threading.Thread(target=self._synth_loop, daemon=True).start()
+        threading.Thread(target=self._play_loop, daemon=True).start()
+        self._workers = True
+
+    def _synth_loop(self):
+        while True:
+            sentence = self._text_q.get()
+            if self._stop.is_set():
+                self._audio_q.put(None)  # atlandı; sayaç oynatıcıda düşer
+                continue
+            try:
+                audio = self._synth(sentence)
+            except Exception as exc:  # noqa: BLE001
+                print(f"[tts] hata: {type(exc).__name__}: {exc}", flush=True)
+                audio = None
+            if audio is not None and self.verbose:
+                sec = len(audio) / self.sample_rate
+                print(f"  [tts] {len(sentence)} karakter, dur={self.scale_for(len(sentence)):.2f}, {sec:.2f} sn", flush=True)
+            self._audio_q.put(audio)
+
+    def _play_loop(self):
+        import sounddevice as sd  # noqa: PLC0415
+
+        while True:
+            audio = self._audio_q.get()
+            if audio is not None and not self._stop.is_set():
+                sd.play(audio, self.sample_rate)
+                sd.wait()
+            with self._cv:
+                self._pending -= 1
+                self._cv.notify_all()
+
+    def say(self, text: str):
+        """Metni cümlelere bölüp kuyruğa ekler ve hemen döner (bloklamaz)."""
+        self._ensure_workers()
+        for sentence in split_sentences(text):
+            with self._cv:
+                self._pending += 1
+            self._text_q.put(sentence)
+
+    def wait(self):
+        """Kuyruktaki her şey çalınana kadar bekler."""
+        if not getattr(self, "_workers", False):
+            return
+        with self._cv:
+            self._cv.wait_for(lambda: self._pending == 0)
+        self._stop.clear()
 
     def stop(self):
         """Konuşmayı hemen keser (ör. kullanıcı araya girerse)."""
