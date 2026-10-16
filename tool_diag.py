@@ -42,6 +42,8 @@ CASES = [
     ("İndirilenlerde pdf var mı", "find_files"),
     ("Staj raporu dosyasını oku", "read_file"),
     ("Notlar dosyasını özetle", "read_file"),
+    ("Staj raporunu Belgeler klasörüne taşı", "move_file"),
+    ("İndirilenlerdeki rapor dosyasını çöpe at", "trash_file"),
     ("Bana kısa bir fıkra anlat", None),
 ]
 

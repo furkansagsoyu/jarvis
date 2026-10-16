@@ -22,6 +22,7 @@ import time
 
 import ollama
 
+from skills import _confirm as confirm
 from skills import capability_summary, load_skills
 
 MODEL = "gemma4:e4b"
@@ -47,7 +48,7 @@ ACTION_CLAIM = re.compile(
     r"çağırıyorum|kullanıyorum|öğreniyorum|bakıyorum|kontrol ediyorum|kullanmalıyım|çağırmalıyım|"
     r"açıldı|kapatıldı|ayarlandı|yapıldı|kısıldı|kısıldı|artırıldı|azaltıldı|arandı|başlatıldı|çalıştırıldı)\b|"
     r"\baraç|"
-    r"\b(open_app|set_volume|change_volume|get_time|get_date|web_search|list_abilities|remember|recall|forget|set_reminder|list_reminders|cancel_reminders|get_weather|find_files|read_file)\b",
+    r"\b(open_app|set_volume|change_volume|get_time|get_date|web_search|list_abilities|remember|recall|forget|set_reminder|list_reminders|cancel_reminders|get_weather|find_files|read_file|move_file|trash_file)\b",
     re.IGNORECASE,
 )
 # Saat/tarih gibi anlık bilgilerde modele karar bırakılmaz (gemma tarihi uydurdu: "25 Mayıs 2024").
@@ -189,6 +190,16 @@ class Brain:
 
         İlk tur akışsız (araç kararı ve güvenlik ağı için); araç çalıştıktan sonraki cevap akışlı.
         """
+        # Bekleyen tehlikeli işlem varsa kullanıcının cevabı MODELE GİTMEDEN burada değerlendirilir.
+        if confirm.has_pending():
+            verdict = confirm.classify(user_text)
+            if verdict == "yes":
+                yield confirm.approve()
+                return
+            confirm.cancel()
+            if verdict == "no":
+                yield "Tamam, vazgeçtim."
+                return
         messages = [{"role": "system", "content": self.system}, *self.history,
                     {"role": "user", "content": user_text}]
         schemas = [schema for schema, _ in self.tools.values()]
@@ -213,6 +224,11 @@ class Brain:
                 results: list[str] = []
                 for _ in range(MAX_TOOL_ROUNDS):
                     results += self._run_calls(messages, calls)
+                    if confirm.has_pending():  # onay sorusu aynen söylenir; model "yaptım" diye yorum katmasın
+                        text = " ".join(results)
+                        spoken.append(text)
+                        yield text
+                        break
                     calls = []
                     for chunk in self._chat(messages, schemas, True, 0.3):
                         msg = _get(chunk, "message")
