@@ -27,6 +27,7 @@ MIN_SECONDS = 0.4
 # Whisper'a özel isimleri ve komut kalıplarını ipucu olarak verir (yanlış yazımları azaltır).
 DEFAULT_PROMPT = (
     "Jarvis, Firefox'u aç. Terminali aç. Sesi yüzde otuza ayarla. Parlaklığı artır. "
+    "Ekranı karart. Parlaklığı yüzde elliye ayarla. Hesap makinesini aç. "
     "İnternette ara. Chrome, Spotify, Visual Studio Code."
 )
 

@@ -54,7 +54,7 @@ ACTION_CLAIM = re.compile(
 # Yalnızca açık SORU kalıpları yakalanır; alarm, hatırlatma, ayar ve başka günler modele gider.
 NOT_A_QUERY = re.compile(r"alarm|hatırlat|zamanlayıcı|sayaç|\bkur\b|ayarla|ekle|bekle|yarın|dün\b|geçen|haftaya|önümüzdeki", re.I)
 ASKING = re.compile(r"kaç|söyle|nedir|\bne\b|öğren|bak|göster|şu an|şimdi", re.I)
-WORD_TIME = re.compile(r"\bsaat(i|e)?\b", re.I)
+WORD_TIME = re.compile(r"\bsaat(i|e|in|ini|ine)?\b", re.I)
 WORD_DATE = re.compile(r"\b(tarih(i)?|günlerden|hangi gün|bugün ne|bugünün (günü|tarihi))", re.I)
 TEXT_CALL = re.compile(r"^\s*`*([a-z_]+)\((.*)\)`*\s*$", re.S)
 NUDGE = "Bu isteği gerçekten yerine getirmek için uygun aracı çağır. Uygun araç yoksa yapamadığını söyle."

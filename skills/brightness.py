@@ -52,7 +52,22 @@ def _backend() -> str:
     )
 
 
+def _read_sysfs() -> int | None:
+    """Gerçek donanım değeri. Okumak için yetki gerekmez; Cinnamon'un GetPercentage'ı eski değer dönüyordu."""
+    d = _sysfs_dir()
+    if not d:
+        return None
+    try:
+        cur, mx = int((d / "brightness").read_text()), int((d / "max_brightness").read_text())
+    except (OSError, ValueError):
+        return None
+    return round(100 * cur / mx) if mx else None
+
+
 def get_level() -> int:
+    level = _read_sysfs()
+    if level is not None:
+        return level
     b = _backend()
     if b == "brightnessctl":
         m = re.search(r"(\d+)%", _run(["brightnessctl", "-m"]))
