@@ -23,7 +23,7 @@ ALIASES = {
     "web tarayıcısı": ["firefox", "google-chrome", "chromium", "brave-browser"],
     "dosya yöneticisi": ["nemo", "nautilus", "thunar", "dolphin", "pcmanfm"],
     "dosyalar": ["nemo", "nautilus", "thunar", "dolphin"],
-    "hesap makinesi": ["gnome-calculator", "mate-calc", "kcalc", "galculator"],
+    "hesap makinesi": ["calculator", "gnome-calculator", "mate-calc", "kcalc", "galculator"],
     "metin düzenleyici": ["xed", "gedit", "org.gnome.TextEditor", "kate", "mousepad"],
     "not defteri": ["xed", "gedit", "org.gnome.TextEditor", "mousepad"],
     "ayarlar": ["cinnamon-settings", "gnome-control-center", "systemsettings"],

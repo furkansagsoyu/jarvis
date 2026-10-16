@@ -58,9 +58,14 @@ def set_volume(percent) -> str:
 
 
 def change_volume(delta_percent) -> str:
-    delta = max(-50, min(50, _to_int(delta_percent, "delta_percent")))  # tek seferde en fazla 50 puan
+    delta = _to_int(delta_percent, "delta_percent")
     before = get_level()
-    after = set_level(before + delta)
+    if delta >= 100:  # "sonuna kadar aç / fulle"
+        after = set_level(100)
+    elif delta <= -100:  # "tamamen kıs"
+        after = set_level(0)
+    else:
+        after = set_level(before + max(-50, min(50, delta)))  # tek seferde en fazla 50 puan
     return f"Ses seviyesi yüzde {before} iken yüzde {after} yapıldı."
 
 

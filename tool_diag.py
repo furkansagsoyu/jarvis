@@ -22,6 +22,9 @@ CASES = [
     ("Hesap makinesini aç", "open_app"),
     ("İstanbul'un nüfusunu internette ara", "web_search"),
     ("Saat kaç?", "get_time"),
+    ("Parlaklığı yüzde elliye ayarla", "set_brightness"),
+    ("Ekranı biraz karart", "change_brightness"),
+    ("Parlaklığı artır", "change_brightness"),
     ("Bana kısa bir fıkra anlat", None),
 ]
 
