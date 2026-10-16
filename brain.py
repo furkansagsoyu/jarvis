@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Jarvis beyni (Ollama + gemma4:e4b). Faz 1.
+"""Jarvis beyni (Ollama + gemma4:e4b). Faz 2: yetenek sistemi.
 
 Kullanım:
     from brain import Brain
@@ -12,54 +12,53 @@ Elle deneme (klavyeden yaz, ses yok):
 
 Notlar:
 - Cevap akış (stream) halinde gelir; main.py cümle biter bitmez seslendirir.
-- Araçlar (tools) bir sözlüktür: {ad: (şema, fonksiyon)}. Faz 2'de bu yapı yetenek (skill) sistemine dönüşecek.
-  Şimdilik sadece zararsız bir deneme aracı var: saat sorma.
+- Araçlar skills/ klasöründen otomatik yüklenir ({ad: (şema, fonksiyon)}); yeni yetenek için skills/ altına
+  yeni bir dosya yazmak yeterli (bkz. skills/__init__.py).
 - Konuşma geçmişi son MAX_HISTORY mesajla sınırlı, araç çağrı ayrıntıları geçmişe yazılmaz.
 """
-import datetime as dt
+import ast
+import re
 import time
 
 import ollama
 
+from skills import capability_summary, load_skills
+
 MODEL = "gemma4:e4b"
-MAX_HISTORY = 12
+MAX_HISTORY = 16
 MAX_TOOL_ROUNDS = 3
 
+# Ölçümle (tool_diag.py, tool_diag2.py, tool_check.py) doğrulandı: SADECE bu kısa hal 8/8 araç çağırıyor.
+# Kural eklemek (sayıları yazıyla yaz, anlık bilgiyi uydurma, yetenek listesi, cümle sınırı...) tek tek
+# zararsız görünse bile birlikte araç çağırmayı bozdu (tool_check 16/24). Bu yüzden prompt'a kural EKLEME;
+# önce tool_diag2.py / tool_check.py ile ölç. Yetenek listesi list_abilities aracından gelir.
+# Rakamları sese çevirme işi TTS tarafında.
 SYSTEM = (
     "Adın Jarvis. Türkçe konuşan bir sesli bilgisayar asistanısın. "
-    "Cevapların yüksek sesle okunacak: en fazla iki üç kısa, düz cümle kur; "
-    "madde işareti, kalın yazı, emoji, kod bloğu ve tablo kullanma. "
-    "Sayıları rakamla değil yazıyla yaz (örneğin 'yirmi üç', 'yüzde otuz'). "
-    "Bir eylem gerekiyorsa uygun aracı çağır, gerekmiyorsa araç çağırma. "
-    "Araç sonucunu kullanıcıya kısa bir cümleyle bildir. "
-    "Saat, tarih ve bilgisayarın durumu gibi anlık bilgileri asla tahmin etme veya uydurma: "
-    "bunlar için mutlaka ilgili aracı çağır. "
-    "Bilmediğin bir şeyi uydurma, bilmediğini söyle."
+    "Cevapların yüksek sesle okunacak: kısa, düz cümlelerle yaz; "
+    "madde işareti, kalın yazı, emoji ve kod bloğu kullanma. "
+    "Bir eylem gerekiyorsa uygun aracı çağır, gerekmiyorsa araç çağırma."
 )
 
-
-# ---------------------------------------------------------------- araçlar
-def _get_time() -> str:
-    now = dt.datetime.now()
-    return f"Şu an saat {now.hour:02d}:{now.minute:02d}."
-
-
-TOOLS = {
-    "get_time": (
-        {
-            "type": "function",
-            "function": {
-                "name": "get_time",
-                "description": (
-                    "Bilgisayarın saatine bakıp şu anki saati verir. "
-                    "Kullanıcı saati sorarsa MUTLAKA bu aracı çağır, saati kendin tahmin etme."
-                ),
-                "parameters": {"type": "object", "properties": {}},
-            },
-        },
-        _get_time,
-    ),
-}
+# Model araç çağırmadan "açıyorum" gibi eylem bildirirse bu bir yalandır; yakalanır.
+ACTION_CLAIM = re.compile(
+    r"\b(açıyorum|açtım|kısıyorum|kıstım|artırıyorum|azaltıyorum|azalttım|ayarlıyorum|ayarladım|"
+    r"arıyorum|aradım|başlatıyorum|kapatıyorum|çalıştırıyorum|yükseltiyorum|düşürüyorum|"
+    r"çağırıyorum|kullanıyorum|öğreniyorum|bakıyorum|kontrol ediyorum|kullanmalıyım|çağırmalıyım|"
+    r"açıldı|kapatıldı|ayarlandı|yapıldı|kısıldı|kısıldı|artırıldı|azaltıldı|arandı|başlatıldı|çalıştırıldı)\b|"
+    r"\baraç|"
+    r"\b(open_app|set_volume|change_volume|get_time|get_date|web_search|list_abilities)\b",
+    re.IGNORECASE,
+)
+# Saat/tarih gibi anlık bilgilerde modele karar bırakılmaz (gemma tarihi uydurdu: "25 Mayıs 2024").
+# Yalnızca açık SORU kalıpları yakalanır; alarm, hatırlatma, ayar ve başka günler modele gider.
+NOT_A_QUERY = re.compile(r"alarm|hatırlat|zamanlayıcı|sayaç|\bkur\b|ayarla|ekle|bekle|yarın|dün\b|geçen|haftaya|önümüzdeki", re.I)
+ASKING = re.compile(r"kaç|söyle|nedir|\bne\b|öğren|bak|göster|şu an|şimdi", re.I)
+WORD_TIME = re.compile(r"\bsaat(i|e)?\b", re.I)
+WORD_DATE = re.compile(r"\b(tarih(i)?|günlerden|hangi gün|bugün ne|bugünün (günü|tarihi))", re.I)
+TEXT_CALL = re.compile(r"^\s*`*([a-z_]+)\((.*)\)`*\s*$", re.S)
+NUDGE = "Bu isteği gerçekten yerine getirmek için uygun aracı çağır. Uygun araç yoksa yapamadığını söyle."
+FAIL_TEXT = "Bunu yapamadım."
 
 
 def _get(obj, name, default=None):
@@ -71,7 +70,7 @@ def _get(obj, name, default=None):
 class Brain:
     def __init__(self, model: str = MODEL, tools: dict | None = None, system: str = SYSTEM):
         self.model = model
-        self.tools = TOOLS if tools is None else tools
+        self.tools = load_skills() if tools is None else tools
         self.system = system
         self.history: list[dict] = []
         self._think_kw = {"think": False}
@@ -102,48 +101,123 @@ class Brain:
         except Exception as exc:  # noqa: BLE001
             return f"Hata: {type(exc).__name__}: {exc}"
 
+    def _chat(self, messages, schemas, stream: bool, temperature: float):
+        return ollama.chat(
+            model=self.model,
+            messages=messages,
+            tools=schemas or None,
+            stream=stream,
+            options={"temperature": temperature},
+            keep_alive="30m",
+            **self._think_kw,
+        )
+
+    def _parse_text_call(self, content: str) -> list[dict]:
+        """Gemma bazen aracı gerçek çağrı yerine düz metin yazar: web_search(query="x"). Güvenle ayrıştırır."""
+        m = TEXT_CALL.match(content or "")
+        if not m or m.group(1) not in self.tools:
+            return []
+        try:
+            node = ast.parse(f"f({m.group(2)})", mode="eval").body
+            if node.args:
+                return []
+            args = {kw.arg: ast.literal_eval(kw.value) for kw in node.keywords if kw.arg}
+        except (SyntaxError, ValueError):
+            return []
+        return [{"function": {"name": m.group(1), "arguments": args}}]
+
+    def _decide(self, messages, schemas):
+        """İlk tur (akışsız): (metin, araç_çağrıları). Araç çağırmadan eylem iddiası varsa bir kez zorlar."""
+        msg = _get(self._chat(messages, schemas, False, 0.3), "message")
+        content = (_get(msg, "content", "") or "").strip()
+        calls = list(_get(msg, "tool_calls") or [])
+        if not calls:
+            calls = self._parse_text_call(content)
+            if calls:
+                print(f"\n[uyarı] araç düz metin olarak yazıldı ({content!r}); gerçek çağrıya çevrildi", flush=True)
+                return "", calls
+        if not calls and ACTION_CLAIM.search(content):
+            print(f"\n[uyarı] araç çağırmadan eylem bildirdi ({content!r}); yeniden deneniyor", flush=True)
+            retry = messages + [{"role": "assistant", "content": content}, {"role": "user", "content": NUDGE}]
+            msg2 = _get(self._chat(retry, schemas, False, 0.0), "message")
+            calls = list(_get(msg2, "tool_calls") or [])
+            content = "" if calls else FAIL_TEXT
+        return content, calls
+
+    def _fast_route(self, text: str) -> list[str]:
+        """Kural tabanlı hızlı yol: eşleşen araç adlarını döndürür (boşsa model karar verir)."""
+        names = []
+        if NOT_A_QUERY.search(text):
+            return names
+        if WORD_TIME.search(text) and ASKING.search(text) and "get_time" in self.tools:
+            names.append("get_time")
+        if WORD_DATE.search(text) and "get_date" in self.tools:
+            names.append("get_date")
+        return names
+
+    def _run_calls(self, messages, calls):
+        """Araçları çalıştırır, sonuç metinlerini döndürür."""
+        results = []
+        messages.append({"role": "assistant", "content": "", "tool_calls": calls})
+        for call in calls:
+            fn = _get(call, "function")
+            name = _get(fn, "name")
+            args = dict(_get(fn, "arguments", {}) or {})
+            result = self._call_tool(name, args)
+            print(f"\n[araç] {name}({args}) -> {result}", flush=True)
+            messages.append({"role": "tool", "tool_name": name, "content": result})
+            results.append("Bunu yapamadım." if result.startswith("Hata:") else result)
+        return results
+
     def reply_stream(self, user_text: str):
-        """Kullanıcı cümlesine cevabı parça parça (str) üretir."""
+        """Kullanıcı cümlesine cevabı parça parça (str) üretir.
+
+        İlk tur akışsız (araç kararı ve güvenlik ağı için); araç çalıştıktan sonraki cevap akışlı.
+        """
         messages = [{"role": "system", "content": self.system}, *self.history,
                     {"role": "user", "content": user_text}]
         schemas = [schema for schema, _ in self.tools.values()]
         spoken: list[str] = []
 
-        for _ in range(MAX_TOOL_ROUNDS + 1):
-            content, tool_calls = [], []
-            stream = ollama.chat(
-                model=self.model,
-                messages=messages,
-                tools=schemas or None,
-                stream=True,
-                options={"temperature": 0.3},
-                keep_alive="30m",
-                **self._think_kw,
-            )
-            for chunk in stream:
-                msg = _get(chunk, "message")
-                piece = _get(msg, "content", "") or ""
-                if piece:
-                    content.append(piece)
-                    spoken.append(piece)
-                    yield piece
-                tool_calls.extend(_get(msg, "tool_calls") or [])
+        fast = self._fast_route(user_text)
+        if fast:
+            results = self._run_calls(messages, [{"function": {"name": n, "arguments": {}}} for n in fast])
+            text = " ".join(results)
+            spoken.append(text)
+            yield text
+        else:
+            content, calls = self._decide(messages, schemas)
+            if not calls:
+                if content:
+                    spoken.append(content)
+                    yield content
+            else:
+                results: list[str] = []
+                for _ in range(MAX_TOOL_ROUNDS):
+                    results += self._run_calls(messages, calls)
+                    calls = []
+                    for chunk in self._chat(messages, schemas, True, 0.3):
+                        msg = _get(chunk, "message")
+                        piece = _get(msg, "content", "") or ""
+                        if piece:
+                            spoken.append(piece)
+                            yield piece
+                        calls.extend(_get(msg, "tool_calls") or [])
+                    if not calls:
+                        break
+                if not "".join(spoken).strip():  # model araçtan sonra sustu: araç sonucunu söyle
+                    text = " ".join(results)
+                    spoken.append(text)
+                    yield text
 
-            if not tool_calls:
-                break
-
-            messages.append({"role": "assistant", "content": "".join(content), "tool_calls": tool_calls})
-            for call in tool_calls:
-                fn = _get(call, "function")
-                name = _get(fn, "name")
-                args = dict(_get(fn, "arguments", {}) or {})
-                result = self._call_tool(name, args)
-                print(f"\n[araç] {name}({args}) -> {result}", flush=True)
-                messages.append({"role": "tool", "tool_name": name, "content": result})
-
-        self.history.append({"role": "user", "content": user_text})
-        self.history.append({"role": "assistant", "content": "".join(spoken).strip()})
-        del self.history[:-MAX_HISTORY]
+        # Geçmişe araç çağrıları ve sonuçları da yazılır; yoksa model "araç çağırmadan 'açıldı' demek yeter"
+        # kalıbını öğrenir ve sonraki komutlarda aracı atlar.
+        turn = messages[1 + len(self.history):]
+        turn.append({"role": "assistant", "content": "".join(spoken).strip()})
+        self.history.extend(turn)
+        self.history = self.history[-MAX_HISTORY:]
+        while self.history and self.history[0].get("role") != "user":
+            self.history.pop(0)  # kesilen bir araç alışverişinin ortasından başlama
 
 
 def main():

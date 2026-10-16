@@ -49,6 +49,7 @@ def main():
     print("[3/3] Gemma ısınıyor...", flush=True)
     brain = Brain()
     brain.warm_up()
+    print(f"      yetenekler: {', '.join(brain.tools)}", flush=True)
     print(f"\nHazır ({time.perf_counter() - t0:.0f} sn). Konuşabilirsin.\n", flush=True)
     speaker.say("Hazırım.")
     speaker.wait()
