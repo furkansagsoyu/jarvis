@@ -18,6 +18,7 @@ import re  # noqa: E402
 import time  # noqa: E402
 
 from brain import Brain  # noqa: E402
+from skills import reminders  # noqa: E402
 from tts import FreyaSpeaker  # noqa: E402
 
 SENTENCE_END = re.compile(r"(?<=[.!?…])\s+")
@@ -51,6 +52,7 @@ def main():
     brain.warm_up()
     print(f"      yetenekler: {', '.join(brain.tools)}", flush=True)
     print(f"\nHazır ({time.perf_counter() - t0:.0f} sn). Konuşabilirsin.\n", flush=True)
+    reminders.set_notifier(speaker.say)  # süre dolunca arka plan iş parçacığından sesli söyler
     speaker.say("Hazırım.")
     speaker.wait()
 

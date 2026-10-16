@@ -47,7 +47,7 @@ ACTION_CLAIM = re.compile(
     r"çağırıyorum|kullanıyorum|öğreniyorum|bakıyorum|kontrol ediyorum|kullanmalıyım|çağırmalıyım|"
     r"açıldı|kapatıldı|ayarlandı|yapıldı|kısıldı|kısıldı|artırıldı|azaltıldı|arandı|başlatıldı|çalıştırıldı)\b|"
     r"\baraç|"
-    r"\b(open_app|set_volume|change_volume|get_time|get_date|web_search|list_abilities)\b",
+    r"\b(open_app|set_volume|change_volume|get_time|get_date|web_search|list_abilities|remember|recall|forget|set_reminder|list_reminders|cancel_reminders)\b",
     re.IGNORECASE,
 )
 # Saat/tarih gibi anlık bilgilerde modele karar bırakılmaz (gemma tarihi uydurdu: "25 Mayıs 2024").
@@ -115,6 +115,8 @@ class Brain:
     def _parse_text_call(self, content: str) -> list[dict]:
         """Gemma bazen aracı gerçek çağrı yerine düz metin yazar: web_search(query="x"). Güvenle ayrıştırır."""
         m = TEXT_CALL.match(content or "")
+        if not m and content and len(content) < 80:  # "recall() çağrısı yapacağım." gibi cümle içine gömülü çağrı
+            m = next((x for x in re.finditer(r"\b([a-z_]+)\(([^()]*)\)", content) if x.group(1) in self.tools), None)
         if not m or m.group(1) not in self.tools:
             return []
         try:

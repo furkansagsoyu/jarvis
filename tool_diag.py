@@ -25,6 +25,16 @@ CASES = [
     ("Parlaklığı yüzde elliye ayarla", "set_brightness"),
     ("Ekranı biraz karart", "change_brightness"),
     ("Parlaklığı artır", "change_brightness"),
+    ("Yirmi dakika sonra beni uyar", "set_reminder"),
+    ("Saat beşte bana ekmeği hatırlat", "set_reminder"),
+    ("Zamanlayıcıyı iki dakikaya kur", "set_reminder"),
+    ("Kurulu hatırlatıcılar neler", "list_reminders"),
+    ("Hatırlatıcıları iptal et", "cancel_reminders"),
+    ("Benim adım Furkan, bunu hatırla", "remember"),
+    ("Kedimin adı Pamuk, not al", "remember"),
+    ("Adımı hatırlıyor musun", "recall"),
+    ("Kedimin adı neydi", "recall"),
+    ("Kedimle ilgili kaydı unut", "forget"),
     ("Bana kısa bir fıkra anlat", None),
 ]
 
