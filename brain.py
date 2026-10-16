@@ -47,7 +47,7 @@ ACTION_CLAIM = re.compile(
     r"çağırıyorum|kullanıyorum|öğreniyorum|bakıyorum|kontrol ediyorum|kullanmalıyım|çağırmalıyım|"
     r"açıldı|kapatıldı|ayarlandı|yapıldı|kısıldı|kısıldı|artırıldı|azaltıldı|arandı|başlatıldı|çalıştırıldı)\b|"
     r"\baraç|"
-    r"\b(open_app|set_volume|change_volume|get_time|get_date|web_search|list_abilities|remember|recall|forget|set_reminder|list_reminders|cancel_reminders)\b",
+    r"\b(open_app|set_volume|change_volume|get_time|get_date|web_search|list_abilities|remember|recall|forget|set_reminder|list_reminders|cancel_reminders|get_weather|find_files|read_file)\b",
     re.IGNORECASE,
 )
 # Saat/tarih gibi anlık bilgilerde modele karar bırakılmaz (gemma tarihi uydurdu: "25 Mayıs 2024").
@@ -58,6 +58,10 @@ WORD_TIME = re.compile(r"\bsaat(i|e|in|ini|ine)?\b", re.I)
 WORD_DATE = re.compile(r"\b(tarih(i)?|günlerden|hangi gün|bugün ne|bugünün (günü|tarihi))", re.I)
 WORD_WEATHER = re.compile(r"\bhava\b|yağmur|yağış|yağacak|kaç derece|sıcaklık|şemsiye|kar yağ", re.I)
 CITY_NAMED = re.compile(r"[A-ZÇĞİÖŞÜ][a-zçğıöşü]+['’]")  # "İstanbul'da hava nasıl": şehir var, modele bırak
+WORD_READ = re.compile(r"\b(oku\w*|özetle\w*|içeri\w*)\b", re.I)
+WORD_FILE = re.compile(r"\bdosya\w*|\.(txt|md|pdf|py|csv|json)\b", re.I)
+READ_FILLER = re.compile(r"\b(dosya\w*|oku\w*|özetle\w*|içeri\w*|bana|bir|şu|şunu|bu|bunu|onu|söyle\w*|lütfen|ve|de|da)\b", re.I)
+FOLLOWUP_TOOLS = {"read_file"}  # sonucu doğrudan okunmaz; model özetleyip cevaplar
 TEXT_CALL = re.compile(r"^\s*`*([a-z_]+)\((.*)\)`*\s*$", re.S)
 NUDGE = "Bu isteği gerçekten yerine getirmek için uygun aracı çağır. Uygun araç yoksa yapamadığını söyle."
 FAIL_TEXT = "Bunu yapamadım."
@@ -153,6 +157,11 @@ class Brain:
         calls = []
         if "get_weather" in self.tools and WORD_WEATHER.search(text) and not CITY_NAMED.search(text):
             return [("get_weather", {"day": "yarın"} if "yarın" in text.lower() else {})]
+        if "read_file" in self.tools and WORD_READ.search(text) and WORD_FILE.search(text):
+            name = re.sub(r"\s+", " ", READ_FILLER.sub(" ", text)).strip(" .,?!")
+            name = re.sub(r"(\.\w+)['’]\w+", r"\1", name)  # "rapor.pdf'yi" -> "rapor.pdf"
+            if name:
+                return [("read_file", {"name": name})]
         if NOT_A_QUERY.search(text):
             return calls
         if WORD_TIME.search(text) and ASKING.search(text) and "get_time" in self.tools:
@@ -186,13 +195,16 @@ class Brain:
         spoken: list[str] = []
 
         fast = self._fast_route(user_text)
-        if fast:
+        if fast and not any(n in FOLLOWUP_TOOLS for n, _ in fast):
             results = self._run_calls(messages, [{"function": {"name": n, "arguments": a}} for n, a in fast])
             text = " ".join(results)
             spoken.append(text)
             yield text
         else:
-            content, calls = self._decide(messages, schemas)
+            if fast:  # araç kural ile seçildi, ama cevabı model üretecek (ör. dosya özeti)
+                content, calls = "", [{"function": {"name": n, "arguments": a}} for n, a in fast]
+            else:
+                content, calls = self._decide(messages, schemas)
             if not calls:
                 if content:
                     spoken.append(content)
@@ -213,6 +225,8 @@ class Brain:
                         break
                 if not "".join(spoken).strip():  # model araçtan sonra sustu: araç sonucunu söyle
                     text = " ".join(results)
+                    if "dosyasının içeriği" in text:  # ham dosya içeriği sesli okunmasın
+                        text = FAIL_TEXT
                     spoken.append(text)
                     yield text
 

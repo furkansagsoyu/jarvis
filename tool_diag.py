@@ -38,6 +38,10 @@ CASES = [
     ("Hava nasıl", "get_weather"),
     ("Yarın yağmur yağacak mı", "get_weather"),
     ("İstanbul'da hava kaç derece", "get_weather"),
+    ("Staj raporu dosyasını bul", "find_files"),
+    ("İndirilenlerde pdf var mı", "find_files"),
+    ("Staj raporu dosyasını oku", "read_file"),
+    ("Notlar dosyasını özetle", "read_file"),
     ("Bana kısa bir fıkra anlat", None),
 ]
 
