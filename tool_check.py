@@ -27,7 +27,11 @@ def main():
         results = []
         for _ in range(args.repeat):
             messages = [{"role": "system", "content": brain.system}, {"role": "user", "content": text}]
-            content, calls = brain._decide(messages, schemas)
+            fast = brain._fast_route(text)  # gerçek akışta önce kural tabanlı hızlı yol çalışır
+            if fast:
+                content, calls = "", [{"function": {"name": fast[0][0], "arguments": fast[0][1]}}]
+            else:
+                content, calls = brain._decide(messages, schemas)
             name = calls[0]["function"]["name"] if calls and isinstance(calls[0], dict) else (
                 getattr(getattr(calls[0], "function", None), "name", None) if calls else None
             )

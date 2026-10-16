@@ -56,6 +56,8 @@ NOT_A_QUERY = re.compile(r"alarm|hatırlat|zamanlayıcı|sayaç|\bkur\b|ayarla|e
 ASKING = re.compile(r"kaç|söyle|nedir|\bne\b|öğren|bak|göster|şu an|şimdi", re.I)
 WORD_TIME = re.compile(r"\bsaat(i|e|in|ini|ine)?\b", re.I)
 WORD_DATE = re.compile(r"\b(tarih(i)?|günlerden|hangi gün|bugün ne|bugünün (günü|tarihi))", re.I)
+WORD_WEATHER = re.compile(r"\bhava\b|yağmur|yağış|yağacak|kaç derece|sıcaklık|şemsiye|kar yağ", re.I)
+CITY_NAMED = re.compile(r"[A-ZÇĞİÖŞÜ][a-zçğıöşü]+['’]")  # "İstanbul'da hava nasıl": şehir var, modele bırak
 TEXT_CALL = re.compile(r"^\s*`*([a-z_]+)\((.*)\)`*\s*$", re.S)
 NUDGE = "Bu isteği gerçekten yerine getirmek için uygun aracı çağır. Uygun araç yoksa yapamadığını söyle."
 FAIL_TEXT = "Bunu yapamadım."
@@ -146,16 +148,18 @@ class Brain:
             content = "" if calls else FAIL_TEXT
         return content, calls
 
-    def _fast_route(self, text: str) -> list[str]:
-        """Kural tabanlı hızlı yol: eşleşen araç adlarını döndürür (boşsa model karar verir)."""
-        names = []
+    def _fast_route(self, text: str) -> list[tuple[str, dict]]:
+        """Kural tabanlı hızlı yol: (araç adı, argümanlar) listesi döndürür (boşsa model karar verir)."""
+        calls = []
+        if "get_weather" in self.tools and WORD_WEATHER.search(text) and not CITY_NAMED.search(text):
+            return [("get_weather", {"day": "yarın"} if "yarın" in text.lower() else {})]
         if NOT_A_QUERY.search(text):
-            return names
+            return calls
         if WORD_TIME.search(text) and ASKING.search(text) and "get_time" in self.tools:
-            names.append("get_time")
+            calls.append(("get_time", {}))
         if WORD_DATE.search(text) and "get_date" in self.tools:
-            names.append("get_date")
-        return names
+            calls.append(("get_date", {}))
+        return calls
 
     def _run_calls(self, messages, calls):
         """Araçları çalıştırır, sonuç metinlerini döndürür."""
@@ -183,7 +187,7 @@ class Brain:
 
         fast = self._fast_route(user_text)
         if fast:
-            results = self._run_calls(messages, [{"function": {"name": n, "arguments": {}}} for n in fast])
+            results = self._run_calls(messages, [{"function": {"name": n, "arguments": a}} for n, a in fast])
             text = " ".join(results)
             spoken.append(text)
             yield text

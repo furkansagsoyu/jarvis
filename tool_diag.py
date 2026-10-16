@@ -35,6 +35,9 @@ CASES = [
     ("Adımı hatırlıyor musun", "recall"),
     ("Kedimin adı neydi", "recall"),
     ("Kedimle ilgili kaydı unut", "forget"),
+    ("Hava nasıl", "get_weather"),
+    ("Yarın yağmur yağacak mı", "get_weather"),
+    ("İstanbul'da hava kaç derece", "get_weather"),
     ("Bana kısa bir fıkra anlat", None),
 ]
 
