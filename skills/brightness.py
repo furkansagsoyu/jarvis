@@ -8,6 +8,8 @@ import shutil
 import subprocess
 from pathlib import Path
 
+from . import _undo
+
 BACKLIGHT = Path("/sys/class/backlight")
 MIN_PERCENT = 5
 CINNAMON = [
@@ -104,7 +106,9 @@ def _to_int(value, name: str) -> int:
 
 
 def set_brightness(percent) -> str:
+    before = get_level()
     level = set_level(_to_int(percent, "percent"))
+    _undo.push(f"parlaklık yüzde {before} yapıldı", lambda: set_level(before))
     return f"Parlaklık yüzde {level} yapıldı."
 
 
@@ -117,6 +121,7 @@ def change_brightness(delta_percent) -> str:
         after = set_level(MIN_PERCENT)
     else:
         after = set_level(before + max(-50, min(50, delta)))
+    _undo.push(f"parlaklık yüzde {before} yapıldı", lambda: set_level(before))
     return f"Parlaklık yüzde {before} iken yüzde {after} yapıldı."
 
 

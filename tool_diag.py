@@ -44,6 +44,8 @@ CASES = [
     ("Notlar dosyasını özetle", "read_file"),
     ("Staj raporunu Belgeler klasörüne taşı", "move_file"),
     ("İndirilenlerdeki rapor dosyasını çöpe at", "trash_file"),
+    ("Bunu geri al", "undo_last_action"),
+    ("Parlaklığı eski haline getir", "undo_last_action"),
     ("Bana kısa bir fıkra anlat", None),
 ]
 

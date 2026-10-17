@@ -3,6 +3,8 @@ import re
 import shutil
 import subprocess
 
+from . import _undo
+
 
 def _run(cmd: list[str]) -> str:
     res = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
@@ -53,7 +55,9 @@ def _to_int(value, name: str) -> int:
 
 
 def set_volume(percent) -> str:
+    before = get_level()
     level = set_level(_to_int(percent, "percent"))
+    _undo.push(f"ses yüzde {before} yapıldı", lambda: set_level(before))
     return f"Ses seviyesi yüzde {level} yapıldı."
 
 
@@ -66,6 +70,7 @@ def change_volume(delta_percent) -> str:
         after = set_level(0)
     else:
         after = set_level(before + max(-50, min(50, delta)))  # tek seferde en fazla 50 puan
+    _undo.push(f"ses yüzde {before} yapıldı", lambda: set_level(before))
     return f"Ses seviyesi yüzde {before} iken yüzde {after} yapıldı."
 
 

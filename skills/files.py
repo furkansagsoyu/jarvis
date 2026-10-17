@@ -4,7 +4,7 @@ import shutil
 import subprocess
 from pathlib import Path
 
-from . import _confirm
+from . import _confirm, _undo
 
 HOME = Path.home()
 SKIP_DIRS = {"node_modules", "miniconda3", "anaconda3", "snap", "__pycache__", "venv", ".git", "site-packages"}
@@ -148,6 +148,14 @@ def _do_move(src: Path, dest_dir: Path) -> str:
     if target.exists():
         return f"Hata: {dest_dir.name} klasöründe aynı isimde bir dosya var, taşımadım."
     shutil.move(str(src), str(target))
+    origin = src
+
+    def _back():
+        if origin.exists():
+            raise RuntimeError("eski yerde aynı isimde bir dosya var")
+        shutil.move(str(target), str(origin))
+
+    _undo.push(f"{src.name} dosyası {src.parent.name} klasörüne geri taşındı", _back)
     return f"{src.name} dosyasını {dest_dir.name} klasörüne taşıdım."
 
 

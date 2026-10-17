@@ -48,7 +48,7 @@ ACTION_CLAIM = re.compile(
     r"çağırıyorum|kullanıyorum|öğreniyorum|bakıyorum|kontrol ediyorum|kullanmalıyım|çağırmalıyım|"
     r"açıldı|kapatıldı|ayarlandı|yapıldı|kısıldı|kısıldı|artırıldı|azaltıldı|arandı|başlatıldı|çalıştırıldı)\b|"
     r"\baraç|"
-    r"\b(open_app|set_volume|change_volume|get_time|get_date|web_search|list_abilities|remember|recall|forget|set_reminder|list_reminders|cancel_reminders|get_weather|find_files|read_file|move_file|trash_file)\b",
+    r"\b(open_app|set_volume|change_volume|get_time|get_date|web_search|list_abilities|remember|recall|forget|set_reminder|list_reminders|cancel_reminders|get_weather|find_files|read_file|move_file|trash_file|undo_last_action)\b",
     re.IGNORECASE,
 )
 # Saat/tarih gibi anlık bilgilerde modele karar bırakılmaz (gemma tarihi uydurdu: "25 Mayıs 2024").
@@ -63,6 +63,7 @@ WORD_READ = re.compile(r"\b(oku\w*|özetle\w*|içeri\w*)\b", re.I)
 WORD_FILE = re.compile(r"\bdosya\w*|\.(txt|md|pdf|py|csv|json)\b", re.I)
 READ_FILLER = re.compile(r"\b(dosya\w*|oku\w*|özetle\w*|içeri\w*|bana|bir|şu|şunu|bu|bunu|onu|söyle\w*|lütfen|ve|de|da)\b", re.I)
 FOLLOWUP_TOOLS = {"read_file"}  # sonucu doğrudan okunmaz; model özetleyip cevaplar
+WORD_UNDO = re.compile(r"geri al|eski haline|eskisi gibi|önceki haline|eski seviyesine|az önceki(ni)? (iptal|geri)", re.I)
 TEXT_CALL = re.compile(r"^\s*`*([a-z_]+)\((.*)\)`*\s*$", re.S)
 NUDGE = "Bu isteği gerçekten yerine getirmek için uygun aracı çağır. Uygun araç yoksa yapamadığını söyle."
 FAIL_TEXT = "Bunu yapamadım."
@@ -158,6 +159,8 @@ class Brain:
         calls = []
         if "get_weather" in self.tools and WORD_WEATHER.search(text) and not CITY_NAMED.search(text):
             return [("get_weather", {"day": "yarın"} if "yarın" in text.lower() else {})]
+        if "undo_last_action" in self.tools and WORD_UNDO.search(text):
+            return [("undo_last_action", {})]
         if "read_file" in self.tools and WORD_READ.search(text) and WORD_FILE.search(text):
             name = re.sub(r"\s+", " ", READ_FILLER.sub(" ", text)).strip(" .,?!")
             name = re.sub(r"(\.\w+)['’]\w+", r"\1", name)  # "rapor.pdf'yi" -> "rapor.pdf"
