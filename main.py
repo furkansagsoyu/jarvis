@@ -31,9 +31,24 @@ def pop_sentences(buffer: str):
     return parts[:-1], parts[-1]
 
 
+def single_instance():
+    """Aynı anda iki Jarvis mikrofonu kapışmasın (otomatik başlatma + elle başlatma)."""
+    import fcntl  # noqa: PLC0415
+
+    lock = open("/tmp/jarvis.lock", "w")  # noqa: SIM115  (süreç boyunca açık kalmalı)
+    try:
+        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except OSError:
+        print("Jarvis zaten çalışıyor (önce onu kapat: pkill -f 'main.py').", flush=True)
+        raise SystemExit(1) from None
+    return lock
+
+
 def main():
+    _lock = single_instance()  # noqa: F841
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawTextHelpFormatter)
     p.add_argument("--mic", type=int, default=None)
+    p.add_argument("--wake", action="store_true", help="eller serbest: 'Hey Jarvis' de, konuş, sessizlikte otomatik biter")
     p.add_argument("--text", action="store_true", help="klavyeden yaz (mikrofon/Whisper kullanılmaz)")
     p.add_argument("--steps", type=int, default=16)
     p.add_argument("--quiet-tts", action="store_true", help="TTS süre satırlarını gizle")
@@ -48,6 +63,10 @@ def main():
     speaker = FreyaSpeaker(device="cpu", steps=args.steps)
     speaker.verbose = not args.quiet_tts
     print("[3/3] Gemma ısınıyor...", flush=True)
+    wake = None
+    if args.wake and not args.text:
+        import wake as wake_mod  # noqa: PLC0415
+        wake = wake_mod.WakeWord(mic=args.mic)
     brain = Brain()
     brain.warm_up()
     print(f"      yetenekler: {', '.join(brain.tools)}", flush=True)
@@ -60,6 +79,10 @@ def main():
         try:
             if args.text:
                 text = input("\nSen> ").strip()
+            elif wake:
+                text = wake_mod.listen_handsfree(listener, wake)
+                if text:
+                    print(f"Sen> {text}")
             else:
                 text = listener.listen_once()
                 print(f"Sen> {text}")
@@ -88,6 +111,8 @@ def main():
             speaker.say(buffer)
         print(f"\n  (ilk cümle TTS'e {first_audio_queued or 0:.2f} sn'de gitti)", flush=True)
         speaker.wait()
+        if wake:
+            time.sleep(0.4)  # hoparlör sönümü mikrofona karışmasın
 
 
 if __name__ == "__main__":
