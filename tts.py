@@ -2,8 +2,8 @@
 """Jarvis TTS modülü (Freya). Faz 1.
 
 Başka dosyalardan kullanım:
-    from tts import FreyaSpeaker
-    tts = FreyaSpeaker()          # CPU, steps=16
+    from tts import make_speaker
+    tts = make_speaker("ema")     # varsayılan: EMA Lightning (CPU); "freya" eski motor
     tts.speak("firefox'u açıyorum. başka bir şey var mı?")
 
 Elle deneme:
@@ -66,62 +66,16 @@ def split_sentences(text: str) -> list[str]:
     return out
 
 
-class FreyaSpeaker:
-    def __init__(
-        self,
-        device: str = "cpu",
-        steps: int = 16,
-        short_dur: float = 0.7,
-        short_from: int = 8,
-        short_to: int = 18,
-        repo: Path = REPO,
-    ):
-        if Path(repo).exists():
-            sys.path.insert(0, str(repo))
-        import math  # noqa: PLC0415
+class BaseSpeaker:
+    """Ortak kuyruk mantığı: say() cümleleri kuyruğa atar, wait() hepsi çalınana dek bekler.
 
-        import torch  # noqa: PLC0415
-        from freyatts import FreyaTTS  # noqa: PLC0415
+    Alt sınıflar _synth(cümle) -> float32 dizisi ve self.sample_rate sağlar.
+    """
 
-        self.steps = steps
-        self._tts = FreyaTTS.from_pretrained("freyavoice/freya-tts", device=device)
-
-        # Süre tahmini (log kare sayısı) katsayıyla küçültülür/büyütülür.
-        # Freya bazen süreyi fazla tahmin ediyor; fazlalık "mı", "u" gibi ekler olarak duyuluyor.
-        speaker = self
-
-        class _ScaledDur(torch.nn.Module):
-            def __init__(self, inner):
-                super().__init__()
-                self.inner = inner
-
-            def forward(self, x):
-                return self.inner(x) + math.log(speaker.dur_scale)
-
-        # Kısa cümlelerde süre tahmini fazla çıkıyor (kayma/yankı). Katsayı karakter sayısına göre:
-        # <= short_from karakter: short_dur, >= short_to karakter: 1.0, arası doğrusal.
-        self.short_dur, self.short_from, self.short_to = short_dur, short_from, short_to
-        self.dur_scale = 1.0
-        self._tts.model.dur = _ScaledDur(self._tts.model.dur)
-        self.sample_rate = int(getattr(self._tts, "sample_rate", 48000) or 48000)
-        self._stop = threading.Event()
-        self.verbose = False
-        self._tts.synthesize("Merhaba.", steps=self.steps)  # ısınma
+    verbose = False
 
     def scale_for(self, n_chars: int) -> float:
-        if n_chars <= self.short_from:
-            return self.short_dur
-        if n_chars >= self.short_to:
-            return 1.0
-        frac = (n_chars - self.short_from) / (self.short_to - self.short_from)
-        return self.short_dur + (1.0 - self.short_dur) * frac
-
-    def _synth(self, sentence: str) -> np.ndarray:
-        self.dur_scale = self.scale_for(len(sentence))
-        wav = self._tts.synthesize(sentence, steps=self.steps)
-        if hasattr(wav, "detach"):
-            wav = wav.detach().cpu().numpy()
-        return np.asarray(wav, dtype=np.float32).squeeze()
+        return 1.0
 
     # ---- akışlı kullanım: say() cümleleri kuyruğa atar, wait() hepsi çalınana dek bekler ----
     def _ensure_workers(self):
@@ -226,9 +180,132 @@ class FreyaSpeaker:
             threading.Thread(target=consumer, daemon=True).start()
 
 
+
+
+class FreyaSpeaker(BaseSpeaker):
+    def __init__(
+        self,
+        device: str = "cpu",
+        steps: int = 16,
+        short_dur: float = 0.7,
+        short_from: int = 8,
+        short_to: int = 18,
+        repo: Path = REPO,
+    ):
+        if Path(repo).exists():
+            sys.path.insert(0, str(repo))
+        import math  # noqa: PLC0415
+
+        import torch  # noqa: PLC0415
+        from freyatts import FreyaTTS  # noqa: PLC0415
+
+        self.steps = steps
+        self._tts = FreyaTTS.from_pretrained("freyavoice/freya-tts", device=device)
+
+        # Süre tahmini (log kare sayısı) katsayıyla küçültülür/büyütülür.
+        # Freya bazen süreyi fazla tahmin ediyor; fazlalık "mı", "u" gibi ekler olarak duyuluyor.
+        speaker = self
+
+        class _ScaledDur(torch.nn.Module):
+            def __init__(self, inner):
+                super().__init__()
+                self.inner = inner
+
+            def forward(self, x):
+                return self.inner(x) + math.log(speaker.dur_scale)
+
+        # Kısa cümlelerde süre tahmini fazla çıkıyor (kayma/yankı). Katsayı karakter sayısına göre:
+        # <= short_from karakter: short_dur, >= short_to karakter: 1.0, arası doğrusal.
+        self.short_dur, self.short_from, self.short_to = short_dur, short_from, short_to
+        self.dur_scale = 1.0
+        self._tts.model.dur = _ScaledDur(self._tts.model.dur)
+        self.sample_rate = int(getattr(self._tts, "sample_rate", 48000) or 48000)
+        self._stop = threading.Event()
+        self.verbose = False
+        self._tts.synthesize("Merhaba.", steps=self.steps)  # ısınma
+
+    def scale_for(self, n_chars: int) -> float:
+        if n_chars <= self.short_from:
+            return self.short_dur
+        if n_chars >= self.short_to:
+            return 1.0
+        frac = (n_chars - self.short_from) / (self.short_to - self.short_from)
+        return self.short_dur + (1.0 - self.short_dur) * frac
+
+    def _synth(self, sentence: str) -> np.ndarray:
+        self.dur_scale = self.scale_for(len(sentence))
+        wav = self._tts.synthesize(sentence, steps=self.steps)
+        if hasattr(wav, "detach"):
+            wav = wav.detach().cpu().numpy()
+        return np.asarray(wav, dtype=np.float32).squeeze()
+
+
+
+class EmaSpeaker(BaseSpeaker):
+    """EMA Lightning (pip install ema-lightning): 8,6M parametre, tek Türkçe ses, Apache-2.0.
+
+    Kulak testinde (tts_compare.py) Freya'dan belirgin şekilde iyi çıktı. CPU'da yaklaşık 6 kat gerçek zamanlı;
+    GPU'da yaklaşık 1 GB VRAM ister (Whisper + Gemma yanında sığmayabilir), bu yüzden varsayılan CPU.
+    """
+
+    def __init__(self, device: str = "cpu", seed: int = 0, speed: float = 1.0):
+        import threading as _t  # noqa: PLC0415
+
+        from ema_lightning import EMA  # noqa: PLC0415
+
+        try:
+            self._tts = EMA(device=device)
+        except TypeError:  # bu sürüm device argümanı almıyor
+            self._tts = EMA()
+        self.seed, self.speed = seed, speed
+        self.sample_rate = 48000
+        self._stop = _t.Event()
+        self.verbose = False
+        self._synth("Merhaba.")  # ısınma
+
+    def _synth(self, sentence: str) -> np.ndarray:
+        kw = {"seed": self.seed}
+        if self.speed != 1.0:
+            kw["speed"] = self.speed
+        speech = self._tts.say(sentence, **kw)
+        for attr in ("audio", "samples", "wav", "waveform", "data"):
+            arr = getattr(speech, attr, None)
+            if arr is not None and not callable(arr):
+                for sr_attr in ("sample_rate", "sr", "rate"):
+                    sr = getattr(speech, sr_attr, None)
+                    if sr:
+                        self.sample_rate = int(sr)
+                        break
+                if hasattr(arr, "detach"):
+                    arr = arr.detach().cpu().numpy()
+                return np.asarray(arr, dtype=np.float32).squeeze()
+        # Nesne biçimi bilinmiyorsa dosya yoluyla al
+        import tempfile  # noqa: PLC0415
+        import wave  # noqa: PLC0415
+
+        with tempfile.TemporaryDirectory() as d:
+            path = Path(d) / "s.wav"
+            self._tts.say(sentence, path=str(path), **kw)
+            with wave.open(str(path), "rb") as w:
+                self.sample_rate = w.getframerate()
+                pcm = np.frombuffer(w.readframes(w.getnframes()), dtype="<i2")
+        return pcm.astype(np.float32) / 32768.0
+
+
+def make_speaker(engine: str = "ema", steps: int = 16, device: str = "cpu"):
+    """engine: 'ema' (varsayılan) ya da 'freya'. EMA kurulu değilse Freya'ya düşer."""
+    if engine == "ema":
+        try:
+            return EmaSpeaker(device=device)
+        except ImportError:
+            print("[tts] ema-lightning kurulu değil (pip install ema-lightning); Freya'ya dönülüyor", flush=True)
+    return FreyaSpeaker(device=device, steps=steps)
+
+
 def main():
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawTextHelpFormatter)
     p.add_argument("text", nargs="?", help="seslendirilecek metin")
+    p.add_argument("--engine", default="ema", choices=["ema", "freya"], help="ses motoru (varsayılan ema)")
     p.add_argument("--device", default="cpu", choices=["cpu", "cuda"])
     p.add_argument("--steps", type=int, default=16)
     p.add_argument("--short-dur", type=float, default=0.7, help="kısa cümlelerde süre katsayısı (1.0 = model tahmini)")
@@ -239,13 +316,16 @@ def main():
 
     print("[tts] model yükleniyor...", flush=True)
     t0 = time.perf_counter()
-    tts = FreyaSpeaker(device=args.device, steps=args.steps, short_dur=args.short_dur,
-                       short_from=args.short_from, short_to=args.short_to)
+    if args.engine == "freya":
+        tts = FreyaSpeaker(device=args.device, steps=args.steps, short_dur=args.short_dur,
+                           short_from=args.short_from, short_to=args.short_to)
+    else:
+        tts = make_speaker("ema", args.steps, args.device)
     tts.verbose = True
-    print(f"[tts] hazır ({time.perf_counter() - t0:.1f} sn), steps={args.steps}, kısa={args.short_dur} ({args.short_from}-{args.short_to} karakter)", flush=True)
+    print(f"[tts] hazır ({time.perf_counter() - t0:.1f} sn), motor={type(tts).__name__}", flush=True)
 
     if args.interactive or not args.text:
-        print("Komutlar: /short 0.8 8 18  (katsayı, alt sınır, üst sınır)   /steps 12   q")
+        print("Komutlar (yalnızca Freya motoru): /short 0.8 8 18   /steps 12   |   çıkış: q")
         while True:
             text = input("\nMetin (çıkış: q)> ").strip()
             if text.lower() in ("q", "quit", "exit"):

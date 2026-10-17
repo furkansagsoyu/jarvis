@@ -19,10 +19,10 @@ import time  # noqa: E402
 
 from brain import Brain  # noqa: E402
 from skills import reminders  # noqa: E402
-from tts import FreyaSpeaker  # noqa: E402
+from tts import make_speaker  # noqa: E402
 
 SENTENCE_END = re.compile(r"(?<=[.!?…])\s+")
-EXIT_WORDS = ("görüşürüz", "kapat kendini", "çıkış yap", "hoşça kal")
+EXIT_WORDS = ("görüşürüz", "kapat kendini", "kendini kapat", "programı kapat", "çıkış yap", "hoşça kal")
 
 
 def pop_sentences(buffer: str):
@@ -50,7 +50,9 @@ def main():
     p.add_argument("--mic", type=int, default=None)
     p.add_argument("--wake", action="store_true", help="eller serbest: 'Hey Jarvis' de, konuş, sessizlikte otomatik biter")
     p.add_argument("--text", action="store_true", help="klavyeden yaz (mikrofon/Whisper kullanılmaz)")
-    p.add_argument("--steps", type=int, default=16)
+    p.add_argument("--tts", default="ema", choices=["ema", "freya"], help="ses motoru (varsayılan ema; freya = eski)")
+    p.add_argument("--tts-device", default="cpu", choices=["cpu", "cuda"], help="TTS cihazı (cuda ~1 GB VRAM ister)")
+    p.add_argument("--steps", type=int, default=16, help="yalnızca freya için")
     p.add_argument("--quiet-tts", action="store_true", help="TTS süre satırlarını gizle")
     args = p.parse_args()
 
@@ -59,8 +61,8 @@ def main():
     if not args.text:
         print("[1/3] Whisper yükleniyor...", flush=True)
         listener = stt.Listener(mic=args.mic)
-    print("[2/3] Freya (TTS) yükleniyor...", flush=True)
-    speaker = FreyaSpeaker(device="cpu", steps=args.steps)
+    print(f"[2/3] Ses motoru ({args.tts}) yükleniyor...", flush=True)
+    speaker = make_speaker(args.tts, steps=args.steps, device=args.tts_device)
     speaker.verbose = not args.quiet_tts
     print("[3/3] Gemma ısınıyor...", flush=True)
     wake = None
