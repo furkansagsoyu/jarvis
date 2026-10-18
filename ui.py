@@ -51,6 +51,31 @@ def ascii_title(text: str) -> str:
     return text.translate(_TR)
 
 
+PIDFILE = "/tmp/jarvis_ui.pid"
+
+
+def claim_single_instance() -> None:
+    """Eski bir arayüz hâlâ açıksa onu kapatıp yerini al (iki pencere/tepsi simgesi birikmesin)."""
+    try:
+        old = int(open(PIDFILE).read().strip())
+        if old != os.getpid() and alive(old):
+            with open(f"/proc/{old}/cmdline", "rb") as f:
+                if b"ui.py" in f.read():
+                    os.kill(old, signal.SIGTERM)
+                    for _ in range(20):
+                        if not alive(old):
+                            break
+                        import time  # noqa: PLC0415
+                        time.sleep(0.1)
+    except (OSError, ValueError):
+        pass
+    try:
+        with open(PIDFILE, "w") as f:
+            f.write(str(os.getpid()))
+    except OSError:
+        pass
+
+
 def make_icon(color: str):
     from PIL import Image, ImageDraw  # noqa: PLC0415
 
@@ -59,8 +84,11 @@ def make_icon(color: str):
     return img
 
 
-def run():
+def run(parent: int | None = None):
+    """parent: bu arayüzü açan main.py'nin pid'i; o ölünce arayüz de kapanır (yetim pencere kalmaz)."""
     import tkinter as tk  # noqa: PLC0415
+
+    claim_single_instance()
 
     root = tk.Tk()
     root.title("Jarvis")
@@ -84,8 +112,10 @@ def run():
         stop_jarvis(ui_state.read_status())
         shutdown()
 
+    tk.Button(btns, text="Sustur", command=ui_state.request_stop).pack(side="left", padx=6)  # konuşan cevabı keser
     mute_btn = tk.Button(btns, text="Sessize al", command=toggle_mute)
     mute_btn.pack(side="left", padx=6)
+    tk.Button(btns, text="Arayüzü kapat", command=lambda: shutdown()).pack(side="left", padx=6)
     tk.Button(btns, text="Jarvis'i kapat", command=quit_all).pack(side="left", padx=6)
 
     actions: queue.Queue = queue.Queue()  # tepsi iş parçacığından gelen istekler ana (Tk) iş parçacığında işlenir
@@ -95,7 +125,9 @@ def run():
 
         menu = pystray.Menu(
             pystray.MenuItem("Göster", lambda: actions.put("show"), default=True),
+            pystray.MenuItem("Sustur (konuşmayı kes)", lambda: ui_state.request_stop()),
             pystray.MenuItem("Sessize al / aç", lambda: actions.put("mute")),
+            pystray.MenuItem("Arayüzü kapat", lambda: actions.put("close")),
             pystray.MenuItem("Jarvis'i kapat", lambda: actions.put("quit")),
         )
         icon = pystray.Icon("jarvis", make_icon(COLORS["starting"]), "Jarvis", menu)
@@ -124,9 +156,12 @@ def run():
     def tick():
         while not actions.empty():
             act = actions.get_nowait()
-            {"show": show, "mute": toggle_mute, "quit": quit_all}[act]()
-            if act == "quit":
+            {"show": show, "mute": toggle_mute, "quit": quit_all, "close": shutdown}[act]()
+            if act in ("quit", "close"):
                 return
+        if parent and not alive(parent):  # Jarvis kapandı/çöktü: yetim arayüz kalmasın
+            shutdown()
+            return
         st = ui_state.read_status()
         state = effective_state(st)
         if state != last["state"]:
@@ -159,4 +194,7 @@ def run():
 if __name__ == "__main__":
     if not os.environ.get("DISPLAY"):
         sys.exit("DISPLAY yok: arayüz grafik oturum ister.")
-    run()
+    par = None
+    if "--parent" in sys.argv:
+        par = int(sys.argv[sys.argv.index("--parent") + 1])
+    run(par)

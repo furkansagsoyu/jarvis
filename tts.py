@@ -66,6 +66,39 @@ def split_sentences(text: str) -> list[str]:
     return out
 
 
+def pick_output(devices, spec) -> tuple[int | None, str]:
+    """Çıkış cihazı seç: spec numara ("3") ya da ada ait parça ("hdmi", "kulaklık"). (indeks, mesaj)."""
+    outs = [(i, d["name"]) for i, d in enumerate(devices) if d["max_output_channels"] > 0]
+    spec = str(spec).strip()
+    if spec.isdigit():
+        for i, name in outs:
+            if i == int(spec):
+                return i, name
+        return None, f"{spec} numaralı bir çıkış cihazı yok."
+    hits = [(i, n) for i, n in outs if spec.lower() in n.lower()]
+    if not hits:
+        return None, f"'{spec}' adında bir çıkış cihazı bulamadım."
+    return hits[0]
+
+
+def set_output_device(spec) -> str:
+    """Tüm sesli çıkışları (konuşma, bip) seçilen cihaza yönlendirir. Mesajı döndürür; bulunamazsa varsayılan kalır."""
+    import sounddevice as sd  # noqa: PLC0415
+
+    idx, msg = pick_output(sd.query_devices(), spec)
+    if idx is None:
+        return msg + " Varsayılan hoparlör kullanılıyor."
+    cur = sd.default.device
+    sd.default.device = (cur[0], idx)  # girişe (mikrofon) dokunma
+    return f"Hoparlör: {msg} (#{idx})"
+
+
+def list_output_devices() -> str:
+    import sounddevice as sd  # noqa: PLC0415
+
+    return "\n".join(f"{i:3d}  {d['name']}" for i, d in enumerate(sd.query_devices()) if d["max_output_channels"] > 0)
+
+
 class BaseSpeaker:
     """Ortak kuyruk mantığı: say() cümleleri kuyruğa atar, wait() hepsi çalınana dek bekler.
 
@@ -105,14 +138,40 @@ class BaseSpeaker:
                 print(f"  [tts] {len(sentence)} karakter, dur={self.scale_for(len(sentence)):.2f}, {sec:.2f} sn", flush=True)
             self._audio_q.put(audio)
 
-    def _play_loop(self):
+    BLOCK = 2048  # kare; 48 kHz'te yaklaşık 43 ms: susturma gecikmesi bu kadar
+
+    def _play_audio(self, audio) -> None:
+        """Cümleyi küçük bloklarla çalar. Susturma yalnızca bir bayrak: PortAudio'ya başka bir iş parçacığından
+        dokunulmaz (sd.stop() + sd.wait() birlikte kullanılınca bazı ses sürücülerinde kilitleniyordu)."""
         import sounddevice as sd  # noqa: PLC0415
 
+        audio = np.asarray(audio, dtype=np.float32).reshape(-1)
+        stream = sd.OutputStream(samplerate=self.sample_rate, channels=1, dtype="float32")
+        interrupted = False
+        try:
+            stream.start()
+            for i in range(0, len(audio), self.BLOCK):
+                if self._stop.is_set():
+                    interrupted = True
+                    break
+                stream.write(audio[i:i + self.BLOCK].reshape(-1, 1))
+        finally:
+            try:
+                if interrupted:
+                    stream.abort()  # tamponda kalan sesi at
+                else:
+                    stream.stop()   # kalanı çalıp bitir
+            finally:
+                stream.close()
+
+    def _play_loop(self):
         while True:
             audio = self._audio_q.get()
             if audio is not None and not self._stop.is_set():
-                sd.play(audio, self.sample_rate)
-                sd.wait()
+                try:
+                    self._play_audio(audio)
+                except Exception as exc:  # noqa: BLE001  (ses cihazı hatası kuyruğu kilitlemesin)
+                    print(f"[tts] oynatma hatası: {type(exc).__name__}: {exc}", flush=True)
             with self._cv:
                 self._pending -= 1
                 self._cv.notify_all()
@@ -133,19 +192,19 @@ class BaseSpeaker:
             self._cv.wait_for(lambda: self._pending == 0)
         self._stop.clear()
 
+    def is_busy(self) -> bool:
+        """Kuyrukta çalınmayı bekleyen ya da çalan cümle var mı?"""
+        return getattr(self, "_pending", 0) > 0
+
+    def interrupted(self) -> bool:
+        """stop() çağrıldı mı? (main.py bu durumda cevabı okumayı bırakır)"""
+        return self._stop.is_set()
+
     def stop(self):
         """Konuşmayı hemen keser (ör. kullanıcı araya girerse)."""
-        self._stop.set()
-        try:
-            import sounddevice as sd  # noqa: PLC0415
-
-            sd.stop()
-        except Exception:  # noqa: BLE001
-            pass
+        self._stop.set()  # oynatıcı bayrağı bir sonraki blokta görür (en fazla ~50 ms)
 
     def speak(self, text: str, block: bool = True):
-        import sounddevice as sd  # noqa: PLC0415
-
         sentences = split_sentences(text)
         if not sentences:
             return
@@ -171,8 +230,7 @@ class BaseSpeaker:
                 audio = q.get()
                 if audio is None:
                     break
-                sd.play(audio, self.sample_rate)
-                sd.wait()
+                self._play_audio(audio)
 
         if block:
             consumer()
@@ -312,7 +370,14 @@ def main():
     p.add_argument("--short-from", type=int, default=8, help="bu karakter sayısı ve altı: tam short-dur")
     p.add_argument("--short-to", type=int, default=18, help="bu karakter sayısı ve üstü: katsayı 1.0")
     p.add_argument("--interactive", action="store_true")
+    p.add_argument("--list-devices", action="store_true", help="çıkış (hoparlör) cihazlarını listele")
+    p.add_argument("--speaker", default=None, help="çıkış cihazı: numara ya da adından bir parça")
     args = p.parse_args()
+    if args.list_devices:
+        print(list_output_devices())
+        return
+    if args.speaker:
+        print(set_output_device(args.speaker))
 
     print("[tts] model yükleniyor...", flush=True)
     t0 = time.perf_counter()

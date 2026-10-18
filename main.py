@@ -18,13 +18,14 @@ import os  # noqa: E402
 import re  # noqa: E402
 import subprocess  # noqa: E402
 import sys  # noqa: E402
+import threading  # noqa: E402
 import time  # noqa: E402
 from pathlib import Path  # noqa: E402
 
 import ui_state  # noqa: E402
 from brain import Brain  # noqa: E402
 from skills import battery, briefing, reminders  # noqa: E402
-from tts import make_speaker  # noqa: E402
+from tts import list_output_devices, make_speaker, set_output_device  # noqa: E402
 
 SENTENCE_END = re.compile(r"(?<=[.!?…])\s+")
 EXIT_WORDS = ("görüşürüz", "kapat kendini", "kendini kapat", "programı kapat", "çıkış yap", "hoşça kal")
@@ -51,6 +52,11 @@ def single_instance():
 
 def main():
     _lock = single_instance()  # noqa: F841
+    import faulthandler  # noqa: PLC0415
+    import signal  # noqa: PLC0415
+
+    # Takılma olursa: kill -USR1 <pid>  -> tüm iş parçacıklarının yığını günlüğe yazılır (data/jarvis.log)
+    faulthandler.register(signal.SIGUSR1, all_threads=True)
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawTextHelpFormatter)
     p.add_argument("--mic", type=int, default=None)
     p.add_argument("--wake", action="store_true", help="eller serbest: 'Hey Jarvis' de, konuş, sessizlikte otomatik biter")
@@ -59,28 +65,40 @@ def main():
     p.add_argument("--tts-device", default="cpu", choices=["cpu", "cuda"], help="TTS cihazı (cuda ~1 GB VRAM ister)")
     p.add_argument("--steps", type=int, default=16, help="yalnızca freya için")
     p.add_argument("--quiet-tts", action="store_true", help="TTS süre satırlarını gizle")
+    p.add_argument("--speaker", default=None, help="hoparlör: numara ya da adından bir parça (python main.py --list-speakers)")
+    p.add_argument("--list-speakers", action="store_true", help="çıkış cihazlarını listele ve çık")
+    p.add_argument("--wake-threshold", type=float, default=0.5,
+                   help="Hey Jarvis eşiği 0-1 (düşük = daha hassas ama yanlış tetiklenir; varsayılan 0.5)")
+    p.add_argument("--stt-prompt", default="default", choices=["default", "short", "off"],
+                   help="Whisper ipucu metni: default (komut örnekleri), short (yalnızca 'Jarvis'), off (kapalı)")
     p.add_argument("--ui", action="store_true", help="durum penceresi ve tepsi simgesi (ui.py) aç")
     p.add_argument("--telegram", action="store_true", help="Telegram köprüsü (önce: python telegram_bot.py --setup)")
     p.add_argument("--morning", action="store_true", help="sabah (05-12) ilk açılışta günün özetini söyle (günde bir kez)")
     args = p.parse_args()
 
+    if args.list_speakers:
+        print(list_output_devices())
+        return
     ui_state.reset()
     ui_proc = None
     if args.ui and os.environ.get("DISPLAY"):
-        ui_proc = subprocess.Popen([sys.executable, str(Path(__file__).with_name("ui.py"))])
+        ui_proc = subprocess.Popen([sys.executable, str(Path(__file__).with_name("ui.py")), "--parent", str(os.getpid())])
     t0 = time.perf_counter()
     listener = None
     if not args.text:
         print("[1/3] Whisper yükleniyor...", flush=True)
-        listener = stt.Listener(mic=args.mic)
+        prompt = {"default": stt.DEFAULT_PROMPT, "short": "Jarvis.", "off": ""}[args.stt_prompt]
+        listener = stt.Listener(mic=args.mic, prompt=prompt)
     print(f"[2/3] Ses motoru ({args.tts}) yükleniyor...", flush=True)
     speaker = make_speaker(args.tts, steps=args.steps, device=args.tts_device)
     speaker.verbose = not args.quiet_tts
+    if args.speaker:
+        print(f"      {set_output_device(args.speaker)}", flush=True)
     print("[3/3] Gemma ısınıyor...", flush=True)
     wake = None
     if args.wake and not args.text:
         import wake as wake_mod  # noqa: PLC0415
-        wake = wake_mod.WakeWord(mic=args.mic)
+        wake = wake_mod.WakeWord(threshold=args.wake_threshold, mic=args.mic)
     brain = Brain()
     brain.warm_up()
     print(f"      yetenekler: {', '.join(brain.tools)}", flush=True)
@@ -112,6 +130,22 @@ def main():
             print("      Telegram kurulu değil (python telegram_bot.py --setup); atlandı.", flush=True)
     reminders.set_notifier(notify)  # süre dolunca arka plan iş parçacığından sesli söyler
     battery.Monitor(notify).start()  # pil yüzde 20 ve 10'un altına düşünce bir kez uyarır
+    def stop_watcher():  # arayüzdeki "Sustur" düğmesi
+        while True:
+            time.sleep(0.25)
+            try:
+                if ui_state.consume_stop() and speaker.is_busy():
+                    speaker.stop()
+            except Exception as exc:  # noqa: BLE001  (dosya yarışı vb.: izleyici ölmesin)
+                print(f"[sustur] {type(exc).__name__}: {exc}", flush=True)
+
+    threading.Thread(target=stop_watcher, daemon=True).start()
+    if wake and sys.stdin.isatty():  # eller serbest modda terminalde Enter = sustur
+        def enter_to_stop():
+            while sys.stdin.readline():
+                if speaker.is_busy():
+                    speaker.stop()
+        threading.Thread(target=enter_to_stop, daemon=True).start()
     speaker.say("Hazırım.")
     missed = reminders.restore()  # kapalıyken kurulan hatırlatıcılar geri yüklenir
     if missed:
@@ -155,6 +189,10 @@ def main():
         print("Jarvis> ", end="", flush=True)
         with brain.lock:  # Telegram isteği ile aynı anda çalışmasın
             for piece in brain.reply_stream(text):
+                if speaker.interrupted():  # kullanıcı susturdu: kalan cevabı üretmeyi bırak
+                    print("\n  (susturuldu)", flush=True)
+                    buffer = ""
+                    break
                 print(piece, end="", flush=True)
                 buffer += piece
                 sentences, buffer = pop_sentences(buffer)

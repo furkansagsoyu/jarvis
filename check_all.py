@@ -5,6 +5,7 @@
     python check_all.py --model      # + gerçek model araç seçimi (tool_check.py, GPU ve Ollama ister, birkaç dk)
     python check_all.py --quick      # yalnızca mantık testleri
     python check_all.py --env        # yalnızca ortam kontrolü
+    python check_all.py --vision     # + gerçek ekran görüşü (ekran görüntüsünü yerel modele okutur)
 
 Kişisel veri dosyalarına dokunmaz: geçici bir data/ ve geçici bir ev klasörü kullanılır.
 Çıkış kodu: hata varsa 1 (UYARI hata sayılmaz).
@@ -194,6 +195,96 @@ def logic_tests() -> None:
         ui_state.set_muted(False)
         ui.ascii_title("Jarvis: Düşünüyor, Kapalı, Başlıyor").encode("latin-1")  # tepsi Latin-1 hatası bir daha olmasın
 
+    @check("Hoparlör seçici (numara / ad parçası)")
+    def _():
+        import tts  # noqa: PLC0415
+        devs = [{"name": "HDA Intel", "max_output_channels": 2}, {"name": "HDMI 0", "max_output_channels": 8},
+                {"name": "Mikrofon", "max_output_channels": 0}, {"name": "USB Kulaklık", "max_output_channels": 2}]
+        assert tts.pick_output(devs, "hdmi")[0] == 1 and tts.pick_output(devs, "3")[0] == 3
+        assert tts.pick_output(devs, "2")[0] is None and tts.pick_output(devs, "yok")[0] is None
+
+    @check("Sustur isteği (arayüz → ana döngü)")
+    def _():
+        import threading  # noqa: PLC0415
+        import tts  # noqa: PLC0415
+        import ui_state  # noqa: PLC0415
+        ui_state.reset()
+        assert not ui_state.consume_stop()
+        ui_state.request_stop()
+        assert ui_state.consume_stop() and not ui_state.consume_stop()
+        sp = tts.BaseSpeaker()
+        sp._stop = threading.Event()
+        assert not sp.is_busy() and not sp.interrupted()
+        sp._pending = 1
+        sp._stop.set()
+        assert sp.is_busy() and sp.interrupted()
+
+    @check("Susturma takılmıyor: konuşma anında kesilir, sonraki cevap yutulmaz")
+    def _():
+        import threading  # noqa: PLC0415
+
+        import numpy as np  # noqa: PLC0415
+        log = {"abort": 0, "stop": 0}
+
+        class FakeStream:  # gerçek zamanlı çalıyormuş gibi bekler
+            def __init__(self, **kw): pass
+            def start(self): pass
+            def write(self, x): time.sleep(len(x) / 48000)
+            def abort(self): log["abort"] += 1
+            def stop(self): log["stop"] += 1
+            def close(self): pass
+        fake = types.ModuleType("sounddevice")
+        fake.OutputStream = FakeStream
+        saved = sys.modules.get("sounddevice")
+        sys.modules["sounddevice"] = fake
+        try:
+            import tts  # noqa: PLC0415
+
+            class Sp(tts.BaseSpeaker):
+                sample_rate = 48000
+                def __init__(self): self._stop = threading.Event()
+                def _synth(self, s): return np.zeros(96000, dtype=np.float32)  # cümle başına 2 sn
+            sp = Sp()
+            sp.say("Birinci cümle burada. İkinci cümle burada. Üçüncü cümle burada.")
+            time.sleep(0.4)
+            t0 = time.perf_counter()
+            sp.stop()
+            sp.wait()
+            assert time.perf_counter() - t0 < 1.0 and log["abort"] == 1, "kesilmedi ya da takıldı"
+            sp.say("Yeni cevap.")
+            sp.wait()
+            assert log["stop"] == 1, "kesmeden sonraki cevap çalınmadı"
+        finally:
+            if saved is None:
+                sys.modules.pop("sounddevice", None)
+            else:
+                sys.modules["sounddevice"] = saved
+
+    @check("Ekran görüşü: görüntü modele gidiyor, görüntüsüz model net hata veriyor")
+    def _():
+        import ollama  # noqa: PLC0415
+        from skills import screen  # noqa: PLC0415
+        seen = {}
+        real_chat = getattr(ollama, "chat", None)
+
+        def fake(**kw):
+            seen.update(kw)
+            if seen.get("fail"):
+                raise RuntimeError("model does not support images")
+            return {"message": {"content": "Ekranda bir terminal açık."}}
+        ollama.chat = fake
+        real_cap = screen.capture
+        screen.capture = lambda: b"PNG"
+        try:
+            assert "terminal" in screen.look_at_screen("ne var")
+            assert seen["messages"][0]["images"] == [b"PNG"] and seen["think"] is False
+            ollama.chat = lambda **kw: (_ for _ in ()).throw(RuntimeError("model does not support images"))
+            assert "görüntü okuyamıyor" in screen.look_at_screen("")
+        finally:
+            screen.capture = real_cap
+            if real_chat:
+                ollama.chat = real_chat
+
     @check("Hızlı yol cümleleri (test_routes)")
     def _():
         r = subprocess.run([sys.executable, str(HERE / "test_routes.py")], capture_output=True, text=True,
@@ -263,6 +354,13 @@ def env_checks() -> None:
     else:
         record("OK", "Şarja takılı", f"yüzde {b[0]}")
 
+    if os.environ.get("DISPLAY"):
+        try:
+            from skills import screen  # noqa: PLC0415
+            n = len(screen.capture())
+            record("OK", "Ekran görüntüsü alınabiliyor", f"{n // 1024} KB (bellekte, diske yazılmadı)")
+        except Exception as exc:  # noqa: BLE001
+            record("UYARI", "Ekran görüntüsü alınamadı", f"{exc}")
     record("OK" if os.environ.get("DISPLAY") else "UYARI", "Grafik oturumu (DISPLAY)",
            "" if os.environ.get("DISPLAY") else "arayüz (--ui) açılamaz")
 
@@ -314,6 +412,7 @@ def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawTextHelpFormatter)
     ap.add_argument("--model", action="store_true", help="gerçek model araç seçimini de çalıştır")
     ap.add_argument("--repeat", type=int, default=3)
+    ap.add_argument("--vision", action="store_true", help="gerçek ekran görüşünü dene (görsel model ister)")
     g = ap.add_mutually_exclusive_group()
     g.add_argument("--quick", action="store_true", help="yalnızca mantık testleri")
     g.add_argument("--env", action="store_true", help="yalnızca ortam kontrolü")
@@ -325,6 +424,13 @@ def main() -> None:
         env_checks()
     if a.model:
         model_checks(a.repeat)
+    if a.vision:
+        print("\n[4] Ekran görüşü (gerçek model)")
+        from skills import screen  # noqa: PLC0415
+        t1 = time.perf_counter()
+        ans = screen.look_at_screen("Ekranda ne olduğunu iki cümleyle anlat.")
+        bad = ans.startswith("Hata") or "okuyamıyor" in ans or "okuyamadım" in ans
+        record("HATA" if bad else "OK", "Ekran görüşü", f"{time.perf_counter() - t1:.1f} sn: {ans[:200]}")
     shutil.rmtree(TMP, ignore_errors=True)
     n = {s: sum(1 for r in results if r[0] == s) for s in ("OK", "UYARI", "HATA")}
     print(f"\nÖZET: {n['OK']} OK, {n['UYARI']} uyarı, {n['HATA']} hata ({time.perf_counter() - t0:.0f} sn)")

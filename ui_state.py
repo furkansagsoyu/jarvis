@@ -58,6 +58,23 @@ def set_muted(value: bool) -> None:
     _store.save("control.json", ctl)
 
 
+def request_stop() -> None:
+    """Arayüzden "Sustur": Jarvis'in o an okuduğu cevabı keser."""
+    ctl = _store.load("control.json", {})
+    ctl["stop"] = True
+    _store.save("control.json", ctl)
+
+
+def consume_stop() -> bool:
+    """Sustur isteği varsa True döner ve isteği siler."""
+    ctl = _store.load("control.json", {})
+    if not ctl.get("stop"):
+        return False
+    ctl["stop"] = False
+    _store.save("control.json", ctl)
+    return True
+
+
 def reset() -> None:
     """Program açılırken: eski oturumdan kalan sessiz modu ve konuşma satırlarını temizler."""
     _store.save("control.json", {"mute": False})

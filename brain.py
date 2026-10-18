@@ -31,7 +31,7 @@ MODEL = "gemma4:e4b"
 MAX_HISTORY = 16
 MAX_TOOL_ROUNDS = 3
 # Uzaktan (Telegram) gelen komutlarda çalıştırılmayan araçlar: içerik makine dışına, üçüncü taraf sunucuya çıkar.
-REMOTE_BLOCKED = {"read_file", "recall"}
+REMOTE_BLOCKED = {"read_file", "recall", "look_at_screen"}
 
 # Ölçümle (tool_diag.py, tool_diag2.py, tool_check.py) doğrulandı: SADECE bu kısa hal 8/8 araç çağırıyor.
 # Kural eklemek (sayıları yazıyla yaz, anlık bilgiyi uydurma, yetenek listesi, cümle sınırı...) tek tek
@@ -52,7 +52,7 @@ ACTION_CLAIM = re.compile(
     r"çağırıyorum|kullanıyorum|öğreniyorum|bakıyorum|kontrol ediyorum|kullanmalıyım|çağırmalıyım|"
     r"açıldı|kapatıldı|ayarlandı|yapıldı|kısıldı|kısıldı|artırıldı|azaltıldı|arandı|başlatıldı|çalıştırıldı)\b|"
     r"\baraç|"
-    r"\b(open_app|set_volume|change_volume|get_time|get_date|web_search|list_abilities|remember|recall|forget|set_reminder|list_reminders|cancel_reminders|get_weather|get_battery|morning_brief|find_files|read_file|move_file|trash_file|undo_last_action)\b",
+    r"\b(open_app|set_volume|change_volume|get_time|get_date|web_search|list_abilities|remember|recall|forget|set_reminder|list_reminders|cancel_reminders|get_weather|get_battery|morning_brief|look_at_screen|find_files|read_file|move_file|trash_file|undo_last_action)\b",
     re.IGNORECASE,
 )
 # Saat/tarih gibi anlık bilgilerde modele karar bırakılmaz (gemma tarihi uydurdu: "25 Mayıs 2024").
@@ -67,6 +67,8 @@ WORD_READ = re.compile(r"\b(oku\w*|özetle\w*|içeri\w*)\b", re.I)
 WORD_FILE = re.compile(r"\bdosya\w*|\.(txt|md|pdf|py|csv|json)\b", re.I)
 READ_FILLER = re.compile(r"\b(dosya\w*|oku\w*|özetle\w*|içeri\w*|bana|bir|şu|şunu|bu|bunu|onu|söyle\w*|lütfen|ve|de|da)\b", re.I)
 WORD_BATTERY = re.compile(r"(\bpil\w*|batarya\w*|şarj\w*)\b.*\b(kaç|yüzde|durum\w*|ne kadar|seviye\w*|nasıl|kaldı)\b", re.I)
+WORD_SCREEN = re.compile(r"\bekran\w*\b.*\b(ne var|bak\w*|oku\w*|anlat\w*|özetle\w*|göster\w*|yazıyor|görüyor\w*)\b", re.I)
+WORD_SCREEN_NOT = re.compile(r"karart|aydınlat|parlak|kapat|kilitle|görüntüsü al|ekran görüntüsü|kaydet", re.I)
 WORD_BRIEF = re.compile(r"günaydın|günün özeti|sabah özeti|bugün neler var|bugünün özeti|özet ver", re.I)
 WORD_CONTEXT_REF = re.compile(r"\b(onu|bunu|şunu|ilk\w*|birinci\w*|ikinci\w*|üçüncü\w*|dördüncü\w*|beşinci\w*)\b", re.I)
 FOLLOWUP_TOOLS = {"read_file", "web_search"}  # sonucu doğrudan okunmaz; model özetleyip cevaplar
@@ -174,6 +176,8 @@ class Brain:
             return [("undo_last_action", {})]
         if "get_battery" in self.tools and WORD_BATTERY.search(text) and not NOT_A_QUERY.search(text):
             return [("get_battery", {})]
+        if "look_at_screen" in self.tools and WORD_SCREEN.search(text) and not WORD_SCREEN_NOT.search(text):
+            return [("look_at_screen", {"question": text})]
         if "morning_brief" in self.tools and WORD_BRIEF.search(text):
             return [("morning_brief", {})]
         if "read_file" in self.tools and WORD_READ.search(text) and not WORD_FILE.search(text) and WORD_CONTEXT_REF.search(text):
