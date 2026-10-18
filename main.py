@@ -60,6 +60,7 @@ def main():
     p.add_argument("--steps", type=int, default=16, help="yalnızca freya için")
     p.add_argument("--quiet-tts", action="store_true", help="TTS süre satırlarını gizle")
     p.add_argument("--ui", action="store_true", help="durum penceresi ve tepsi simgesi (ui.py) aç")
+    p.add_argument("--telegram", action="store_true", help="Telegram köprüsü (önce: python telegram_bot.py --setup)")
     p.add_argument("--morning", action="store_true", help="sabah (05-12) ilk açılışta günün özetini söyle (günde bir kez)")
     args = p.parse_args()
 
@@ -84,8 +85,33 @@ def main():
     brain.warm_up()
     print(f"      yetenekler: {', '.join(brain.tools)}", flush=True)
     print(f"\nHazır ({time.perf_counter() - t0:.0f} sn). Konuşabilirsin.\n", flush=True)
-    reminders.set_notifier(speaker.say)  # süre dolunca arka plan iş parçacığından sesli söyler
-    battery.Monitor(speaker.say).start()  # pil yüzde 20 ve 10'un altına düşünce bir kez uyarır
+    notify = speaker.say  # bildirimler (hatırlatma, pil) sesli söylenir; Telegram açıksa telefona da gider
+    if args.telegram:
+        import telegram_bot  # noqa: PLC0415
+
+        def on_telegram(text: str) -> str:
+            with brain.lock:
+                brain.remote = True  # uzaktan: read_file ve recall kapalı
+                try:
+                    ui_state.add_turn("sen", f"[Telegram] {text}")
+                    reply = "".join(brain.reply_stream(text)).strip()
+                    ui_state.add_turn("jarvis", reply)
+                    return reply
+                finally:
+                    brain.remote = False
+
+        bot = telegram_bot.make_bot(on_telegram)
+        if bot:
+            bot.start()
+
+            def notify(text, _say=speaker.say, _bot=bot):  # noqa: F811
+                _say(text)
+                _bot.notify(text)
+            print("      Telegram köprüsü açık.", flush=True)
+        else:
+            print("      Telegram kurulu değil (python telegram_bot.py --setup); atlandı.", flush=True)
+    reminders.set_notifier(notify)  # süre dolunca arka plan iş parçacığından sesli söyler
+    battery.Monitor(notify).start()  # pil yüzde 20 ve 10'un altına düşünce bir kez uyarır
     speaker.say("Hazırım.")
     missed = reminders.restore()  # kapalıyken kurulan hatırlatıcılar geri yüklenir
     if missed:
@@ -127,16 +153,17 @@ def main():
         said = []
         buffer = ""
         print("Jarvis> ", end="", flush=True)
-        for piece in brain.reply_stream(text):
-            print(piece, end="", flush=True)
-            buffer += piece
-            sentences, buffer = pop_sentences(buffer)
-            for s in sentences:
-                if first_audio_queued is None:
-                    first_audio_queued = time.perf_counter() - t_start
-                    ui_state.set_state("speaking")
-                said.append(s)
-                speaker.say(s)
+        with brain.lock:  # Telegram isteği ile aynı anda çalışmasın
+            for piece in brain.reply_stream(text):
+                print(piece, end="", flush=True)
+                buffer += piece
+                sentences, buffer = pop_sentences(buffer)
+                for s in sentences:
+                    if first_audio_queued is None:
+                        first_audio_queued = time.perf_counter() - t_start
+                        ui_state.set_state("speaking")
+                    said.append(s)
+                    speaker.say(s)
         if buffer.strip():
             ui_state.set_state("speaking")
             said.append(buffer)

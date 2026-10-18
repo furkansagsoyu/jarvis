@@ -18,6 +18,7 @@ Notlar:
 """
 import ast
 import re
+import threading
 import time
 
 import ollama
@@ -29,6 +30,8 @@ from skills import HIDDEN, capability_summary, load_skills
 MODEL = "gemma4:e4b"
 MAX_HISTORY = 16
 MAX_TOOL_ROUNDS = 3
+# Uzaktan (Telegram) gelen komutlarda çalıştırılmayan araçlar: içerik makine dışına, üçüncü taraf sunucuya çıkar.
+REMOTE_BLOCKED = {"read_file", "recall"}
 
 # Ölçümle (tool_diag.py, tool_diag2.py, tool_check.py) doğrulandı: SADECE bu kısa hal 8/8 araç çağırıyor.
 # Kural eklemek (sayıları yazıyla yaz, anlık bilgiyi uydurma, yetenek listesi, cümle sınırı...) tek tek
@@ -86,6 +89,8 @@ class Brain:
         self.system = system
         self.history: list[dict] = []
         self._think_kw = {"think": False}
+        self.lock = threading.RLock()  # ses döngüsü ve Telegram aynı beyni sırayla kullanır
+        self.remote = False            # True iken (Telegram) REMOTE_BLOCKED araçlar reddedilir
 
     # -- ısınma: modeli belleğe al (ilk cevap gecikmesi azalır)
     def warm_up(self):
@@ -108,6 +113,8 @@ class Brain:
         entry = self.tools.get(name)
         if not entry:
             return f"Hata: '{name}' adında bir araç yok."
+        if self.remote and name in REMOTE_BLOCKED:
+            return "Bunu güvenlik nedeniyle uzaktan yapmıyorum, bilgisayarın başındayken sor."
         try:
             return str(entry[1](**(args or {})))
         except Exception as exc:  # noqa: BLE001

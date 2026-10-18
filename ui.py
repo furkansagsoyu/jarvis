@@ -43,6 +43,14 @@ def stop_jarvis(st: dict) -> None:
         os.kill(pid, signal.SIGTERM)
 
 
+_TR = str.maketrans("çğıöşüÇĞİÖŞÜ", "cgiosuCGIOSU")
+
+
+def ascii_title(text: str) -> str:
+    """X11 tepsi ipucu Latin-1 ister; Türkçe harfler ASCII'ye çevrilir (pencerede Türkçe kalır)."""
+    return text.translate(_TR)
+
+
 def make_icon(color: str):
     from PIL import Image, ImageDraw  # noqa: PLC0415
 
@@ -126,8 +134,11 @@ def run():
             label.config(text=ui_state.STATES.get(state, state))
             mute_btn.config(text="Sesi aç" if state == "muted" else "Sessize al")
             if icon:
-                icon.icon = make_icon(COLORS.get(state, "#9aa0a6"))
-                icon.title = f"Jarvis: {ui_state.STATES.get(state, state)}"
+                try:
+                    icon.icon = make_icon(COLORS.get(state, "#9aa0a6"))
+                    icon.title = ascii_title(f"Jarvis: {ui_state.STATES.get(state, state)}")
+                except Exception as exc:  # noqa: BLE001  (tepsi güncellemesi arayüzü asla düşürmesin)
+                    print(f"[ui] tepsi güncellenemedi ({type(exc).__name__}: {exc})", flush=True)
             last["state"] = state
         text = turns_text(st)
         if text != last["text"]:
