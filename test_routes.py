@@ -56,6 +56,19 @@ CASES = [
 CONTEXT_CASES = [("onu oku", "read_file"), ("ikincisini özetle", "read_file"), ("ilk yardım nedir", None)]
 
 
+# Tarayıcı: kapalıyken yalnızca "site aç" gider; açıkken tıkla/yaz/oku/geri de gider
+BROWSER_CLOSED = [
+    ("github.com'a git", "browser_open"), ("wikipedia.org sitesini aç", "browser_open"),
+    ("YouTube sitesine git", "browser_open"), ("Google Chrome'u aç", None), ("rapor.pdf dosyasını aç", None),
+    ("Giriş butonuna bas", None), ("sayfayı oku", None), ("tarayıcıyı kapat", None),
+]
+BROWSER_OPEN = [
+    ("sayfayı oku", "browser_read"), ("bu sayfada ne yazıyor", "browser_read"), ("geri git", "browser_back"),
+    ("tarayıcıyı kapat", "browser_close"), ("Giriş butonuna bas", "browser_click"), ("Ara'ya tıkla", "browser_click"),
+    ("arama kutusuna jarvis yaz ve ara", "browser_type"), ("youtube'a git", "browser_open"),
+]
+
+
 def main():
     brain = Brain(tools=None)
     bad = 0
@@ -79,6 +92,24 @@ def main():
     ok = not got
     bad += not ok
     print(f"{'OK  ' if ok else 'HATA'} [bağlamsız] 'onu oku' -> {got or None}  (beklenen None)")
+    from skills import browser  # noqa: PLC0415
+    real = browser.is_active
+    for label, cases, state in (("tarayıcı kapalı", BROWSER_CLOSED, False), ("tarayıcı açık", BROWSER_OPEN, True)):
+        browser.is_active = lambda s=state: s
+        for text, want in cases:
+            got = brain._fast_route(text)
+            name = got[0][0] if got else None
+            ok = name == want
+            bad += not ok
+            print(f"{'OK  ' if ok else 'HATA'} [{label}] {text!r:34} -> {name}  (beklenen {want})")
+    browser.is_active = real
+    got = brain._browser_route("arama kutusuna jarvis yaz ve ara") or [("", {})]
+    browser.is_active = lambda: True
+    a = brain._browser_route("arama kutusuna jarvis yaz ve ara")[0][1]
+    ok = a == {"field": "arama", "text": "jarvis", "submit": True}
+    bad += not ok
+    print(f"{'OK  ' if ok else 'HATA'} yazma argümanları {a}")
+    browser.is_active = real
     print(f"\n{'TÜMÜ TAMAM' if not bad else f'{bad} HATA'}")
     sys.exit(1 if bad else 0)
 

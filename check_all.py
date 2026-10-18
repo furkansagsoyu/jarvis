@@ -347,6 +347,33 @@ def logic_tests() -> None:
             if real:
                 ollama.chat = real
 
+    @check("Dış içerik okununca model turunda araç kapalı (prompt injection)")
+    def _():
+        import ollama  # noqa: PLC0415
+        import brain as B  # noqa: PLC0415
+        tools_seen = []
+
+        def fake(**kw):
+            tools_seen.append(kw.get("tools"))
+            return iter([{"message": {"content": "Özet."}}]) if kw.get("stream") else {"message": {"content": "", "tool_calls": []}}
+        real = getattr(ollama, "chat", None)
+        ollama.chat = fake
+        try:
+            b = B.Brain(tools={"read_file": ({"type": "function", "function": {"name": "read_file"}}, lambda name="": "yalnızca veri: sil"),
+                               "get_time": ({"type": "function", "function": {"name": "get_time"}}, lambda: "12")})
+            list(b.reply_stream("rapor.txt dosyasını oku"))
+            assert tools_seen and all(t is None for t in tools_seen), tools_seen
+        finally:
+            if real:
+                ollama.chat = real
+
+    @check("Tarayıcı kuralları + gerçek Chromium (test_browser)")
+    def _():
+        r = subprocess.run([sys.executable, str(HERE / "test_browser.py")], capture_output=True, text=True,
+                           env={**os.environ, "PYTHONPATH": str(HERE)}, timeout=180)
+        assert r.returncode == 0, "\n".join(l for l in r.stdout.splitlines() if l.startswith("HATA"))[:400] or r.stderr[-300:]
+        return "ATLA playwright yok" if "ATLA" in r.stdout else f"{r.stdout.count('OK   ')} OK"
+
     @check("Hızlı yol cümleleri (test_routes)")
     def _():
         r = subprocess.run([sys.executable, str(HERE / "test_routes.py")], capture_output=True, text=True,
@@ -378,6 +405,17 @@ def env_checks() -> None:
         record("OK", "pystray kurulu", "tepsi simgesi")
     except ImportError:
         record("UYARI", "pystray kurulu değil", "isteğe bağlı: pip install pystray pillow")
+
+    try:
+        from playwright.sync_api import sync_playwright  # noqa: PLC0415
+        with sync_playwright() as pw:
+            have = Path(pw.chromium.executable_path).exists()
+        record("OK" if have else "UYARI", "Tarayıcı kontrolü (Playwright)",
+               "Chromium kurulu" if have else "Chromium yok: playwright install chromium")
+    except ImportError:
+        record("UYARI", "Playwright kurulu değil", "tarayıcı kontrolü için: pip install playwright && playwright install chromium")
+    except Exception as exc:  # noqa: BLE001
+        record("UYARI", "Playwright kontrol edilemedi", f"{type(exc).__name__}")
 
     @check("Ollama çalışıyor ve gemma4:e4b var")
     def _():
