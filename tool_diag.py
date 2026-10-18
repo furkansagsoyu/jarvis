@@ -12,9 +12,11 @@ import argparse
 import ollama
 
 from brain import MODEL, SYSTEM
-from skills import capability_summary, load_skills
+from skills import HIDDEN, capability_summary, load_skills
 
 CASES = [
+    ("Ankara'nın nüfusunu araştır", "web_search"),
+    ("Yapay zeka nedir, internetten bak", "web_search"),
     ("Sesi yüzde elliye ayarla", "set_volume"),
     ("Sesi kıs", "change_volume"),
     ("Sesi biraz aç", "change_volume"),
@@ -86,7 +88,7 @@ def main():
     args = p.parse_args()
 
     tools = load_skills()
-    schemas = [s for s, _ in tools.values()]
+    schemas = [s for n, (s, _) in tools.items() if n not in HIDDEN]
     caps = SYSTEM + (
         f" Yapabildiğin işler şunlar: {capability_summary(tools)}. "
         "Bunların dışında bir eylem istenirse bunu yapamadığını söyle, yapmış gibi davranma."

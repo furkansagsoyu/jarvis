@@ -14,11 +14,16 @@ import stt
 stt.ensure_cuda_libs()  # LD_LIBRARY_PATH'i ayarlar (gerekirse programı bir kez yeniden başlatır)
 
 import argparse  # noqa: E402
+import os  # noqa: E402
 import re  # noqa: E402
+import subprocess  # noqa: E402
+import sys  # noqa: E402
 import time  # noqa: E402
+from pathlib import Path  # noqa: E402
 
+import ui_state  # noqa: E402
 from brain import Brain  # noqa: E402
-from skills import reminders  # noqa: E402
+from skills import battery, briefing, reminders  # noqa: E402
 from tts import make_speaker  # noqa: E402
 
 SENTENCE_END = re.compile(r"(?<=[.!?…])\s+")
@@ -54,8 +59,14 @@ def main():
     p.add_argument("--tts-device", default="cpu", choices=["cpu", "cuda"], help="TTS cihazı (cuda ~1 GB VRAM ister)")
     p.add_argument("--steps", type=int, default=16, help="yalnızca freya için")
     p.add_argument("--quiet-tts", action="store_true", help="TTS süre satırlarını gizle")
+    p.add_argument("--ui", action="store_true", help="durum penceresi ve tepsi simgesi (ui.py) aç")
+    p.add_argument("--morning", action="store_true", help="sabah (05-12) ilk açılışta günün özetini söyle (günde bir kez)")
     args = p.parse_args()
 
+    ui_state.reset()
+    ui_proc = None
+    if args.ui and os.environ.get("DISPLAY"):
+        ui_proc = subprocess.Popen([sys.executable, str(Path(__file__).with_name("ui.py"))])
     t0 = time.perf_counter()
     listener = None
     if not args.text:
@@ -74,10 +85,22 @@ def main():
     print(f"      yetenekler: {', '.join(brain.tools)}", flush=True)
     print(f"\nHazır ({time.perf_counter() - t0:.0f} sn). Konuşabilirsin.\n", flush=True)
     reminders.set_notifier(speaker.say)  # süre dolunca arka plan iş parçacığından sesli söyler
+    battery.Monitor(speaker.say).start()  # pil yüzde 20 ve 10'un altına düşünce bir kez uyarır
     speaker.say("Hazırım.")
+    missed = reminders.restore()  # kapalıyken kurulan hatırlatıcılar geri yüklenir
+    if missed:
+        speaker.say(missed)
+    if args.morning and briefing.due_today():
+        speaker.say(briefing.morning_brief())
+        briefing.mark_done()
     speaker.wait()
 
     while True:
+        if wake and ui_state.is_muted():  # arayüzden sessize alındı: mikrofon hiç dinlenmez
+            ui_state.set_state("muted")
+            time.sleep(0.5)
+            continue
+        ui_state.set_state("listening")
         try:
             if args.text:
                 text = input("\nSen> ").strip()
@@ -97,8 +120,11 @@ def main():
             speaker.wait()
             break
 
+        ui_state.add_turn("sen", text)
+        ui_state.set_state("thinking")
         t_start = time.perf_counter()
         first_audio_queued = None
+        said = []
         buffer = ""
         print("Jarvis> ", end="", flush=True)
         for piece in brain.reply_stream(text):
@@ -108,13 +134,21 @@ def main():
             for s in sentences:
                 if first_audio_queued is None:
                     first_audio_queued = time.perf_counter() - t_start
+                    ui_state.set_state("speaking")
+                said.append(s)
                 speaker.say(s)
         if buffer.strip():
+            ui_state.set_state("speaking")
+            said.append(buffer)
             speaker.say(buffer)
+        ui_state.add_turn("jarvis", " ".join(said))
         print(f"\n  (ilk cümle TTS'e {first_audio_queued or 0:.2f} sn'de gitti)", flush=True)
         speaker.wait()
         if wake:
             time.sleep(0.4)  # hoparlör sönümü mikrofona karışmasın
+    ui_state.set_state("stopped")
+    if ui_proc:
+        ui_proc.terminate()
 
 
 if __name__ == "__main__":

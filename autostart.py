@@ -22,7 +22,7 @@ DESKTOP = Path.home() / ".config" / "autostart" / "jarvis.desktop"
 
 def desktop_text() -> str:
     log = HERE / "data" / "jarvis.log"
-    cmd = f"mkdir -p {shlex.quote(str(log.parent))}; cd {shlex.quote(str(HERE))} && exec {shlex.quote(sys.executable)} main.py --wake >> {shlex.quote(str(log))} 2>&1"
+    cmd = f"mkdir -p {shlex.quote(str(log.parent))}; cd {shlex.quote(str(HERE))} && exec {shlex.quote(sys.executable)} main.py --wake --ui --morning >> {shlex.quote(str(log))} 2>&1"
     return (
         "[Desktop Entry]\n"
         "Type=Application\n"

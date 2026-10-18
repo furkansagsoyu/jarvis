@@ -21,9 +21,10 @@ import time
 import ollama
 
 SYSTEM = (
-    "Sen Jarvis adlı, Türkçe konuşan bir bilgisayar asistanısın. "
-    "Kısa ve net cevap ver. Bir eylem gerekiyorsa uygun aracı çağır, "
-    "gerekmiyorsa araç çağırma."
+    "Adın Jarvis. Türkçe konuşan bir sesli bilgisayar asistanısın. "
+    "Cevapların yüksek sesle okunacak: kısa, düz cümlelerle yaz; "
+    "madde işareti, kalın yazı, emoji ve kod bloğu kullanma. "
+    "Bir eylem gerekiyorsa uygun aracı çağır, gerekmiyorsa araç çağırma."
 )
 
 TOOLS = [
@@ -201,6 +202,29 @@ def tool_case(model, utterance):
     return get(fn, "name"), dict(get(fn, "arguments", {}) or {}), elapsed
 
 
+def show_placement(model):
+    """Modelin ne kadarının GPU'da (VRAM) olduğunu yazar. Kalan kısım CPU'da çalışır ve yavaşlatır."""
+    try:
+        for m in get(ollama.ps(), "models", []) or []:
+            if get(m, "model") == model or get(m, "name") == model:
+                size = get(m, "size", 0) or 0
+                vram = get(m, "size_vram", 0) or 0
+                pct = 100 * vram / size if size else float("nan")
+                print(f"[bellek] toplam {size / 1e9:.1f} GB, VRAM'de {vram / 1e9:.1f} GB (%{pct:.0f} GPU)")
+                return
+        print("[bellek] model 'ollama ps' listesinde görünmüyor")
+    except Exception as exc:  # noqa: BLE001
+        print(f"[bellek] okunamadı: {exc}")
+
+
+def unload(model):
+    """Modeli bellekten atar, böylece sıradaki model temiz bir VRAM ile başlar."""
+    try:
+        ollama.generate(model=model, prompt="", keep_alive=0)
+    except Exception:  # noqa: BLE001
+        pass
+
+
 def run_model(model):
     print(f"\n{'=' * 70}\nMODEL: {model}\n{'=' * 70}")
     try:
@@ -222,6 +246,8 @@ def run_model(model):
             ttfts.append(ttft)
             speeds.append(tps)
 
+    show_placement(model)
+
     print("\n-- Araç çağırma --")
     correct, times = 0, []
     for utterance, exp_name, exp_args in CASES:
@@ -233,13 +259,15 @@ def run_model(model):
         want = exp_name or "araç çağırmamalı"
         print(f"{'OK  ' if ok else 'HATA'} | {utterance!r:42} -> {shown}  [beklenen: {want}] {elapsed:.1f} sn")
 
-    return {
+    result = {
         "model": model,
         "tool": f"{correct}/{len(CASES)}",
         "ttft": sum(ttfts) / len(ttfts) if ttfts else float("nan"),
         "tps": sum(speeds) / len(speeds) if speeds else float("nan"),
         "tool_time": sum(times) / len(times) if times else float("nan"),
     }
+    unload(model)
+    return result
 
 
 def main():

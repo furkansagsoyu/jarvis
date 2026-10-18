@@ -4,3 +4,5 @@ numpy
 ollama
 piper-tts
 openwakeword
+pystray   # isteğe bağlı: tepsi simgesi (ui.py); yoksa yalnızca pencere açılır
+pillow    # pystray için simge çizimi

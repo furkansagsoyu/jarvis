@@ -23,7 +23,8 @@ import time
 import ollama
 
 from skills import _confirm as confirm
-from skills import capability_summary, load_skills
+from skills import files as _files
+from skills import HIDDEN, capability_summary, load_skills
 
 MODEL = "gemma4:e4b"
 MAX_HISTORY = 16
@@ -48,7 +49,7 @@ ACTION_CLAIM = re.compile(
     r"çağırıyorum|kullanıyorum|öğreniyorum|bakıyorum|kontrol ediyorum|kullanmalıyım|çağırmalıyım|"
     r"açıldı|kapatıldı|ayarlandı|yapıldı|kısıldı|kısıldı|artırıldı|azaltıldı|arandı|başlatıldı|çalıştırıldı)\b|"
     r"\baraç|"
-    r"\b(open_app|set_volume|change_volume|get_time|get_date|web_search|list_abilities|remember|recall|forget|set_reminder|list_reminders|cancel_reminders|get_weather|find_files|read_file|move_file|trash_file|undo_last_action)\b",
+    r"\b(open_app|set_volume|change_volume|get_time|get_date|web_search|list_abilities|remember|recall|forget|set_reminder|list_reminders|cancel_reminders|get_weather|get_battery|morning_brief|find_files|read_file|move_file|trash_file|undo_last_action)\b",
     re.IGNORECASE,
 )
 # Saat/tarih gibi anlık bilgilerde modele karar bırakılmaz (gemma tarihi uydurdu: "25 Mayıs 2024").
@@ -62,7 +63,10 @@ CITY_NAMED = re.compile(r"[A-ZÇĞİÖŞÜ][a-zçğıöşü]+['’]")  # "İstan
 WORD_READ = re.compile(r"\b(oku\w*|özetle\w*|içeri\w*)\b", re.I)
 WORD_FILE = re.compile(r"\bdosya\w*|\.(txt|md|pdf|py|csv|json)\b", re.I)
 READ_FILLER = re.compile(r"\b(dosya\w*|oku\w*|özetle\w*|içeri\w*|bana|bir|şu|şunu|bu|bunu|onu|söyle\w*|lütfen|ve|de|da)\b", re.I)
-FOLLOWUP_TOOLS = {"read_file"}  # sonucu doğrudan okunmaz; model özetleyip cevaplar
+WORD_BATTERY = re.compile(r"(\bpil\w*|batarya\w*|şarj\w*)\b.*\b(kaç|yüzde|durum\w*|ne kadar|seviye\w*|nasıl|kaldı)\b", re.I)
+WORD_BRIEF = re.compile(r"günaydın|günün özeti|sabah özeti|bugün neler var|bugünün özeti|özet ver", re.I)
+WORD_CONTEXT_REF = re.compile(r"\b(onu|bunu|şunu|ilk\w*|birinci\w*|ikinci\w*|üçüncü\w*|dördüncü\w*|beşinci\w*)\b", re.I)
+FOLLOWUP_TOOLS = {"read_file", "web_search"}  # sonucu doğrudan okunmaz; model özetleyip cevaplar
 WORD_UNDO = re.compile(r"geri al|eski haline|eskisi gibi|önceki haline|eski seviyesine|az önceki(ni)? (iptal|geri)", re.I)
 TEXT_CALL = re.compile(r"^\s*`*([a-z_]+)\((.*)\)`*\s*$", re.S)
 NUDGE = "Bu isteği gerçekten yerine getirmek için uygun aracı çağır. Uygun araç yoksa yapamadığını söyle."
@@ -161,6 +165,14 @@ class Brain:
             return [("get_weather", {"day": "yarın"} if "yarın" in text.lower() else {})]
         if "undo_last_action" in self.tools and WORD_UNDO.search(text):
             return [("undo_last_action", {})]
+        if "get_battery" in self.tools and WORD_BATTERY.search(text) and not NOT_A_QUERY.search(text):
+            return [("get_battery", {})]
+        if "morning_brief" in self.tools and WORD_BRIEF.search(text):
+            return [("morning_brief", {})]
+        if "read_file" in self.tools and WORD_READ.search(text) and not WORD_FILE.search(text) and WORD_CONTEXT_REF.search(text):
+            ref = WORD_CONTEXT_REF.search(text).group(1)  # "onu oku", "ikincisini özetle": son 'dosya bul' sonucuna gönderme
+            if _files.has_context():
+                return [("read_file", {"name": ref})]
         if "read_file" in self.tools and WORD_READ.search(text) and WORD_FILE.search(text):
             name = re.sub(r"\s+", " ", READ_FILLER.sub(" ", text)).strip(" .,?!")
             name = re.sub(r"(\.\w+)['’]\w+", r"\1", name)  # "rapor.pdf'yi" -> "rapor.pdf"
@@ -205,7 +217,7 @@ class Brain:
                 return
         messages = [{"role": "system", "content": self.system}, *self.history,
                     {"role": "user", "content": user_text}]
-        schemas = [schema for schema, _ in self.tools.values()]
+        schemas = [schema for name, (schema, _) in self.tools.items() if name not in HIDDEN]
         spoken: list[str] = []
 
         fast = self._fast_route(user_text)
@@ -244,7 +256,7 @@ class Brain:
                         break
                 if not "".join(spoken).strip():  # model araçtan sonra sustu: araç sonucunu söyle
                     text = " ".join(results)
-                    if "dosyasının içeriği" in text:  # ham dosya içeriği sesli okunmasın
+                    if "yalnızca veri" in text:  # ham dosya içeriği / arama sonucu sesli okunmasın
                         text = FAIL_TEXT
                     spoken.append(text)
                     yield text

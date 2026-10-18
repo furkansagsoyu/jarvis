@@ -1,7 +1,11 @@
-"""Hatırlatıcı / zamanlayıcı. Süre dolunca main.py'nin verdiği bildirici sesli söyler."""
+"""Hatırlatıcı / zamanlayıcı. Süre dolunca main.py'nin verdiği bildirici sesli söyler.
+
+Kalıcıdır: data/reminders.json. Program yeniden açılınca restore() ile kurulur."""
 import datetime as dt
 import subprocess
 import threading
+
+from . import _store
 
 _lock = threading.Lock()
 _active: list[dict] = []   # {"id", "when", "message", "timer"}
@@ -14,11 +18,52 @@ def set_notifier(fn) -> None:
     _notifier = fn
 
 
+def _persist() -> None:
+    """Kurulu hatırlatıcıları data/reminders.json'a yazar (_lock altında çağrılır)."""
+    _store.save("reminders.json", [
+        {"id": r["id"], "when": r["when"].isoformat(timespec="seconds"), "message": r["message"]} for r in _active
+    ])
+
+
+def _arm(rid: int, when: dt.datetime, message: str, delay: float) -> None:
+    timer = threading.Timer(delay, _fire, args=(rid,))
+    timer.daemon = True
+    _active.append({"id": rid, "when": when, "message": message, "timer": timer})
+    timer.start()
+
+
+def restore() -> str:
+    """Program açılırken: kayıtlı hatırlatıcıları yeniden kurar. Kapalıyken zamanı geçenleri bir cümleyle bildirir."""
+    global _next_id
+    saved = _store.load("reminders.json", [])
+    now = dt.datetime.now()
+    missed: list[str] = []
+    with _lock:
+        _active.clear()
+        for r in saved:
+            try:
+                when = dt.datetime.fromisoformat(r["when"])
+                rid = int(r["id"])
+            except (KeyError, ValueError, TypeError):
+                continue
+            _next_id = max(_next_id, rid + 1)
+            msg = str(r.get("message", ""))
+            if when <= now:
+                missed.append(msg or "zamanlayıcı")
+            else:
+                _arm(rid, when, msg, (when - now).total_seconds())
+        _persist()
+    if not missed:
+        return ""
+    return "Ben kapalıyken zamanı geçen hatırlatıcılar vardı: " + ", ".join(missed) + "."
+
+
 def _fire(rid: int) -> None:
     with _lock:
         item = next((r for r in _active if r["id"] == rid), None)
         if item:
             _active.remove(item)
+            _persist()
     if not item:
         return
     text = f"Hatırlatma: {item['message']}" if item["message"] else "Süre doldu."
@@ -64,10 +109,8 @@ def set_reminder(minutes: float = 0, at: str = "", message: str = "") -> str:
     with _lock:
         rid = _next_id
         _next_id += 1
-        timer = threading.Timer(delay, _fire, args=(rid,))
-        timer.daemon = True
-        _active.append({"id": rid, "when": now + dt.timedelta(seconds=delay), "message": (message or "").strip(), "timer": timer})
-    timer.start()
+        _arm(rid, now + dt.timedelta(seconds=delay), (message or "").strip(), delay)
+        _persist()
     return f"Tamam, {_duration_text(delay)} sonra hatırlatacağım."
 
 
@@ -87,6 +130,7 @@ def cancel_reminders() -> str:
         for r in _active:
             r["timer"].cancel()
         _active.clear()
+        _persist()
     return f"{n} hatırlatıcıyı iptal ettim." if n else "İptal edilecek hatırlatıcı yok."
 
 

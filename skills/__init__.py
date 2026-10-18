@@ -9,6 +9,7 @@ Bir yetenek dosyası şunu tanımlar:
             "description": "Ne yapar. Ne zaman kullanılır.",   # ilk cümle yetenek listesine girer
             "parameters": {...},                     # JSON şeması (parametre yoksa atlanabilir)
             "run": fonksiyon,                        # parametreleri anahtar kelime olarak alır, str döndürür
+            "hidden": True,                          # (isteğe bağlı) modelin şemasına girmez, yalnızca hızlı yoldan çağrılır
         },
     ]
 
@@ -19,9 +20,15 @@ import pkgutil
 from pathlib import Path
 
 
+# Modelin şemasında GÖRÜNMEYEN, yalnızca kural tabanlı hızlı yoldan çağrılan araçlar ("hidden": True).
+# Araç sayısı arttıkça Gemma'nın doğru aracı seçmesi bozuluyor; sık ve kalıbı belli olanları modelden saklarız.
+HIDDEN: set[str] = set()
+
+
 def load_skills(verbose: bool = False) -> dict:
     """{ad: (ollama_şeması, fonksiyon)} sözlüğü döndürür."""
     tools: dict = {}
+    HIDDEN.clear()
     for info in sorted(pkgutil.iter_modules([str(Path(__file__).parent)]), key=lambda i: i.name):
         if info.name.startswith("_"):
             continue
@@ -44,6 +51,8 @@ def load_skills(verbose: bool = False) -> dict:
                 },
             }
             tools[name] = (schema, sk["run"])
+            if sk.get("hidden"):
+                HIDDEN.add(name)
             if verbose:
                 print(f"[skills] yüklendi: {name} ({info.name}.py)", flush=True)
     return tools

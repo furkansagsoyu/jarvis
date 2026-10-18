@@ -10,6 +10,7 @@ Araçları ÇALIŞTIRMAZ; modelin hangi aracı seçtiğine bakar.
 import argparse
 
 from brain import Brain
+from skills import HIDDEN
 from tool_diag import CASES
 
 
@@ -20,7 +21,7 @@ def main():
 
     brain = Brain()
     brain.warm_up()
-    schemas = [s for s, _ in brain.tools.values()]
+    schemas = [s for n, (s, _) in brain.tools.items() if n not in HIDDEN]  # gizli araçları model görmez
 
     ok = total = 0
     for text, expected in CASES:

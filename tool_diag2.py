@@ -8,7 +8,7 @@ Araçları ÇALIŞTIRMAZ.
 import ollama
 
 from brain import MODEL
-from skills import capability_summary, load_skills
+from skills import HIDDEN, capability_summary, load_skills
 from tool_diag import CASES, SHORT_SYSTEM, first_tool
 
 RULES = {
@@ -25,7 +25,7 @@ RULES = {
 
 def main():
     tools = load_skills()
-    schemas = [s for s, _ in tools.values()]
+    schemas = [s for n, (s, _) in tools.items() if n not in HIDDEN]
     caps = (
         f" Yapabildiğin işler şunlar: {capability_summary(tools)}. "
         "Bunların dışında bir eylem istenirse bunu yapamadığını söyle, yapmış gibi davranma."
