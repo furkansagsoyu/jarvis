@@ -69,6 +69,11 @@ BROWSER_OPEN = [
 ]
 
 
+CAMERA = [
+    ("kameraya bak", "look_at_camera"), ("kamerada ne var", "look_at_camera"), ("webcamde ne görüyorsun", "look_at_camera"),
+    ("elimde ne var", "look_at_camera"), ("bana bak", "look_at_camera"), ("kamerayı aç", None), ("kamera ayarlarını aç", None),
+    ("ekranda ne var", "look_at_screen"),
+]
 DESKTOP = [
     ("fareyi sağa götür", "mouse_move"), ("Fareyi biraz yukarı kaydır", "mouse_move"), ("fareyi sol üst köşeye götür", "mouse_move"),
     ("tıkla", "mouse_click"), ("çift tıkla", "mouse_click"), ("sağ tıkla", "mouse_click"),
@@ -102,6 +107,12 @@ def main():
     ok = not got
     bad += not ok
     print(f"{'OK  ' if ok else 'HATA'} [bağlamsız] 'onu oku' -> {got or None}  (beklenen None)")
+    for text, want in CAMERA:
+        got = brain._fast_route(text)
+        name = got[0][0] if got else None
+        ok = name == want
+        bad += not ok
+        print(f"{'OK  ' if ok else 'HATA'} [kamera] {text!r:34} -> {name}  (beklenen {want})")
     for text, want in DESKTOP:
         got = brain._fast_route(text)
         name = got[0][0] if got else None

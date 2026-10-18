@@ -41,7 +41,7 @@ SUMMARY_MAX = 700  # özet bu kadar karakteri geçmez (prompt şişmesin, araç 
 SESSION_FILE = "session.json"
 SESSION_TTL = 12 * 3600  # bundan eski konuşma geçmişi yüklenmez
 # Uzaktan (Telegram) gelen komutlarda çalıştırılmayan araçlar: içerik makine dışına, üçüncü taraf sunucuya çıkar.
-REMOTE_BLOCKED = {"read_file", "recall", "look_at_screen", "browser_open", "browser_read", "browser_click",
+REMOTE_BLOCKED = {"read_file", "recall", "look_at_screen", "look_at_camera", "browser_open", "browser_read", "browser_click",
                   "browser_type", "browser_back", "browser_close", "mouse_move", "mouse_click", "scroll",
                   "keyboard_type", "press_key"}
 
@@ -64,7 +64,7 @@ ACTION_CLAIM = re.compile(
     r"çağırıyorum|kullanıyorum|öğreniyorum|bakıyorum|kontrol ediyorum|kullanmalıyım|çağırmalıyım|"
     r"açıldı|kapatıldı|ayarlandı|yapıldı|kısıldı|kısıldı|artırıldı|azaltıldı|arandı|başlatıldı|çalıştırıldı)\b|"
     r"\baraç|"
-    r"\b(open_app|set_volume|change_volume|get_time|get_date|web_search|list_abilities|remember|recall|forget|set_reminder|list_reminders|cancel_reminders|get_weather|get_battery|morning_brief|look_at_screen|browser_open|browser_read|browser_click|browser_type|browser_back|browser_close|mouse_move|mouse_click|keyboard_type|press_key|get_system_status|find_files|read_file|move_file|trash_file|undo_last_action)\b",
+    r"\b(open_app|set_volume|change_volume|get_time|get_date|web_search|list_abilities|remember|recall|forget|set_reminder|list_reminders|cancel_reminders|get_weather|get_battery|morning_brief|look_at_screen|look_at_camera|browser_open|browser_read|browser_click|browser_type|browser_back|browser_close|mouse_move|mouse_click|keyboard_type|press_key|get_system_status|find_files|read_file|move_file|trash_file|undo_last_action)\b",
     re.IGNORECASE,
 )
 # Saat/tarih gibi anlık bilgilerde modele karar bırakılmaz (gemma tarihi uydurdu: "25 Mayıs 2024").
@@ -80,6 +80,8 @@ WORD_FILE = re.compile(r"\bdosya\w*|\.(txt|md|pdf|py|csv|json)\b", re.I)
 READ_FILLER = re.compile(r"\b(dosya\w*|oku\w*|özetle\w*|içeri\w*|bana|bir|şu|şunu|bu|bunu|onu|söyle\w*|lütfen|ve|de|da)\b", re.I)
 WORD_BATTERY = re.compile(r"(\bpil\w*|batarya\w*|şarj\w*)\b.*\b(kaç|yüzde|durum\w*|ne kadar|seviye\w*|nasıl|kaldı)\b", re.I)
 WORD_SCREEN = re.compile(r"\bekran\w*\b.*\b(ne var|bak\w*|oku\w*|anlat\w*|özetle\w*|göster\w*|yazıyor|görüyor\w*)\b", re.I)
+WORD_CAMERA = re.compile(r"\b(kamera\w*|web\s?(?:cam|kam)\w*)\b.*\b(bak\w*|ne var|görüyor\w*|anlat\w*|göster\w*)\b|\bbana bak\b|\belimde ne var\b|\bkarşında ne var\b", re.I)
+WORD_CAMERA_NOT = re.compile(r"\b(aç|kapat|ayarla|kur|indir|yükle)\w*\b", re.I)
 WORD_SCREEN_NOT = re.compile(r"karart|aydınlat|parlak|kapat|kilitle|görüntüsü al|ekran görüntüsü|kaydet", re.I)
 WORD_HW = re.compile(r"\b(cpu|işlemci\w*|ram|vram|gpu|ekran kart\w*|disk\w*|depolama\w*|sistem durumu\w*|bilgisayar\w*\s+(nasıl|durumu|ne durumda|sıcaklığ\w*)|donanım\w*)\b", re.I)
 WORD_RESET = re.compile(r"konuşmayı\s+(sıfırla|unut|temizle)|yeni konuşma|baştan başla|geçmişi\s+(sil|temizle|unut)", re.I)
@@ -87,7 +89,7 @@ WORD_BRIEF = re.compile(r"günaydın|günün özeti|sabah özeti|bugün neler va
 WORD_CONTEXT_REF = re.compile(r"\b(onu|bunu|şunu|ilk\w*|birinci\w*|ikinci\w*|üçüncü\w*|dördüncü\w*|beşinci\w*)\b", re.I)
 FOLLOWUP_TOOLS = {"read_file", "web_search", "browser_read"}  # sonucu doğrudan okunmaz; model özetleyip cevaplar
 # Dışarıdan gelen metin döndüren araçlar: sonrasındaki model turunda ARAÇ KAPALI (prompt injection araç çağıramasın).
-UNTRUSTED_TOOLS = {"read_file", "web_search", "browser_read", "look_at_screen"}
+UNTRUSTED_TOOLS = {"read_file", "web_search", "browser_read", "look_at_screen", "look_at_camera"}
 WORD_UNDO = re.compile(r"geri al|eski haline|eskisi gibi|önceki haline|eski seviyesine|az önceki(ni)? (iptal|geri)", re.I)
 _TLD = r"(?:com|org|net|io|dev|edu|gov|tr|co|info|app|ai|me)"
 BR_SITE = re.compile(r"\b((?:[a-z0-9\-]+\.)+" + _TLD + r"(?:/[^\s]*)?)", re.I)
@@ -377,6 +379,8 @@ class Brain:
             return br
         if "get_battery" in self.tools and WORD_BATTERY.search(text) and not NOT_A_QUERY.search(text):
             return [("get_battery", {})]
+        if "look_at_camera" in self.tools and WORD_CAMERA.search(text) and not WORD_CAMERA_NOT.search(text):
+            return [("look_at_camera", {"question": text})]
         if "look_at_screen" in self.tools and WORD_SCREEN.search(text) and not WORD_SCREEN_NOT.search(text):
             return [("look_at_screen", {"question": text})]
         if "morning_brief" in self.tools and WORD_BRIEF.search(text):

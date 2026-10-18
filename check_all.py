@@ -374,6 +374,24 @@ def logic_tests() -> None:
         assert r.returncode == 0, "\n".join(l for l in r.stdout.splitlines() if l.startswith("HATA"))[:400] or r.stderr[-300:]
         return "ATLA playwright yok" if "ATLA" in r.stdout else f"{r.stdout.count('OK   ')} OK"
 
+    @check("Webcam görüşü: sahte kare + sahte model, kamera yoksa açık hata, Telegram'dan kapalı")
+    def _():
+        from skills import camera, screen as scr  # noqa: PLC0415
+        import brain as B  # noqa: PLC0415
+        seen = {}
+        real_cap, real_ask, real_dev = camera.capture, scr._ask_model, camera.device_exists
+        try:
+            camera.capture = lambda: b"\x89PNGfake"
+            scr._ask_model = lambda png, q, template="": seen.update(png=png, q=q, t=template) or "Elinde bir kalem var."
+            assert camera.look_at_camera("elimde ne var") == "Elinde bir kalem var."
+            assert seen["png"] == b"\x89PNGfake" and "kimliğini tahmin etme" in seen["t"]
+            camera.capture = real_cap
+            camera.device_exists = lambda: False
+            assert "kamera bulunamadı" in camera.look_at_camera("")
+            assert "look_at_camera" in B.REMOTE_BLOCKED and "look_at_camera" in B.UNTRUSTED_TOOLS
+        finally:
+            camera.capture, scr._ask_model, camera.device_exists = real_cap, real_ask, real_dev
+
     @check("Bağlam özetleme: atılan mesajlar özete katlanır, dış içerik taşınmaz, kalıcı, sıfırlanır")
     def _():
         import ollama  # noqa: PLC0415
@@ -467,6 +485,16 @@ def env_checks() -> None:
     except Exception as exc:  # noqa: BLE001
         record("UYARI", "Playwright kontrol edilemedi", f"{type(exc).__name__}")
 
+    try:
+        from skills import camera  # noqa: PLC0415
+        has_cam = camera.device_exists()
+        import importlib.util as _iu  # noqa: PLC0415
+        has_lib = bool(_iu.find_spec("cv2") or shutil.which("ffmpeg") or shutil.which("fswebcam"))
+        record("OK" if has_cam and has_lib else "UYARI", "Webcam görüşü",
+               "kamera ve yakalama aracı var" if has_cam and has_lib else
+               ("kamera bulunamadı (/dev/video*)" if not has_cam else "yakalama aracı yok: pip install opencv-python-headless ya da sudo apt install ffmpeg"))
+    except Exception as exc:  # noqa: BLE001
+        record("UYARI", "Webcam kontrol edilemedi", type(exc).__name__)
     record("OK" if shutil.which("xdotool") else "UYARI", "Fare/klavye kontrolü (xdotool)",
            "kurulu" if shutil.which("xdotool") else "kurulu değil: sudo apt install xdotool")
     if os.environ.get("XDG_SESSION_TYPE") == "wayland":
@@ -595,6 +623,14 @@ def main() -> None:
         ans = screen.look_at_screen("Ekranda ne olduğunu iki cümleyle anlat.")
         bad = ans.startswith("Hata") or "okuyamıyor" in ans or "okuyamadım" in ans
         record("HATA" if bad else "OK", "Ekran görüşü", f"{time.perf_counter() - t1:.1f} sn: {ans[:200]}")
+        from skills import camera  # noqa: PLC0415
+        if camera.device_exists():
+            t2 = time.perf_counter()
+            ans = camera.look_at_camera("Kamerada ne olduğunu iki cümleyle anlat.")
+            bad = ans.startswith("Hata") or "okuyamıyor" in ans or "okuyamadım" in ans
+            record("HATA" if bad else "OK", "Webcam görüşü (gerçek)", f"{time.perf_counter() - t2:.1f} sn: {ans[:200]}")
+        else:
+            record("UYARI", "Webcam görüşü (gerçek)", "kamera bulunamadı, atlandı")
     shutil.rmtree(TMP, ignore_errors=True)
     n = {s: sum(1 for r in results if r[0] == s) for s in ("OK", "UYARI", "HATA")}
     print(f"\nÖZET: {n['OK']} OK, {n['UYARI']} uyarı, {n['HATA']} hata ({time.perf_counter() - t0:.0f} sn)")

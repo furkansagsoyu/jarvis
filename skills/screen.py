@@ -51,13 +51,13 @@ def capture() -> bytes:
     raise RuntimeError("ekran görüntüsü alınamadı (pip install pillow veya sudo apt install scrot)")
 
 
-def _ask_model(png: bytes, question: str) -> str:
+def _ask_model(png: bytes, question: str, template: str = PROMPT) -> str:
     import ollama  # noqa: PLC0415
 
     model = os.environ.get("JARVIS_VISION_MODEL", "gemma4:e4b")
     resp = ollama.chat(
         model=model,
-        messages=[{"role": "user", "content": PROMPT.format(q=question), "images": [png]}],
+        messages=[{"role": "user", "content": template.format(q=question), "images": [png]}],
         options={"temperature": 0.2},
         keep_alive="30m",
         think=False,

@@ -7,3 +7,4 @@ openwakeword
 pystray   # isteğe bağlı: tepsi simgesi (ui.py); yoksa yalnızca pencere açılır
 pillow    # pystray için simge çizimi
 playwright   # isteğe bağlı: tarayıcı kontrolü; kurulumdan sonra: playwright install chromium
+opencv-python-headless   # isteğe bağlı: webcam görüşü (ya da sistemde ffmpeg)
