@@ -69,6 +69,16 @@ BROWSER_OPEN = [
 ]
 
 
+DESKTOP = [
+    ("fareyi sağa götür", "mouse_move"), ("Fareyi biraz yukarı kaydır", "mouse_move"), ("fareyi sol üst köşeye götür", "mouse_move"),
+    ("tıkla", "mouse_click"), ("çift tıkla", "mouse_click"), ("sağ tıkla", "mouse_click"),
+    ("aşağı kaydır", "scroll"), ("sayfayı biraz yukarı kaydır", "scroll"),
+    ("klavyeden merhaba dünya yaz", "keyboard_type"), ("şunu yaz: toplantı yarın", "keyboard_type"),
+    ("Enter'a bas", "press_key"), ("escape tuşuna bas", "press_key"), ("kopyala", "press_key"), ("yeni sekme", "press_key"),
+    ("ekran parlaklığını kıs", None), ("sesi kıs", None), ("not yaz", None), ("kesin yarın gelirim", None),
+]
+
+
 def main():
     brain = Brain(tools=None)
     bad = 0
@@ -92,6 +102,12 @@ def main():
     ok = not got
     bad += not ok
     print(f"{'OK  ' if ok else 'HATA'} [bağlamsız] 'onu oku' -> {got or None}  (beklenen None)")
+    for text, want in DESKTOP:
+        got = brain._fast_route(text)
+        name = got[0][0] if got else None
+        ok = name == want
+        bad += not ok
+        print(f"{'OK  ' if ok else 'HATA'} [masaüstü] {text!r:38} -> {name}  (beklenen {want})")
     from skills import browser  # noqa: PLC0415
     real = browser.is_active
     for label, cases, state in (("tarayıcı kapalı", BROWSER_CLOSED, False), ("tarayıcı açık", BROWSER_OPEN, True)):

@@ -374,6 +374,13 @@ def logic_tests() -> None:
         assert r.returncode == 0, "\n".join(l for l in r.stdout.splitlines() if l.startswith("HATA"))[:400] or r.stderr[-300:]
         return "ATLA playwright yok" if "ATLA" in r.stdout else f"{r.stdout.count('OK   ')} OK"
 
+    @check("Fare/klavye kontrolü: onay, terminal/parola/banka reddi, yasak kısayol (sahte xdotool)")
+    def _():
+        r = subprocess.run([sys.executable, str(HERE / "test_desktop.py")], capture_output=True, text=True,
+                           env={**os.environ, "PYTHONPATH": str(HERE)}, timeout=60)
+        assert r.returncode == 0, "\n".join(l for l in r.stdout.splitlines() if l.startswith("HATA"))[:400] or r.stderr[-300:]
+        return f"{r.stdout.count('OK   ')} OK"
+
     @check("Hızlı yol cümleleri (test_routes)")
     def _():
         r = subprocess.run([sys.executable, str(HERE / "test_routes.py")], capture_output=True, text=True,
@@ -416,6 +423,11 @@ def env_checks() -> None:
         record("UYARI", "Playwright kurulu değil", "tarayıcı kontrolü için: pip install playwright && playwright install chromium")
     except Exception as exc:  # noqa: BLE001
         record("UYARI", "Playwright kontrol edilemedi", f"{type(exc).__name__}")
+
+    record("OK" if shutil.which("xdotool") else "UYARI", "Fare/klavye kontrolü (xdotool)",
+           "kurulu" if shutil.which("xdotool") else "kurulu değil: sudo apt install xdotool")
+    if os.environ.get("XDG_SESSION_TYPE") == "wayland":
+        record("UYARI", "Wayland oturumu", "xdotool Wayland'da çalışmaz; Linux Mint Cinnamon varsayılanı X11'dir")
 
     @check("Ollama çalışıyor ve gemma4:e4b var")
     def _():

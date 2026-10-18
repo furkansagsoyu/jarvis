@@ -41,7 +41,8 @@ SESSION_FILE = "session.json"
 SESSION_TTL = 12 * 3600  # bundan eski konuşma geçmişi yüklenmez
 # Uzaktan (Telegram) gelen komutlarda çalıştırılmayan araçlar: içerik makine dışına, üçüncü taraf sunucuya çıkar.
 REMOTE_BLOCKED = {"read_file", "recall", "look_at_screen", "browser_open", "browser_read", "browser_click",
-                  "browser_type", "browser_back", "browser_close"}
+                  "browser_type", "browser_back", "browser_close", "mouse_move", "mouse_click", "scroll",
+                  "keyboard_type", "press_key"}
 
 # Ölçümle (tool_diag.py, tool_diag2.py, tool_check.py) doğrulandı: SADECE bu kısa hal 8/8 araç çağırıyor.
 # Kural eklemek (sayıları yazıyla yaz, anlık bilgiyi uydurma, yetenek listesi, cümle sınırı...) tek tek
@@ -62,7 +63,7 @@ ACTION_CLAIM = re.compile(
     r"çağırıyorum|kullanıyorum|öğreniyorum|bakıyorum|kontrol ediyorum|kullanmalıyım|çağırmalıyım|"
     r"açıldı|kapatıldı|ayarlandı|yapıldı|kısıldı|kısıldı|artırıldı|azaltıldı|arandı|başlatıldı|çalıştırıldı)\b|"
     r"\baraç|"
-    r"\b(open_app|set_volume|change_volume|get_time|get_date|web_search|list_abilities|remember|recall|forget|set_reminder|list_reminders|cancel_reminders|get_weather|get_battery|morning_brief|look_at_screen|browser_open|browser_read|browser_click|browser_type|browser_back|browser_close|get_system_status|find_files|read_file|move_file|trash_file|undo_last_action)\b",
+    r"\b(open_app|set_volume|change_volume|get_time|get_date|web_search|list_abilities|remember|recall|forget|set_reminder|list_reminders|cancel_reminders|get_weather|get_battery|morning_brief|look_at_screen|browser_open|browser_read|browser_click|browser_type|browser_back|browser_close|mouse_move|mouse_click|keyboard_type|press_key|get_system_status|find_files|read_file|move_file|trash_file|undo_last_action)\b",
     re.IGNORECASE,
 )
 # Saat/tarih gibi anlık bilgilerde modele karar bırakılmaz (gemma tarihi uydurdu: "25 Mayıs 2024").
@@ -97,6 +98,12 @@ BR_BACK = re.compile(r"geri (git|dön)|önceki sayfa", re.I)
 BR_CLOSE = re.compile(r"tarayıcı\w*\s+kapat", re.I)
 BR_CLICK = re.compile(r"^(?:şu\s+)?(?P<t>.+?)(?:['’]\w+)?\s+(?:(?:butonuna|düğmesine|linkine|bağlantısına|sekmesine)\s+)?(?:tıkla\w*|bas\w*)\s*$", re.I)
 BR_TYPE = re.compile(r"^(?:(?P<f>.+?)\s+(?:kutusuna|alanına|kısmına|satırına)\s+)?(?P<t>.+?)\s+yaz\w*(?P<s>\s+ve\s+(?:ara\w*|gönder\w*|enter\w*))?\s*$", re.I)
+DK_MOVE = re.compile(r"\bfare\w*\s+(?:(?P<a>biraz|az|çok|epey)\s+)?(?P<d>sağa|sola|yukarı|aşağı|ortaya|sol üst|sağ üst|sol alt|sağ alt)\w*\s*(?:köşe\w*\s*)?(?:götür|kaydır|çek|taşı|al)\w*", re.I)
+DK_CLICK = re.compile(r"^(?:(?:şuraya|buraya)\s+)?(?:(?P<b>çift|sağ|orta)\s+)?(?:tuşla\s+)?tıkla\w*(?:\s+lütfen)?$", re.I)
+DK_SCROLL = re.compile(r"^(?:sayfa\w*\s+|ekran\w*\s+)?(?:(?P<a>biraz|az|çok)\s+)?(?P<d>yukarı|aşağı)\s+(?:kaydır|indir|çıkar)\w*(?:\s+lütfen)?$", re.I)
+DK_TYPE = re.compile(r"^(?:klavye\w*\s+(?P<t1>.+?)\s+yaz\w*|(?:şunu|şöyle)\s+yaz\w*:?\s+(?P<t2>.+))$", re.I)
+DK_KEY = re.compile(r"^(?P<k>enter|entır|escape|esc|tab|boşluk|silme|backspace|delete|yukarı ok|aşağı ok|sol ok|sağ ok|page up|page down|home|end|f5|f11)(?:['’]\w+)?\s*(?:tuşuna\s+)?bas\w*(?:\s+lütfen)?$", re.I)
+DK_SHORT = re.compile(r"^(?P<k>kopyala|yapıştır|kes|tümünü seç|kaydet|yeni sekme|sekmeyi kapat|sayfayı yenile|pencere değiştir|tam ekran|yazdır)(?:\s+lütfen)?$", re.I)
 TEXT_CALL = re.compile(r"^\s*`*([a-z_]+)\((.*)\)`*\s*$", re.S)
 NUDGE = "Bu isteği gerçekten yerine getirmek için uygun aracı çağır. Uygun araç yoksa yapamadığını söyle."
 FAIL_TEXT = "Bunu yapamadım."
@@ -249,6 +256,28 @@ class Brain:
             content = "" if calls else FAIL_TEXT
         return content, calls
 
+    def _desktop_route(self, text: str) -> list[tuple[str, dict]]:
+        if "mouse_click" not in self.tools:
+            return []
+        t = text.strip().strip(".!?").strip()
+        m = DK_MOVE.search(t)
+        if m:
+            return [("mouse_move", {"where": m.group("d").lower(), "amount": (m.group("a") or "").lower()})]
+        m = DK_CLICK.match(t)
+        if m:
+            b = (m.group("b") or "sol").lower()
+            return [("mouse_click", {"button": b if b != "çift" else "sol", "double": b == "çift"})]
+        m = DK_SCROLL.match(t)
+        if m:
+            return [("scroll", {"direction": m.group("d").lower(), "amount": (m.group("a") or "").lower()})]
+        m = DK_TYPE.match(t)
+        if m:
+            return [("keyboard_type", {"text": (m.group("t1") or m.group("t2")).strip(" '\"“”")})]
+        m = DK_KEY.match(t) or DK_SHORT.match(t)
+        if m:
+            return [("press_key", {"name": m.group("k").lower()})]
+        return []
+
     def _browser_route(self, text: str) -> list[tuple[str, dict]]:
         if "browser_open" not in self.tools:
             return []
@@ -287,6 +316,9 @@ class Brain:
             return [("get_weather", {"day": "yarın"} if "yarın" in text.lower() else {})]
         if "undo_last_action" in self.tools and WORD_UNDO.search(text):
             return [("undo_last_action", {})]
+        dk = self._desktop_route(text)
+        if dk:
+            return dk
         br = self._browser_route(text)
         if br:
             return br
