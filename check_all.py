@@ -285,6 +285,68 @@ def logic_tests() -> None:
             if real_chat:
                 ollama.chat = real_chat
 
+    @check("Donanım izleme: bellek ayrıştırma ve durum cümlesi")
+    def _():
+        from skills import hardware  # noqa: PLC0415
+        used, total = hardware.parse_meminfo("MemTotal: 16000000 kB\nMemAvailable: 6000000 kB\n")
+        assert abs(used - 9.54) < 0.05 and abs(total - 15.26) < 0.05
+        out = hardware.get_system_status("ram")
+        assert out.startswith("Bellek") and "," in out, out  # ondalık virgülle (sesli okunur)
+        assert "İşlemci" in hardware.get_system_status("cpu")
+
+    @check("Oturum devamlılığı: kaydet → yeniden başlat → yükle; eski ve sıfırlanan geçmiş")
+    def _():
+        import ollama  # noqa: PLC0415
+        import brain as B  # noqa: PLC0415
+        real = getattr(ollama, "chat", None)
+        ollama.chat = lambda **kw: iter([{"message": {"content": "Tamam."}}]) if kw.get("stream") else {"message": {"content": "Merhaba.", "tool_calls": []}}
+        try:
+            b1 = B.Brain()
+            assert b1.enable_persistence() == 0
+            list(b1.reply_stream("merhaba"))
+            call = types.SimpleNamespace(function=types.SimpleNamespace(name="get_time", arguments={}))  # ollama nesnesi gibi
+            b1.history.append({"role": "assistant", "content": "", "tool_calls": [call]})
+            b1.save_session()
+            b2 = B.Brain()
+            n = b2.enable_persistence()
+            assert n >= 2 and b2.history[0]["role"] == "user", n
+            assert b2.history[-1]["tool_calls"][0]["function"]["name"] == "get_time"
+            assert "sıfırladım" in "".join(b2.reply_stream("konuşmayı sıfırla"))
+            assert B.Brain().enable_persistence() == 0
+            _store.save(B.SESSION_FILE, {"ts": time.time() - B.SESSION_TTL - 60, "history": [{"role": "user", "content": "eski"}]})
+            assert B.Brain().enable_persistence() == 0
+        finally:
+            if real:
+                ollama.chat = real
+
+    @check("Model yedek merdiveni: gemma düşünce qwen, 5 dk yapışkan, sonra tekrar gemma")
+    def _():
+        import ollama  # noqa: PLC0415
+        import brain as B  # noqa: PLC0415
+        seen = []
+
+        def fake(**kw):
+            seen.append(kw["model"])
+            if kw["model"] == B.MODEL:
+                raise ConnectionError("kapalı")
+            return {"message": {"content": "Merhaba.", "tool_calls": []}}
+        real = getattr(ollama, "chat", None)
+        ollama.chat = fake
+        try:
+            b = B.Brain()
+            b.warm_up()
+            assert seen == [B.MODEL, "qwen3:8b"], seen
+            seen.clear()
+            b._chat([{"role": "user", "content": "x"}], None, False, 0.3)
+            assert seen == ["qwen3:8b"], seen  # yapışkan: gemma denenmedi
+            b._skip_primary_until = time.time() - 1
+            seen.clear()
+            b._chat([{"role": "user", "content": "x"}], None, False, 0.3)
+            assert seen[0] == B.MODEL, seen
+        finally:
+            if real:
+                ollama.chat = real
+
     @check("Hızlı yol cümleleri (test_routes)")
     def _():
         r = subprocess.run([sys.executable, str(HERE / "test_routes.py")], capture_output=True, text=True,
@@ -322,6 +384,15 @@ def env_checks() -> None:
         import ollama  # noqa: PLC0415
         names = [getattr(m, "model", None) or m.get("model") or m.get("name") for m in ollama.list()["models"]]
         assert any(str(n).startswith("gemma4:e4b") for n in names), f"modeller: {names}"
+
+    try:
+        import ollama  # noqa: PLC0415
+        names = [str(getattr(m, "model", None) or m.get("model") or m.get("name")) for m in ollama.list()["models"]]
+        have = any(n.startswith("qwen3:8b") for n in names)
+        record("OK" if have else "UYARI", "Yedek model (qwen3:8b)",
+               "kurulu" if have else "kurulu değil: gemma düşerse yedek yok (ollama pull qwen3:8b)")
+    except Exception:  # noqa: BLE001
+        pass
 
     @check("Mikrofon bulundu")
     def _():

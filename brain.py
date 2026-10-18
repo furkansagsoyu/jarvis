@@ -17,6 +17,8 @@ Notlar:
 - Konuşma geçmişi son MAX_HISTORY mesajla sınırlı, araç çağrı ayrıntıları geçmişe yazılmaz.
 """
 import ast
+import itertools
+import os
 import re
 import threading
 import time
@@ -24,12 +26,18 @@ import time
 import ollama
 
 from skills import _confirm as confirm
+from skills import _store
 from skills import files as _files
 from skills import HIDDEN, capability_summary, load_skills
 
 MODEL = "gemma4:e4b"
 MAX_HISTORY = 16
 MAX_TOOL_ROUNDS = 3
+# Birincil model hata verirse (Ollama kapalı, model yok, bellek yetmedi) sırayla denenecek yedekler.
+FALLBACKS = [m.strip() for m in os.environ.get("JARVIS_FALLBACK_MODELS", "qwen3:8b").split(",") if m.strip()]
+PRIMARY_RETRY_S = 300  # yedeğe düştükten sonra birincil model bu kadar saniye denenmez
+SESSION_FILE = "session.json"
+SESSION_TTL = 12 * 3600  # bundan eski konuşma geçmişi yüklenmez
 # Uzaktan (Telegram) gelen komutlarda çalıştırılmayan araçlar: içerik makine dışına, üçüncü taraf sunucuya çıkar.
 REMOTE_BLOCKED = {"read_file", "recall", "look_at_screen"}
 
@@ -52,7 +60,7 @@ ACTION_CLAIM = re.compile(
     r"çağırıyorum|kullanıyorum|öğreniyorum|bakıyorum|kontrol ediyorum|kullanmalıyım|çağırmalıyım|"
     r"açıldı|kapatıldı|ayarlandı|yapıldı|kısıldı|kısıldı|artırıldı|azaltıldı|arandı|başlatıldı|çalıştırıldı)\b|"
     r"\baraç|"
-    r"\b(open_app|set_volume|change_volume|get_time|get_date|web_search|list_abilities|remember|recall|forget|set_reminder|list_reminders|cancel_reminders|get_weather|get_battery|morning_brief|look_at_screen|find_files|read_file|move_file|trash_file|undo_last_action)\b",
+    r"\b(open_app|set_volume|change_volume|get_time|get_date|web_search|list_abilities|remember|recall|forget|set_reminder|list_reminders|cancel_reminders|get_weather|get_battery|morning_brief|look_at_screen|get_system_status|find_files|read_file|move_file|trash_file|undo_last_action)\b",
     re.IGNORECASE,
 )
 # Saat/tarih gibi anlık bilgilerde modele karar bırakılmaz (gemma tarihi uydurdu: "25 Mayıs 2024").
@@ -69,6 +77,8 @@ READ_FILLER = re.compile(r"\b(dosya\w*|oku\w*|özetle\w*|içeri\w*|bana|bir|şu|
 WORD_BATTERY = re.compile(r"(\bpil\w*|batarya\w*|şarj\w*)\b.*\b(kaç|yüzde|durum\w*|ne kadar|seviye\w*|nasıl|kaldı)\b", re.I)
 WORD_SCREEN = re.compile(r"\bekran\w*\b.*\b(ne var|bak\w*|oku\w*|anlat\w*|özetle\w*|göster\w*|yazıyor|görüyor\w*)\b", re.I)
 WORD_SCREEN_NOT = re.compile(r"karart|aydınlat|parlak|kapat|kilitle|görüntüsü al|ekran görüntüsü|kaydet", re.I)
+WORD_HW = re.compile(r"\b(cpu|işlemci\w*|ram|vram|gpu|ekran kart\w*|disk\w*|depolama\w*|sistem durumu\w*|bilgisayar\w*\s+(nasıl|durumu|ne durumda|sıcaklığ\w*)|donanım\w*)\b", re.I)
+WORD_RESET = re.compile(r"konuşmayı\s+(sıfırla|unut|temizle)|yeni konuşma|baştan başla|geçmişi\s+(sil|temizle|unut)", re.I)
 WORD_BRIEF = re.compile(r"günaydın|günün özeti|sabah özeti|bugün neler var|bugünün özeti|özet ver", re.I)
 WORD_CONTEXT_REF = re.compile(r"\b(onu|bunu|şunu|ilk\w*|birinci\w*|ikinci\w*|üçüncü\w*|dördüncü\w*|beşinci\w*)\b", re.I)
 FOLLOWUP_TOOLS = {"read_file", "web_search"}  # sonucu doğrudan okunmaz; model özetleyip cevaplar
@@ -91,25 +101,17 @@ class Brain:
         self.system = system
         self.history: list[dict] = []
         self._think_kw = {"think": False}
+        self.persist = False           # True: konuşma geçmişi data/session.json'a yazılır (main.py açar)
+        self._skip_primary_until = 0.0
         self.lock = threading.RLock()  # ses döngüsü ve Telegram aynı beyni sırayla kullanır
         self.remote = False            # True iken (Telegram) REMOTE_BLOCKED araçlar reddedilir
 
     # -- ısınma: modeli belleğe al (ilk cevap gecikmesi azalır)
     def warm_up(self):
+        """Modeli belleğe alır; birincil model açılmazsa yedeklere düşer (bkz. _chat)."""
         t0 = time.perf_counter()
-        try:
-            ollama.chat(model=self.model, messages=[{"role": "user", "content": "merhaba"}],
-                        keep_alive="30m", **self._think_kw)
-        except Exception as exc:  # noqa: BLE001
-            if "think" in str(exc).lower():
-                self._think_kw = {}
-                ollama.chat(model=self.model, messages=[{"role": "user", "content": "merhaba"}], keep_alive="30m")
-            else:
-                raise
+        self._chat([{"role": "user", "content": "merhaba"}], None, False, 0.3)
         return time.perf_counter() - t0
-
-    def reset(self):
-        self.history.clear()
 
     def _call_tool(self, name: str, args: dict) -> str:
         entry = self.tools.get(name)
@@ -122,16 +124,82 @@ class Brain:
         except Exception as exc:  # noqa: BLE001
             return f"Hata: {type(exc).__name__}: {exc}"
 
+    def _candidates(self) -> list[str]:
+        models = [self.model] + [m for m in FALLBACKS if m != self.model]
+        if len(models) > 1 and time.time() < self._skip_primary_until:
+            models = models[1:] + models[:1]  # yedekte kalınan süre: birincil en sona
+        return models
+
     def _chat(self, messages, schemas, stream: bool, temperature: float):
-        return ollama.chat(
-            model=self.model,
-            messages=messages,
-            tools=schemas or None,
-            stream=stream,
-            options={"temperature": temperature},
-            keep_alive="30m",
-            **self._think_kw,
-        )
+        """Model çağrısı; birincil model hata verirse yedek modellere düşer (akışta hata ilk parçada belli olur)."""
+        last_exc: Exception | None = None
+        for model in self._candidates():
+            kw = dict(model=model, messages=messages, tools=schemas or None, stream=stream,
+                      options={"temperature": temperature}, keep_alive="30m", **self._think_kw)
+            try:
+                try:
+                    result = ollama.chat(**kw)
+                    if stream:
+                        it = iter(result)
+                        first = next(it, None)
+                        result = itertools.chain([first], it) if first is not None else iter(())
+                except Exception as exc:  # noqa: BLE001
+                    if "think" not in str(exc).lower() or "think" not in kw:
+                        raise
+                    kw.pop("think")  # bu model 'think' bilmiyor: onsuz dene
+                    result = ollama.chat(**kw)
+                    if stream:
+                        it = iter(result)
+                        first = next(it, None)
+                        result = itertools.chain([first], it) if first is not None else iter(())
+            except Exception as exc:  # noqa: BLE001
+                last_exc = exc
+                print(f"\n[uyarı] {model} hata verdi ({type(exc).__name__}: {str(exc)[:80]}); sıradaki model deneniyor", flush=True)
+                continue
+            if model != self.model:
+                if time.time() >= self._skip_primary_until:
+                    print(f"\n[uyarı] yedek model kullanılıyor: {model}", flush=True)
+                self._skip_primary_until = time.time() + PRIMARY_RETRY_S
+            else:
+                self._skip_primary_until = 0.0
+            return result
+        raise last_exc  # type: ignore[misc]
+
+    # -- oturum devamlılığı: konuşma geçmişi yeniden başlatmada kaybolmasın
+    @staticmethod
+    def _plain_msg(m: dict) -> dict:
+        out = {"role": m.get("role"), "content": (m.get("content") or "")[:600] if m.get("role") == "tool" else (m.get("content") or "")}
+        if m.get("tool_name"):
+            out["tool_name"] = m["tool_name"]
+        if m.get("tool_calls"):
+            out["tool_calls"] = [{"function": {"name": _get(_get(c, "function"), "name"),
+                                               "arguments": dict(_get(_get(c, "function"), "arguments", {}) or {})}}
+                                 for c in m["tool_calls"]]
+        return out
+
+    def save_session(self) -> None:
+        if self.persist:
+            try:
+                _store.save(SESSION_FILE, {"ts": time.time(), "history": [self._plain_msg(m) for m in self.history]})
+            except Exception as exc:  # noqa: BLE001  (kayıt hatası konuşmayı bozmasın)
+                print(f"[uyarı] oturum kaydedilemedi: {type(exc).__name__}", flush=True)
+
+    def enable_persistence(self) -> int:
+        """Kayıtlı geçmişi (12 saatten yeniyse) yükler ve her turdan sonra kaydetmeyi açar. Yüklenen mesaj sayısını döndürür."""
+        self.persist = True
+        data = _store.load(SESSION_FILE, {})
+        if time.time() - data.get("ts", 0) > SESSION_TTL:
+            return 0
+        hist = [m for m in data.get("history", []) if isinstance(m, dict) and m.get("role")]
+        while hist and hist[0].get("role") != "user":
+            hist.pop(0)
+        self.history = hist[-MAX_HISTORY:]
+        return len(self.history)
+
+    def reset(self):
+        self.history.clear()
+        if self.persist:
+            _store.save(SESSION_FILE, {"ts": time.time(), "history": []})
 
     def _parse_text_call(self, content: str) -> list[dict]:
         """Gemma bazen aracı gerçek çağrı yerine düz metin yazar: web_search(query="x"). Güvenle ayrıştırır."""
@@ -170,6 +238,12 @@ class Brain:
     def _fast_route(self, text: str) -> list[tuple[str, dict]]:
         """Kural tabanlı hızlı yol: (araç adı, argümanlar) listesi döndürür (boşsa model karar verir)."""
         calls = []
+        if "get_system_status" in self.tools and WORD_HW.search(text) and not NOT_A_QUERY.search(text):
+            m = WORD_HW.search(text).group(1).lower()
+            part = ("cpu" if m in ("cpu",) or m.startswith("işlemci") else "ram" if m in ("ram",) else
+                    "gpu" if m in ("gpu", "vram") or m.startswith("ekran kart") else
+                    "disk" if m.startswith(("disk", "depolama")) else "")
+            return [("get_system_status", {"part": part})]
         if "get_weather" in self.tools and WORD_WEATHER.search(text) and not CITY_NAMED.search(text):
             return [("get_weather", {"day": "yarın"} if "yarın" in text.lower() else {})]
         if "undo_last_action" in self.tools and WORD_UNDO.search(text):
@@ -216,6 +290,11 @@ class Brain:
 
         İlk tur akışsız (araç kararı ve güvenlik ağı için); araç çalıştıktan sonraki cevap akışlı.
         """
+        if WORD_RESET.search(user_text):
+            confirm.cancel()
+            self.reset()
+            yield "Tamam, konuşmayı sıfırladım."
+            return
         # Bekleyen tehlikeli işlem varsa kullanıcının cevabı MODELE GİTMEDEN burada değerlendirilir.
         if confirm.has_pending():
             verdict = confirm.classify(user_text)
@@ -280,6 +359,7 @@ class Brain:
         self.history = self.history[-MAX_HISTORY:]
         while self.history and self.history[0].get("role") != "user":
             self.history.pop(0)  # kesilen bir araç alışverişinin ortasından başlama
+        self.save_session()
 
 
 def main():

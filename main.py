@@ -71,6 +71,7 @@ def main():
                    help="Hey Jarvis eşiği 0-1 (düşük = daha hassas ama yanlış tetiklenir; varsayılan 0.5)")
     p.add_argument("--stt-prompt", default="default", choices=["default", "short", "off"],
                    help="Whisper ipucu metni: default (komut örnekleri), short (yalnızca 'Jarvis'), off (kapalı)")
+    p.add_argument("--fresh", action="store_true", help="önceki konuşmayı yükleme (oturum devamlılığı kapalı değil, sıfırdan başlar)")
     p.add_argument("--ui", action="store_true", help="durum penceresi ve tepsi simgesi (ui.py) aç")
     p.add_argument("--telegram", action="store_true", help="Telegram köprüsü (önce: python telegram_bot.py --setup)")
     p.add_argument("--morning", action="store_true", help="sabah (05-12) ilk açılışta günün özetini söyle (günde bir kez)")
@@ -101,6 +102,11 @@ def main():
         wake = wake_mod.WakeWord(threshold=args.wake_threshold, mic=args.mic)
     brain = Brain()
     brain.warm_up()
+    loaded = brain.enable_persistence()
+    if args.fresh:
+        brain.reset()
+    elif loaded:
+        print(f"      önceki konuşma yüklendi ({loaded} mesaj)", flush=True)
     print(f"      yetenekler: {', '.join(brain.tools)}", flush=True)
     print(f"\nHazır ({time.perf_counter() - t0:.0f} sn). Konuşabilirsin.\n", flush=True)
     notify = speaker.say  # bildirimler (hatırlatma, pil) sesli söylenir; Telegram açıksa telefona da gider
