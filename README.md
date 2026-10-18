@@ -142,7 +142,6 @@ Yeni bir beceri eklemek için `skills/` altına, `SKILLS` listesi tanımlayan bi
 
 ## Teşekkür
 
-Fikirler [Mark-LV](https://github.com/FaithMakes/Mark-LV) projesinin özellik listesinden esinlenmiştir (kod alınmadı).
 Kullanılan açık kaynak bileşenler: [faster-whisper](https://github.com/SYSTRAN/faster-whisper), [Ollama](https://ollama.com),
 [openWakeWord](https://github.com/dscripka/openWakeWord), EMA Lightning, [Playwright](https://playwright.dev), Gemma ve Qwen modelleri
 (kendi lisanslarıyla).
