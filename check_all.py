@@ -435,6 +435,13 @@ def logic_tests() -> None:
             if real:
                 ollama.chat = real
 
+    @check("Ajan modu: plan, onay, tek araç kısıtı, araçsız özet, enjeksiyon/dosya sızıntısı, 3 hata, iptal (test_agent)")
+    def _():
+        r = subprocess.run([sys.executable, str(HERE / "test_agent.py")], capture_output=True, text=True,
+                           env={**os.environ, "PYTHONPATH": str(HERE)}, timeout=120)
+        assert r.returncode == 0, "\n".join(l for l in r.stdout.splitlines() if l.startswith("HATA"))[:400] or r.stderr[-300:]
+        return f"{r.stdout.count('OK   ')} OK"
+
     @check("Fare/klavye kontrolü: onay, terminal/parola/banka reddi, yasak kısayol (sahte xdotool)")
     def _():
         r = subprocess.run([sys.executable, str(HERE / "test_desktop.py")], capture_output=True, text=True,
@@ -604,6 +611,7 @@ def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawTextHelpFormatter)
     ap.add_argument("--model", action="store_true", help="gerçek model araç seçimini de çalıştır")
     ap.add_argument("--repeat", type=int, default=3)
+    ap.add_argument("--agent", action="store_true", help="gerçek modelle ajan planı çıkarmayı dene")
     ap.add_argument("--vision", action="store_true", help="gerçek ekran görüşünü dene (görsel model ister)")
     g = ap.add_mutually_exclusive_group()
     g.add_argument("--quick", action="store_true", help="yalnızca mantık testleri")
@@ -616,6 +624,15 @@ def main() -> None:
         env_checks()
     if a.model:
         model_checks(a.repeat)
+    if a.agent:
+        print("\n[5] Ajan planı (gerçek model)")
+        import brain as B  # noqa: PLC0415
+        br = B.Brain()
+        for goal in ("Wikipedia'da Ankara'nın nüfusunu araştır ve bana söyle", "Masaüstündeki rapor dosyasını bul, oku ve özetle"):
+            t3 = time.perf_counter()
+            out = br.agent.start(goal)
+            record("OK" if br.agent.state == "plan" else "HATA", f"Plan: {goal[:40]}", f"{time.perf_counter() - t3:.1f} sn: {out[:240]}")
+            br.agent.abort()
     if a.vision:
         print("\n[4] Ekran görüşü (gerçek model)")
         from skills import screen  # noqa: PLC0415

@@ -53,6 +53,14 @@ def approve() -> str:
         return f"Hata: {type(exc).__name__}: {exc}"
 
 
+def wrap(fn) -> None:
+    """Bekleyen işlemin sonucunu fn'den geçirir (ajan modu adımı sürdürmek için kullanır). Süre ve onay kuralı değişmez."""
+    with _lock:
+        if _pending:
+            orig = _pending["run"]
+            _pending["run"] = lambda: fn(orig())
+
+
 def cancel() -> None:
     global _pending
     with _lock:

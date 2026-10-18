@@ -25,6 +25,7 @@ import time
 
 import ollama
 
+import agent as _agent
 from skills import _confirm as confirm
 from skills import _store
 from skills import browser as _browser
@@ -124,6 +125,7 @@ class Brain:
         self.tools = load_skills() if tools is None else tools
         self.system = system
         self.history: list[dict] = []
+        self.agent = _agent.Agent(self)
         self.summary = ""              # geçmişten atılan eski konuşmaların kısa özeti
         self._fold_lock = threading.Lock()
         self._fold_thread: threading.Thread | None = None
@@ -423,16 +425,30 @@ class Brain:
         """
         if WORD_RESET.search(user_text):
             confirm.cancel()
+            self.agent.abort()
             self.reset()
             yield "Tamam, konuşmayı sıfırladım."
+            return
+        gen = self.agent.handle(user_text)  # ajan modu: görev başlatma, plan onayı
+        if gen is not None:
+            said: list[str] = []
+            for piece in gen:
+                said.append(piece)
+                yield piece
+            self.history.extend([{"role": "user", "content": user_text}, {"role": "assistant", "content": " ".join(said).strip()}])
+            self.history = self.history[-MAX_HISTORY:]
+            self.save_session()
             return
         # Bekleyen tehlikeli işlem varsa kullanıcının cevabı MODELE GİTMEDEN burada değerlendirilir.
         if confirm.has_pending():
             verdict = confirm.classify(user_text)
             if verdict == "yes":
                 yield confirm.approve()
+                for piece in self.agent.after_confirm():  # ajan görevinin sıradaki adımları
+                    yield piece
                 return
             confirm.cancel()
+            self.agent.abort()
             if verdict == "no":
                 yield "Tamam, vazgeçtim."
                 return
