@@ -113,6 +113,50 @@ def query(q: str = "", limit: int = 300) -> list[dict]:
     return items[::-1][:limit]
 
 
+SESSION_GAP = 1800  # iki mesaj arası 30 dakikadan uzunsa yeni sohbet başlar
+
+
+def sessions(q: str = "", gap: int = SESSION_GAP) -> list[dict]:
+    """Günlüğü sohbetlere böler (en yeni başta). q verilirse yalnızca metni geçen sohbetler ve eşleşen satır döner."""
+    with _lock:
+        items = sorted(_read(), key=lambda i: i.get("ts", 0))
+    groups: list[list[dict]] = []
+    for it in items:
+        if groups and it.get("ts", 0) - groups[-1][-1].get("ts", 0) <= gap:
+            groups[-1].append(it)
+        else:
+            groups.append([it])
+    nq = _norm(q.strip()) if q else ""
+    now = time.time()
+    out = []
+    for g in groups:
+        hit = next((m for m in g if nq in _norm(m.get("text", ""))), None) if nq else None
+        if nq and not hit:
+            continue
+        first_user = next((m for m in g if m.get("who") == "sen"), g[0])
+        title = " ".join(first_user.get("text", "").split())
+        out.append({"id": g[0]["id"], "start": g[0]["ts"], "end": g[-1]["ts"], "count": len(g),
+                    "title": title if len(title) <= 70 else title[:67] + "…",
+                    "snippet": " ".join(hit["text"].split())[:140] if hit else "",
+                    "live": now - g[-1]["ts"] <= gap})
+    return out[::-1]
+
+
+def between(start: float, end: float) -> list[dict]:
+    """[start, end] aralığındaki satırlar (eskiden yeniye)."""
+    with _lock:
+        return sorted((i for i in _read() if start - 0.001 <= i.get("ts", 0) <= end + 0.001), key=lambda i: i.get("ts", 0))
+
+
+def delete_between(start: float, end: float) -> int:
+    with _lock:
+        items = _read()
+        keep = [i for i in items if not (start - 0.001 <= i.get("ts", 0) <= end + 0.001)]
+        if len(keep) != len(items):
+            _write(keep)
+        return len(items) - len(keep)
+
+
 def count() -> int:
     with _lock:
         return len(_read())

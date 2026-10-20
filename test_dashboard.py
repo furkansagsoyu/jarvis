@@ -201,6 +201,30 @@ ui_state.add_turn("sen", "sohbet satırı")
 st3 = json.loads(req(d, "GET", "/api/state")[1])
 check("durum: konuşma günlüğü son mesajlar + saklama süresi", st3["konusma"]["recent"][-1]["text"] == "sohbet satırı" and st3["konusma"]["retention"] == 30)
 
+# ---- sohbet listesi (gün/saat) ve tek sohbetin geçmişi
+import time as _t  # noqa: E402
+
+convlog.clear()
+base = _t.time() - 3 * 86400
+rows = [(0, "sen", "yarın toplantı ekle"), (10, "jarvis", "Ekledim."), (60, "sen", "hava nasıl"),          # sohbet 1
+        (7200, "sen", "sistem durumu"), (7205, "jarvis", "İşlemci yüzde 10."),                           # sohbet 2 (2 saat sonra)
+        (12000, "sen", "teşekkürler")]                                                                  # 30 dk'dan uzun boşluk -> sohbet 3
+with open(convlog._p(), "w", encoding="utf-8") as f:
+    for i, (dt_, w, t) in enumerate(reversed(rows)):  # dosya sırası karışık olsa da doğru bölünmeli
+        f.write(json.dumps({"id": i + 1, "ts": base + dt_, "who": w, "text": t}, ensure_ascii=False) + "\n")
+ss = json.loads(req(d, "GET", "/api/sessions")[1])["sessions"]
+check("30 dk'dan uzun boşluk yeni sohbet başlatır (3 sohbet, yeniden eskiye)", [x["count"] for x in ss] == [1, 2, 3])
+check("sohbet başlığı ilk kullanıcı mesajı", ss[2]["title"] == "yarın toplantı ekle" and ss[1]["title"] == "sistem durumu")
+check("sohbet saati/gün bilgisi (start/end)", abs(ss[2]["start"] - base) < 1 and abs(ss[2]["end"] - (base + 60)) < 1)
+ss_q = json.loads(req(d, "GET", "/api/sessions?q=HAVA")[1])["sessions"]
+check("sohbet araması: eşleşen sohbet + satır özeti", len(ss_q) == 1 and ss_q[0]["snippet"] == "hava nasıl")
+r = json.loads(req(d, "GET", f"/api/conv?from={ss[2]['start']}&to={ss[2]['end']}")[1])
+check("sohbete tıklayınca o sohbetin mesajları (eskiden yeniye)", [m["text"] for m in r["items"]] == ["yarın toplantı ekle", "Ekledim.", "hava nasıl"])
+check("bozuk aralık 400", req(d, "GET", "/api/conv?from=abc")[0] == 400)
+check("sohbeti sil (aralık)", post("/api/conv", {"op": "delete_range", "from": ss[2]["start"], "to": ss[2]["end"]})[1]["n"] == 3
+      and [x["count"] for x in json.loads(req(d, "GET", "/api/sessions")[1])["sessions"]] == [1, 2])
+convlog.clear()
+
 # ---- araçlar listesi, sıcaklık
 from skills import load_skills  # noqa: E402
 

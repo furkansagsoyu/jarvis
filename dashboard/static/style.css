@@ -152,3 +152,6 @@ mark{background:rgba(255,178,63,.35);color:#fff;border-radius:3px;padding:0 2px}
 #drawer{background:#06172e}
 .chat.full{flex:1;border:0;padding:0;min-height:0}.chat.full .msg{font-size:14px;padding:8px 13px}.chat.full .chatform input{font-size:14px;padding:10px 12px}.chat.full .chatform button{padding:10px 22px}
 .pill.vo.on{background:rgba(31,216,255,.14);border-color:var(--cy);color:var(--cy2)}.pill.vo.on svg{color:var(--cy2)}
+.sess{cursor:pointer}.sess:hover{border-color:var(--cy);box-shadow:var(--glow)}.snip{color:#b9d6e8!important;white-space:normal!important}
+.opened{display:flex;gap:10px;align-items:center;margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid var(--line);position:sticky;top:0;background:#06142a;z-index:2}.opened .sp{flex:1}
+.transcript{display:flex;flex-direction:column;gap:7px}.transcript .msg{font-size:13.5px}.msg small .x{padding:0 6px;margin-left:4px;visibility:hidden}.msg:hover small .x{visibility:visible}

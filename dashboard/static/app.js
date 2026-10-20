@@ -121,35 +121,55 @@ VIEWS.takvim = {
         h("div", {}, h("b", {}, e.title), h("small", {}, e.time || "Tüm gün")), confirmBtn("Sil", () => agendaCall({ op: "cancel_event", id: e.id }))))))));
   },
 };
-/* --- Konuşmalar (günlük, arama, silme, saklama süresi) --- */
+/* --- Konuşmalar: sohbet listesi (gün/saat) -> tıklayınca o sohbetin geçmişi --- */
 let convQuery = "";
+const hm = (ts) => { const d = new Date(ts * 1000); return p2(d.getHours()) + ":" + p2(d.getMinutes()); };
 VIEWS.konusmalar = {
   title: "KONUŞMALAR",
   build(body, key) {
     const sel = h("select", {}, ...[[7, "7 gün"], [14, "14 gün"], [30, "30 gün"], [90, "90 gün"], [0, "Süresiz"]].map(([v, l]) => h("option", { value: v }, l)));
-    sel.onchange = () => api("/api/conv", { op: "retention", days: +sel.value }).then(() => { toast("Saklama süresi güncellendi"); load(true); });
+    sel.onchange = () => api("/api/conv", { op: "retention", days: +sel.value }).then(() => { toast("Saklama süresi güncellendi"); body._load(true); });
     const q = h("span", { class: "qtag" }), info = h("span", { class: "muted" });
-    const clr = confirmBtn("Tümünü sil", () => api("/api/conv", { op: "clear" }).then((r) => { toast(r.n + " kayıt silindi"); load(true); }));
+    const clr = confirmBtn("Tümünü sil", () => api("/api/conv", { op: "clear" }).then((r) => { toast(r.n + " kayıt silindi"); body._load(true); }));
     const bar = h("div", { class: "convbar" }, h("span", {}, "Otomatik silme:"), sel, info, h("span", { class: "sp" }), q, clr);
     const list = h("div", { class: "scroll" }); fill(body, bar, list);
-    Object.assign(body, { _list: list, _sel: sel, _q: q, _info: info });
-    function load(force) { delete sigs[key + "d"]; fetchConv(body, force); }
-    body._load = load; load(true);
+    Object.assign(body, { _list: list, _sel: sel, _q: q, _info: info, _bar: bar, _open: null });
+    body._load = (force) => (body._open ? loadOpen(body, force) : loadList(body, force));
+    body._load(true);
   },
-  update(s, body, key) { const rev = (s.konusma || {}).rev; if (changed(key + "rev", rev)) body._load(false); },
+  update(s, body, key) { if (changed(key + "rev", (s.konusma || {}).rev)) body._load(false); },
 };
-async function fetchConv(body, force) {
-  try { const r = await api("/api/conv?q=" + encodeURIComponent(convQuery)); if (!body._list.isConnected) return;
-    body._sel.value = String(r.retention); body._info.textContent = r.total + " kayıt";
-    fill(body._q, convQuery ? h("span", {}, "Arama: “" + convQuery + "” (" + r.items.length + ")  ", h("button", { class: "mini", onclick: () => setQuery("") }, "Temizle")) : null);
-    if (!force && !changed("convd", r.items)) return; sigs.convd = JSON.stringify(r.items);
-    if (!r.items.length) return fill(body._list, h("div", { class: "empty" }, convQuery ? "Eşleşen konuşma yok." : "Henüz kayıtlı konuşma yok."));
-    const days = {}; r.items.forEach((i) => (days[isoDay(new Date(i.ts * 1000))] = days[isoDay(new Date(i.ts * 1000))] || []).push(i));
-    fill(body._list, Object.keys(days).sort().reverse().map((day) => h("div", { class: "daygrp" },
-      h("h5", {}, dayLabel(day), " ", confirmBtn("Günü sil", () => api("/api/conv", { op: "delete_day", day }).then(() => fetchConv(body, true)), "right")),
-      h("ul", { class: "rows", style: "height:auto" }, days[day].map((i) => { const d = new Date(i.ts * 1000);
-        return h("li", { class: i.who === "sen" ? "me" : "" }, h("span", { class: "who" }, p2(d.getHours()) + ":" + p2(d.getMinutes()) + " · " + (i.who === "sen" ? "Sen" : "Jarvis")),
-          h("div", {}, h("b", { class: "wrap" }, ...hilite(i.text, convQuery))), h("button", { class: "mini bad", title: "Bu kaydı sil", onclick: () => api("/api/conv", { op: "delete", id: i.id }).then(() => fetchConv(body, true)) }, "×")); })))));
+async function loadList(body, force) {
+  try {
+    const r = await api("/api/sessions?q=" + encodeURIComponent(convQuery)); if (!body._list.isConnected || body._open) return;
+    body._sel.value = String(r.retention); body._info.textContent = r.sessions.length + " sohbet · " + r.total + " mesaj";
+    fill(body._q, convQuery ? h("span", {}, "Arama: “" + convQuery + "”  ", h("button", { class: "mini", onclick: () => setQuery("") }, "Temizle")) : null);
+    if (!force && !changed("convs", r.sessions)) return; sigs.convs = JSON.stringify(r.sessions);
+    if (!r.sessions.length) return fill(body._list, h("div", { class: "empty" }, convQuery ? "Eşleşen sohbet yok." : "Henüz kayıtlı sohbet yok."));
+    const days = {}; r.sessions.forEach((x) => { const k = isoDay(new Date(x.start * 1000)); (days[k] = days[k] || []).push(x); });
+    fill(body._list, Object.keys(days).sort().reverse().map((day) => h("div", { class: "daygrp" }, h("h5", {}, dayLabel(day)),
+      h("ul", { class: "rows", style: "height:auto" }, days[day].map((x) => h("li", { class: "sess", onclick: () => openSession(body, x) }, SVG("chat"),
+        h("div", {}, h("b", {}, x.title || "(boş)"),
+          h("small", {}, hm(x.start) + (x.count > 1 ? " – " + hm(x.end) : "") + " · " + x.count + " mesaj" + (x.live ? " · devam ediyor" : "")),
+          x.snippet ? h("small", { class: "snip" }, ...hilite(x.snippet, convQuery)) : null),
+        h("span", { onclick: (e) => e.stopPropagation() }, confirmBtn("Sil", () => api("/api/conv", { op: "delete_range", from: x.start, to: x.end }).then(() => loadList(body, true))))))))));
+  } catch (e) { /* bağlantı geçici yoksa sonraki turda */ }
+}
+function openSession(body, x) { body._open = { from: x.start, to: x.end, live: x.live }; body._bar.style.display = "none"; delete sigs.convo; loadOpen(body, true); }
+function backToList(body) { body._open = null; body._bar.style.display = ""; delete sigs.convs; loadList(body, true); }
+async function loadOpen(body, force) {
+  const o = body._open; if (!o) return;
+  try {
+    const r = await api("/api/conv?from=" + o.from + "&to=" + (o.live ? 9e12 : o.to)); if (!body._list.isConnected || body._open !== o) return;
+    if (!r.items.length) return backToList(body);
+    if (!force && !changed("convo", r.items)) return; sigs.convo = JSON.stringify(r.items);
+    const first = new Date(r.items[0].ts * 1000), last = r.items[r.items.length - 1].ts;
+    const head = h("div", { class: "opened" }, h("button", { class: "mini", onclick: () => backToList(body) }, "← Konuşmalar"),
+      h("b", {}, dayLabel(isoDay(first)) + " · " + hm(r.items[0].ts) + (r.items.length > 1 ? " – " + hm(last) : "")), h("span", { class: "muted" }, r.items.length + " mesaj"), h("span", { class: "sp" }),
+      confirmBtn("Bu sohbeti sil", () => api("/api/conv", { op: "delete_range", from: o.from, to: o.live ? 9e12 : o.to }).then(() => backToList(body))));
+    const log = h("div", { class: "transcript" }, r.items.map((m) => h("div", { class: "msg " + (m.who === "sen" ? "me" : "ai") }, h("div", {}, ...hilite(m.text, convQuery)),
+      h("small", {}, hm(m.ts) + " ", h("button", { class: "mini bad x", title: "Bu mesajı sil", onclick: () => api("/api/conv", { op: "delete", id: m.id }).then(() => loadOpen(body, true)) }, "×")))));
+    const keep = body._list.scrollTop; fill(body._list, head, log); body._list.scrollTop = o.live && !force ? body._list.scrollHeight : keep || body._list.scrollHeight;
   } catch (e) { /* bağlantı geçici yoksa sonraki turda */ }
 }
 function hilite(text, q) {
@@ -177,7 +197,7 @@ VIEWS.araclar = {
   },
 };
 let view = "merkez", builtView = null;
-function setQuery(q) { convQuery = q; $("#say").value = q; if (view !== "konusmalar") { view = "konusmalar"; showView(); } else if ($("#v-other")._body) fetchConv($("#v-other")._body, true); }
+function setQuery(q) { convQuery = q; $("#say").value = q; if (view !== "konusmalar") { view = "konusmalar"; showView(); } else if ($("#v-other")._body && $("#v-other")._body._load) $("#v-other")._body._load(true); }
 function buildNav() {
   fill($("#nav"), NAV.map(([id, label, ic]) => h("button", { "data-v": id, class: /bilgi|akislar/.test(id) ? "soon" : "", onclick: () => { view = id; showView(); } }, SVG(ic), label, h("span", { class: "bd", id: "bd-" + id, hidden: "" }))));
 }

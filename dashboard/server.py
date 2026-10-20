@@ -134,6 +134,8 @@ class Dashboard:
         try:
             if op == "delete":
                 return {"ok": convlog.delete(int(d.get("id", 0)))}
+            if op == "delete_range":
+                return {"ok": True, "n": convlog.delete_between(float(d.get("from", 0)), float(d.get("to", 0)))}
             if op == "delete_day":
                 return {"ok": True, "n": convlog.delete_day(str(d.get("day", ""))[:10])}
             if op == "clear":
@@ -148,6 +150,12 @@ class Dashboard:
         items = convlog.query(q[:100], limit=400)
         return {"items": [{"id": i["id"], "ts": i["ts"], "who": i["who"], "text": i["text"]} for i in items],
                 "retention": convlog.retention_days(), "total": convlog.count(), "q": q}
+
+    def conv_sessions(self, q: str) -> dict:
+        return {"sessions": convlog.sessions(q[:100]), "retention": convlog.retention_days(), "total": convlog.count(), "q": q}
+
+    def conv_range(self, a: float, b: float) -> dict:
+        return {"items": [{"id": i["id"], "ts": i["ts"], "who": i["who"], "text": i["text"]} for i in convlog.between(a, min(b, 9e12))]}
 
     # ------------------------------------------------------------ HTTP
     def _handler(self):
@@ -196,11 +204,19 @@ class Dashboard:
                         return self._json(404, {"error": "yok"})
                     ctype = mimetypes.guess_type(f.name)[0] or "application/octet-stream"
                     return self._send(200, f.read_bytes(), ctype + ("; charset=utf-8" if ctype.startswith("text") or "javascript" in ctype else ""))
-                if path == "/api/conv":
+                if path in ("/api/conv", "/api/sessions"):
                     if not self._token_ok(self.headers.get("X-Token", "")):
                         return self._json(403, {"error": "anahtar"})
-                    from urllib.parse import parse_qs, unquote_plus  # noqa: PLC0415
-                    q = unquote_plus((parse_qs(query).get("q") or [""])[0])
+                    from urllib.parse import parse_qs  # noqa: PLC0415
+                    qs = parse_qs(query)
+                    q = (qs.get("q") or [""])[0]
+                    if path == "/api/sessions":
+                        return self._json(200, dash.conv_sessions(q))
+                    if "from" in qs:
+                        try:
+                            return self._json(200, dash.conv_range(float(qs["from"][0]), float((qs.get("to") or ["9e12"])[0])))
+                        except ValueError:
+                            return self._json(400, {"error": "bozuk istek"})
                     return self._json(200, dash.conv_list(q))
                 if path == "/api/state":
                     if not self._token_ok(self.headers.get("X-Token", "")):
