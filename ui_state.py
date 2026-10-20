@@ -91,6 +91,17 @@ def set_focus(value: bool) -> None:
     _store.save("control.json", ctl)
 
 
+def chat_voice() -> bool:
+    """Panodaki Yazışma sekmesinde cevaplar sesli okunsun mu? (kalıcı ayar; varsayılan açık)"""
+    return bool(_store.load("settings.json", {}).get("chat_voice", True))
+
+
+def set_chat_voice(value: bool) -> None:
+    st = _store.load("settings.json", {})
+    st["chat_voice"] = bool(value)
+    _store.save("settings.json", st)
+
+
 def request_listen() -> None:
     """Panodan "Jarvis ile konuş": uyanma sözcüğü beklemeden hemen dinle."""
     ctl = _store.load("control.json", {})

@@ -72,15 +72,15 @@ def start_dashboard(brain, speaker):
 
     q: queue.Queue = queue.Queue(maxsize=20)
 
-    def submit(text: str) -> None:
+    def submit(text: str, silent: bool = False) -> None:
         try:
-            q.put_nowait(text)
+            q.put_nowait((text, silent))
         except queue.Full:
             pass
 
     def worker():  # panodan gelen komutlar sesli komutla aynı yoldan (aynı kilit, aynı onay kapıları) geçer
         while True:
-            text = q.get()
+            text, silent = q.get()
             try:
                 with brain.lock:
                     ui_state.add_turn("sen", text)
@@ -93,15 +93,18 @@ def start_dashboard(brain, speaker):
                         buf += piece
                         sentences, buf = pop_sentences(buf)
                         for s_ in sentences:
-                            ui_state.set_state("speaking")
                             said.append(s_)
-                            speaker.say(s_)
+                            if not silent:  # Yazışma sekmesinde sesli cevap kapalıysa yalnızca yazılır
+                                ui_state.set_state("speaking")
+                                speaker.say(s_)
                     if buf.strip():
-                        ui_state.set_state("speaking")
                         said.append(buf)
-                        speaker.say(buf)
+                        if not silent:
+                            ui_state.set_state("speaking")
+                            speaker.say(buf)
                     ui_state.add_turn("jarvis", " ".join(said))
-                speaker.wait()
+                if not silent:
+                    speaker.wait()
             except Exception as exc:  # noqa: BLE001  (bir komut hatası kuyruğu öldürmesin)
                 print(f"[pano] komut hatası: {type(exc).__name__}: {exc}", flush=True)
             finally:

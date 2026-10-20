@@ -128,7 +128,7 @@ def _durum(ctx):
     except Exception:  # noqa: BLE001
         pending = False
     return {"state": st.get("state", "starting"), "label": ui_state.STATES.get(st.get("state"), "—"),
-            "muted": ui_state.is_muted(), "focus": ui_state.is_focus(), "pending": pending,
+            "muted": ui_state.is_muted(), "focus": ui_state.is_focus(), "chat_voice": ui_state.chat_voice(), "pending": pending,
             "turns": st.get("turns", []), "uptime": int(time.time() - START)}
 
 

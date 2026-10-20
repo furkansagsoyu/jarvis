@@ -53,8 +53,8 @@ ui_state.add_turn("sen", "merhaba")
 brain = types.SimpleNamespace(model="gemma4:e4b", tools={"browser_open": 1, "agenda_add": 1, "mouse_click": 1}, history=[1, 2],
                               summary="", tool_count=5, active_model="qwen3:8b", agent=types.SimpleNamespace(state="plan", goal="x"))
 ctx = types.SimpleNamespace(brain=brain, fallbacks=["qwen3:8b"])
-sent = []
-d = server.Dashboard(ctx, sent.append, port=8899)
+sent, silents = [], []
+d = server.Dashboard(ctx, lambda t, silent=False: (sent.append(t), silents.append(silent)), port=8899)
 d.start()
 
 # ---- güvenlik
@@ -95,6 +95,20 @@ req(d, "POST", "/api/cmd", {"id": "talk"})
 check("konuş isteği bir kez tüketilir", ui_state.consume_listen() is True and ui_state.consume_listen() is False)
 check("evet/hayır düğmeleri metin olarak gider", (req(d, "POST", "/api/cmd", {"id": "yes"}), sent[-1])[1] == "evet"
       and (req(d, "POST", "/api/cmd", {"id": "no"}), sent[-1])[1] == "vazgeç")
+
+req(d, "POST", "/api/cmd", {"say": "merhaba", "chat": True})
+check("Yazışma: sesli cevap açıkken normal gider", sent[-1] == "merhaba" and silents[-1] is False)
+req(d, "POST", "/api/cmd", {"id": "chatvoice"})
+check("sesli cevap kapatılır (kalıcı ayar)", ui_state.chat_voice() is False)
+req(d, "POST", "/api/cmd", {"say": "selam", "chat": True})
+check("Yazışma: kapalıyken sessiz (silent) gider", sent[-1] == "selam" and silents[-1] is True)
+req(d, "POST", "/api/cmd", {"say": "sesli komut"})
+check("sohbet dışı (düğme/ses) komutlar etkilenmez", silents[-1] is False)
+req(d, "POST", "/api/cmd", {"id": "brief"})
+check("hızlı komut düğmeleri her zaman sesli", silents[-1] is False)
+check("durum chat_voice alanı", json.loads(req(d, "GET", "/api/state")[1])["durum"]["chat_voice"] is False)
+req(d, "POST", "/api/cmd", {"id": "chatvoice"})
+check("sesli cevap tekrar açılır", ui_state.chat_voice() is True)
 
 # ---- durum
 s, body = req(d, "GET", "/api/state")

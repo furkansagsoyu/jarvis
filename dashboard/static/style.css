@@ -151,3 +151,4 @@ mark{background:rgba(255,178,63,.35);color:#fff;border-radius:3px;padding:0 2px}
 #toast{position:fixed;left:50%;bottom:86px;transform:translateX(-50%);z-index:10;padding:8px 16px;border-radius:8px;font-size:13px;background:rgba(5,22,44,.96);border:1px solid var(--ok);color:var(--ok)}#toast.bad{border-color:var(--bad);color:var(--bad)}
 #drawer{background:#06172e}
 .chat.full{flex:1;border:0;padding:0;min-height:0}.chat.full .msg{font-size:14px;padding:8px 13px}.chat.full .chatform input{font-size:14px;padding:10px 12px}.chat.full .chatform button{padding:10px 22px}
+.pill.vo.on{background:rgba(31,216,255,.14);border-color:var(--cy);color:var(--cy2)}.pill.vo.on svg{color:var(--cy2)}

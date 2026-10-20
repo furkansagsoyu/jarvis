@@ -43,6 +43,7 @@ COMMANDS = {
     "mute": ("act", "mute"),
     "focus": ("act", "focus"),
     "talk": ("act", "talk"),
+    "chatvoice": ("act", "chatvoice"),
 }
 
 
@@ -75,11 +76,14 @@ class Dashboard:
             self.httpd.shutdown()
 
     # ------------------------------------------------------------ komutlar
-    def run_command(self, cid: str = "", say: str = "") -> dict:
+    def run_command(self, cid: str = "", say: str = "", chat: bool = False) -> dict:
         if say:
             say = " ".join(say.split())[:MAX_SAY]
             st.feed("KOMUT", f"Panodan: {say}")
-            self.submit(say)
+            if chat and not ui_state.chat_voice():
+                self.submit(say, silent=True)  # Yazışma sekmesi, sesli cevap kapalı: yalnızca yazıyla cevap
+            else:
+                self.submit(say)
             return {"ok": True}
         item = COMMANDS.get(cid)
         if not item:
@@ -94,6 +98,8 @@ class Dashboard:
             ui_state.set_muted(not ui_state.is_muted())
         elif val == "focus":
             ui_state.set_focus(not ui_state.is_focus())
+        elif val == "chatvoice":
+            ui_state.set_chat_voice(not ui_state.chat_voice())
         elif val == "talk":
             ui_state.request_listen()
         return {"ok": True}
@@ -220,6 +226,6 @@ class Dashboard:
                     return self._json(200, dash.agenda_op(data))
                 if self.path == "/api/conv":
                     return self._json(200, dash.conv_op(data))
-                return self._json(200, dash.run_command(str(data.get("id", "")), str(data.get("say", ""))))
+                return self._json(200, dash.run_command(str(data.get("id", "")), str(data.get("say", "")), bool(data.get("chat"))))
 
         return H

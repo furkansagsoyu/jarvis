@@ -44,7 +44,7 @@ function chatBox(extra = "") {
   const log = h("div", { class: "chatlog" }), inp = h("input", { placeholder: "Jarvis'e yaz…", maxlength: "300", autocomplete: "off" });
   const form = h("form", { class: "chatform" }, inp, h("button", { type: "submit" }, "Gönder"));
   const box = h("div", { class: "chat " + extra }, log, form), me = { el: box, key: "chat" + chats.length }; delete sigs[me.key];
-  form.onsubmit = (e) => { e.preventDefault(); const v = inp.value.trim(); if (v) { send({ say: v }); inp.value = ""; } };
+  form.onsubmit = (e) => { e.preventDefault(); const v = inp.value.trim(); if (v) { send({ say: v, chat: true }); inp.value = ""; } };
   me.update = (s) => {
     const k = s.konusma || {}, busy = s.durum && (s.durum.state === "thinking");
     if (!changed(me.key, [k.recent, busy])) return;
@@ -71,7 +71,11 @@ function listUl(items, empty) {
 const simple = (title, fn, empty) => ({ title, build(body, key) { body._c = h("div", { class: "scroll" }); fill(body, body._c); }, update(s, body, key) {
   const items = fn(s); if (changed(key, items)) fill(body._c, listUl(items, empty)); } });
 const VIEWS = {};
-VIEWS.yazisma = { title: "YAZIŞMA — JARVİS İLE KONUŞ", build(body) { body.append(chatBox("full").el); }, update() {} };
+VIEWS.yazisma = { title: "YAZIŞMA — JARVİS İLE KONUŞ",
+  build(body) { const b = h("button", { class: "pill vo", title: "Açıkken Jarvis yazdığın mesajlara sesli de cevap verir" }); b.onclick = () => send({ id: "chatvoice" }); body._vb = b;
+    body.append(h("div", { class: "convbar" }, b, h("span", { class: "muted" }, "Kapalıyken yalnızca yazıyla cevap verir; sesle konuşman etkilenmez.")), chatBox("full").el); },
+  update(s, body) { const on = !s.durum || s.durum.chat_voice !== false; body._vb.classList.toggle("on", on);
+    fill(body._vb, SVG("vol"), "Sesli cevap: " + (on ? "Açık" : "Kapalı")); } };
 VIEWS.cekirdek = simple("YAPAY ZEKÂ ÇEKİRDEĞİ", (s) => s.model && [
   ["cpu", "Dil modeli", s.model.llm.map((m) => m.name + " (" + m.role + (m.active ? ", aktif" : "") + ")").join(", ")], ["vol", "Konuşma tanıma", s.model.stt], ["vol", "Ses motoru", s.model.tts],
   ["bolt", "Uyanma sözcüğü", s.model.wake], ["tool", "Yetenek sayısı", String(s.model.tools)], ["tool", "Araç çağrısı (oturum)", String(s.model.tool_calls)]]);
