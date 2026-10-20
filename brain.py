@@ -28,6 +28,7 @@ import ollama
 import agent as _agent
 from skills import _confirm as confirm
 from skills import _store
+from skills import agenda as _agenda
 from skills import browser as _browser
 from skills import files as _files
 from skills import HIDDEN, capability_summary, load_skills
@@ -387,6 +388,10 @@ class Brain:
             return [("look_at_screen", {"question": text})]
         if "morning_brief" in self.tools and WORD_BRIEF.search(text):
             return [("morning_brief", {})]
+        if "agenda_add" in self.tools:
+            ag = _agenda.route(text)
+            if ag:
+                return ag
         if "read_file" in self.tools and WORD_READ.search(text) and not WORD_FILE.search(text) and WORD_CONTEXT_REF.search(text):
             ref = WORD_CONTEXT_REF.search(text).group(1)  # "onu oku", "ikincisini özetle": son 'dosya bul' sonucuna gönderme
             if _files.has_context():

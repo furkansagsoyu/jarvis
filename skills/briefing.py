@@ -1,7 +1,7 @@
 """Günün özeti: selam, tarih, hava, hatırlatıcılar, pil. Tek komutla ("günaydın", "günün özeti")."""
 import datetime as dt
 
-from . import _store, battery, clock, reminders, weather
+from . import _store, agenda, battery, clock, reminders, weather
 
 
 def greeting(hour: int | None = None) -> str:
@@ -14,6 +14,9 @@ def morning_brief() -> str:
     w = weather.get_weather()
     if not w.startswith("Hata"):  # internet yoksa hava kısmı sessizce atlanır
         parts.append(w)
+    a = agenda.brief_text()
+    if a:
+        parts.append(a)
     r = reminders.list_reminders()
     if "yok" not in r:
         parts.append(r)
@@ -36,7 +39,7 @@ def mark_done(now: dt.datetime | None = None) -> None:
 SKILLS = [
     {
         "name": "morning_brief",
-        "description": "Günün özetini verir: tarih, hava, hatırlatıcılar. 'Günaydın', 'günün özeti', 'bugün neler var' denince kullanılır.",
+        "description": "Günün özetini verir: tarih, hava, etkinlikler, görevler, hatırlatıcılar. 'Günaydın', 'günün özeti', 'bugün neler var' denince kullanılır.",
         "hidden": True,
         "run": morning_brief,
     },

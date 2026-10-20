@@ -24,7 +24,7 @@ from pathlib import Path  # noqa: E402
 
 import ui_state  # noqa: E402
 from brain import Brain  # noqa: E402
-from skills import battery, briefing, reminders  # noqa: E402
+from skills import agenda, battery, briefing, reminders  # noqa: E402
 from tts import list_output_devices, make_speaker, set_output_device  # noqa: E402
 
 SENTENCE_END = re.compile(r"(?<=[.!?…])\s+")
@@ -135,6 +135,7 @@ def main():
         else:
             print("      Telegram kurulu değil (python telegram_bot.py --setup); atlandı.", flush=True)
     reminders.set_notifier(notify)  # süre dolunca arka plan iş parçacığından sesli söyler
+    agenda.Monitor(notify).start()  # etkinliğe 10 dk kala sesli uyarır
     battery.Monitor(notify).start()  # pil yüzde 20 ve 10'un altına düşünce bir kez uyarır
     def stop_watcher():  # arayüzdeki "Sustur" düğmesi
         while True:

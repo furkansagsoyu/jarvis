@@ -74,6 +74,12 @@ CAMERA = [
     ("elimde ne var", "look_at_camera"), ("bana bak", "look_at_camera"), ("kamerayı aç", None), ("kamera ayarlarını aç", None),
     ("ekranda ne var", "look_at_screen"),
 ]
+AGENDA = [
+    ("yarın saat 14'te toplantı ekle", "agenda_add"), ("takvime cuma akşam 8'de yemek koy", "agenda_add"),
+    ("bu hafta takvimimde ne var", "agenda_list"), ("yarın ne var", "agenda_list"), ("görev ekle: raporu bitir", "task_add"),
+    ("görevlerim neler", "task_list"), ("raporu bitir görevi bitti", "task_done"), ("geciken görevler", "task_list"),
+    ("yarın saat 9'a hatırlatıcı ekle", None), ("kamerada ne var", "look_at_camera"), ("ekranda ne var", "look_at_screen"),
+]
 DESKTOP = [
     ("fareyi sağa götür", "mouse_move"), ("Fareyi biraz yukarı kaydır", "mouse_move"), ("fareyi sol üst köşeye götür", "mouse_move"),
     ("tıkla", "mouse_click"), ("çift tıkla", "mouse_click"), ("sağ tıkla", "mouse_click"),
@@ -113,6 +119,12 @@ def main():
         ok = name == want
         bad += not ok
         print(f"{'OK  ' if ok else 'HATA'} [kamera] {text!r:34} -> {name}  (beklenen {want})")
+    for text, want in AGENDA:
+        got = brain._fast_route(text)
+        name = got[0][0] if got else None
+        ok = name == want or (want is None and name in (None, "set_reminder"))
+        bad += not ok
+        print(f"{'OK  ' if ok else 'HATA'} [takvim] {text!r:38} -> {name}  (beklenen {want})")
     for text, want in DESKTOP:
         got = brain._fast_route(text)
         name = got[0][0] if got else None

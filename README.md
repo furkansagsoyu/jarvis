@@ -19,6 +19,7 @@ Bu proje bir öğrenci projesidir ve bir ev bilgisayarında çalışacak şekild
 | Sohbet ve araç çağırma | "Saat kaç?", "Yarın hava nasıl?", "Sesi yüzde otuza ayarla" |
 | Dosyalar | "rapor.pdf dosyasını oku", "masaüstünde faturaları bul", "onu özetle" |
 | Güvenli dosya işlemi | taşıma ve çöpe atma sesli onayla çalışır, "geri al" ile geri döner |
+| Takvim ve görevler | "Yarın saat 14'te toplantı ekle", "bu hafta takvimimde ne var", "görev ekle: raporu bitir, cuma, yüksek öncelik", "görevlerim neler", "raporu bitir görevi bitti" (etkinliğe 10 dk kala sesli uyarır) |
 | Hatırlatıcılar, hafıza | "20 dakika sonra beni uyar", "şunu hatırla…" (yeniden başlatınca da durur) |
 | Web | "Ankara'nın nüfusunu araştır" (sonuçları okur ve özetler) |
 | Tarayıcı kontrolü | "github.com'a git", "sayfayı oku", "arama kutusuna jarvis yaz ve ara" |
@@ -118,6 +119,7 @@ skills/          beceriler: her dosya kendini tanımlar ve otomatik yüklenir
   _confirm.py    onay kapısı
   browser.py     Playwright ile tarayıcı kontrolü
   desktop_input.py  fare/klavye (xdotool)
+  agenda.py      takvim ve görevler (yerel, Türkçe tarih ayrıştırıcı: _trdate.py)
   screen.py, camera.py, files.py, web.py, reminders.py, hardware.py, ...
 stt.py, tts.py, wake.py     konuşma tanıma, sentez, uyanma sözcüğü
 ui.py, telegram_bot.py, autostart.py
@@ -142,6 +144,7 @@ Yeni bir beceri eklemek için `skills/` altına, `SKILLS` listesi tanımlayan bi
 
 ## Teşekkür
 
+Fikirler [Mark-LV](https://github.com/FaithMakes/Mark-LV) projesinin özellik listesinden esinlenmiştir (kod alınmadı).
 Kullanılan açık kaynak bileşenler: [faster-whisper](https://github.com/SYSTRAN/faster-whisper), [Ollama](https://ollama.com),
 [openWakeWord](https://github.com/dscripka/openWakeWord), EMA Lightning, [Playwright](https://playwright.dev), Gemma ve Qwen modelleri
 (kendi lisanslarıyla).
