@@ -34,6 +34,11 @@ def add_turn(who: str, text: str) -> None:
     text = (text or "").strip()
     if not text:
         return
+    try:
+        import convlog  # noqa: PLC0415
+        convlog.append(who, text)  # kalıcı günlük (panodaki Konuşmalar)
+    except Exception:  # noqa: BLE001  (günlük hatası konuşmayı bozmasın)
+        pass
     st = _status()
     st["turns"] = (st.get("turns") or []) + [{"who": who, "text": text}]
     st["turns"] = st["turns"][-MAX_TURNS:]
@@ -75,7 +80,34 @@ def consume_stop() -> bool:
     return True
 
 
+def is_focus() -> bool:
+    """Odak modu: arka plan bildirimleri sesli söylenmez (panoda görünür)."""
+    return bool(_store.load("control.json", {}).get("focus"))
+
+
+def set_focus(value: bool) -> None:
+    ctl = _store.load("control.json", {})
+    ctl["focus"] = bool(value)
+    _store.save("control.json", ctl)
+
+
+def request_listen() -> None:
+    """Panodan "Jarvis ile konuş": uyanma sözcüğü beklemeden hemen dinle."""
+    ctl = _store.load("control.json", {})
+    ctl["listen"] = True
+    _store.save("control.json", ctl)
+
+
+def consume_listen() -> bool:
+    ctl = _store.load("control.json", {})
+    if not ctl.get("listen"):
+        return False
+    ctl["listen"] = False
+    _store.save("control.json", ctl)
+    return True
+
+
 def reset() -> None:
     """Program açılırken: eski oturumdan kalan sessiz modu ve konuşma satırlarını temizler."""
-    _store.save("control.json", {"mute": False})
+    _store.save("control.json", {"mute": False, "focus": False})
     _store.save("status.json", {"state": "starting", "turns": [], "ts": time.time(), "pid": os.getpid()})

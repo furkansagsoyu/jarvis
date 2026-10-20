@@ -42,7 +42,7 @@ class WakeWord:
             self.model = Model(wakeword_models=[name], inference_framework="onnx")
         self.threshold, self.mic, self.name = threshold, mic, name
 
-    def wait(self, stop_after: float | None = None) -> bool:
+    def wait(self, stop_after: float | None = None, interrupt=None) -> bool:
         """Uyanma sözcüğü duyulana kadar bloklar. stop_after saniye geçerse False döner."""
         import sounddevice as sd  # noqa: PLC0415
 
@@ -54,6 +54,8 @@ class WakeWord:
         with sd.InputStream(samplerate=SAMPLE_RATE, channels=1, dtype="int16", blocksize=FRAME, device=self.mic) as stream:
             while stop_after is None or time.time() - t0 < stop_after:
                 frame, _ = stream.read(FRAME)
+                if interrupt is not None and interrupt():  # panodaki "Jarvis ile konuş" düğmesi
+                    return True
                 scores = self.model.predict(frame[:, 0])
                 if scores and max(scores.values()) >= self.threshold:
                     return True
@@ -112,7 +114,11 @@ def record_utterance(mic=None, **kw) -> np.ndarray:
 def listen_handsfree(listener, wake: WakeWord) -> str:
     """Uyanma sözcüğünü bekler, komutu kaydeder ve yazıya döker (boş olabilir)."""
     print("\n👂 'Hey Jarvis' bekleniyor...", flush=True)
-    wake.wait()
+    try:
+        import ui_state  # noqa: PLC0415
+        wake.wait(interrupt=ui_state.consume_listen)
+    except ImportError:
+        wake.wait()
     beep()
     print("🎙  dinliyorum...", flush=True)
     audio = record_utterance(listener.mic)

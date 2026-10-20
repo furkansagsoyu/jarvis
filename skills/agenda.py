@@ -294,6 +294,63 @@ def counts() -> dict:
             "events_today": sum(1 for e in d["events"] if _ev_start(e).date() == today)}
 
 
+def snapshot(max_tasks: int = 6, horizon_days: int = 60) -> dict:
+    """Pano için ham veri: bugünkü etkinlikler, yaklaşan etkinlikler (kimlikli) ve açık görevler (kimlikli)."""
+    now = _now()
+    today = now.date()
+    with _lock:
+        d = _load()
+    evs = sorted(d["events"], key=_ev_start)
+    todays = [{"time": "" if e.get("all_day") else _ev_start(e).strftime("%H:%M"), "title": e["title"],
+               "past": (not e.get("all_day")) and _ev_start(e) < now} for e in evs if _ev_start(e).date() == today]
+    end = today + dt.timedelta(days=horizon_days)
+    upcoming = [{"id": e["id"], "date": _ev_start(e).date().isoformat(), "time": "" if e.get("all_day") else _ev_start(e).strftime("%H:%M"),
+                 "title": e["title"], "past": (not e.get("all_day")) and _ev_start(e) < now}
+                for e in evs if today <= _ev_start(e).date() <= end]
+    nxt = next(({"when": _ev_start(e).strftime("%d.%m %H:%M") if not e.get("all_day") else _ev_start(e).strftime("%d.%m"),
+                 "title": e["title"]} for e in evs if _ev_start(e) >= now.replace(hour=0, minute=0) and
+                (e.get("all_day") or _ev_start(e) >= now)), None)
+    tasks = [{"id": t["id"], "title": t["title"], "due": t["due"], "priority": t["priority"],
+              "overdue": bool(t["due"]) and dt.date.fromisoformat(t["due"]) < today}
+             for t in _open_tasks(d)]
+    return {"events_today": todays, "events": upcoming, "next_event": nxt, "tasks": tasks[:max_tasks], "all_tasks": tasks[:100],
+            "open_tasks": len(tasks), "overdue": sum(1 for t in tasks if t["overdue"])}
+
+
+# ------------------------------------------------------------------ kimlikle işlemler (pano düğmeleri)
+def done_task_id(task_id: int) -> bool:
+    with _lock:
+        d = _load()
+        for t in d["tasks"]:
+            if t["id"] == task_id and t["status"] == "açık":
+                t["status"] = "bitti"
+                _save(d)
+                return True
+    return False
+
+
+def delete_task_id(task_id: int) -> bool:
+    with _lock:
+        d = _load()
+        keep = [t for t in d["tasks"] if t["id"] != task_id]
+        if len(keep) == len(d["tasks"]):
+            return False
+        d["tasks"] = keep
+        _save(d)
+        return True
+
+
+def cancel_event_id(event_id: int) -> bool:
+    with _lock:
+        d = _load()
+        keep = [e for e in d["events"] if e["id"] != event_id]
+        if len(keep) == len(d["events"]):
+            return False
+        d["events"] = keep
+        _save(d)
+        return True
+
+
 # ------------------------------------------------------------------ uyarı iş parçacığı
 class Monitor(threading.Thread):
     """Etkinliğe 'remind' dakika kala bir kez sesli uyarır ve masaüstü bildirimi gösterir."""

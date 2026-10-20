@@ -20,6 +20,7 @@ Bu proje bir öğrenci projesidir ve bir ev bilgisayarında çalışacak şekild
 | Dosyalar | "rapor.pdf dosyasını oku", "masaüstünde faturaları bul", "onu özetle" |
 | Güvenli dosya işlemi | taşıma ve çöpe atma sesli onayla çalışır, "geri al" ile geri döner |
 | Takvim ve görevler | "Yarın saat 14'te toplantı ekle", "bu hafta takvimimde ne var", "görev ekle: raporu bitir, cuma, yüksek öncelik", "görevlerim neler", "raporu bitir görevi bitti" (etkinliğe 10 dk kala sesli uyarır) |
+| Komut Merkezi panosu (V2) | `python main.py --dash`: kendi penceresinde canlı pano (sistem, ajanlar, modeller, akış, hızlı komutlar; görev/takvimi elle ekle-sil; konuşma geçmişi ve arama, otomatik silme; yetenek listesi; Yazışma sekmesinde Jarvis ile sohbet) |
 | Hatırlatıcılar, hafıza | "20 dakika sonra beni uyar", "şunu hatırla…" (yeniden başlatınca da durur) |
 | Web | "Ankara'nın nüfusunu araştır" (sonuçları okur ve özetler) |
 | Tarayıcı kontrolü | "github.com'a git", "sayfayı oku", "arama kutusuna jarvis yaz ve ara" |
@@ -84,6 +85,7 @@ playwright install chromium     # tarayıcı kontrolü
 ```bash
 python main.py --wake --ui             # eller serbest: "Hey Jarvis", durum penceresi ve tepsi simgesi
 python main.py                         # Enter ile konuş, Enter ile bitir
+python main.py --wake --dash           # + Komut Merkezi panosu (pip install pywebview)
 python main.py --text                  # mikrofon yerine klavyeden yaz (hata ayıklama)
 python main.py --list-speakers         # hoparlörleri listele, --speaker <numara|ad> ile seç
 python main.py --help                  # tüm bayraklar
@@ -112,7 +114,8 @@ Tarayıcı testleri gerçek bir Chromium ile yerel test sitesinde çalışır. F
 ## Proje yapısı
 
 ```
-main.py          konuşma döngüsü (mikrofon → STT → beyin → TTS)
+main.py          konuşma döngüsü
+convlog.py       kalıcı konuşma günlüğü (panodaki Konuşmalar; süreli otomatik silme) (mikrofon → STT → beyin → TTS)
 brain.py         model, araç çağırma, kural tabanlı hızlı yol, oturum, bağlam özetleme
 agent.py         ajan modu (planla, onayla, adım adım yürüt)
 skills/          beceriler: her dosya kendini tanımlar ve otomatik yüklenir
@@ -121,10 +124,13 @@ skills/          beceriler: her dosya kendini tanımlar ve otomatik yüklenir
   desktop_input.py  fare/klavye (xdotool)
   agenda.py      takvim ve görevler (yerel, Türkçe tarih ayrıştırıcı: _trdate.py)
   screen.py, camera.py, files.py, web.py, reminders.py, hardware.py, ...
+dashboard/       Komut Merkezi: server.py (yalnızca 127.0.0.1, rastgele anahtar), state.py (panel sağlayıcıları), window.py, static/
 stt.py, tts.py, wake.py     konuşma tanıma, sentez, uyanma sözcüğü
 ui.py, telegram_bot.py, autostart.py
 check_all.py     tek komutlu test ve ortam kontrolü
 ```
+
+Panoya yeni panel eklemek için `dashboard/state.py` içinde `@provider("ad")` ile veri üreten bir fonksiyon yazın, `static/app.js` içindeki `PANELS` ve `index.html`'e çizimini ekleyin; yeni sayfa için `VIEWS` listesine girin. Pano yalnızca bu bilgisayardan erişilir, tehlikeli işlemler panodan da onay ister.
 
 Yeni bir beceri eklemek için `skills/` altına, `SKILLS` listesi tanımlayan bir dosya koymak yeterlidir.
 

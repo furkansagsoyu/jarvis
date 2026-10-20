@@ -50,6 +50,73 @@ def single_instance():
     return lock
 
 
+def wrap_notify(say):
+    """Bildirimler panodaki akışa da yazılır; Odak Modu açıksa yalnızca akışa yazılır, sesli söylenmez."""
+    def notify(text, *a, **kw):
+        try:
+            from dashboard import state as dash_state  # noqa: PLC0415
+            dash_state.feed("UYARI" if any(w in text.lower() for w in ("pil", "gecik", "dakika")) else "BİLGİ", text)
+        except Exception:  # noqa: BLE001
+            pass
+        if not ui_state.is_focus():
+            return say(text, *a, **kw)
+    return notify
+
+
+def start_dashboard(brain, speaker):
+    """Pano sunucusunu (127.0.0.1) başlatır, komut kuyruğunu işleyen iş parçacığını ve pencereyi açar."""
+    import queue  # noqa: PLC0415
+    from types import SimpleNamespace  # noqa: PLC0415
+
+    from dashboard import server  # noqa: PLC0415
+
+    q: queue.Queue = queue.Queue(maxsize=20)
+
+    def submit(text: str) -> None:
+        try:
+            q.put_nowait(text)
+        except queue.Full:
+            pass
+
+    def worker():  # panodan gelen komutlar sesli komutla aynı yoldan (aynı kilit, aynı onay kapıları) geçer
+        while True:
+            text = q.get()
+            try:
+                with brain.lock:
+                    ui_state.add_turn("sen", text)
+                    ui_state.set_state("thinking")
+                    buf, said = "", []
+                    for piece in brain.reply_stream(text):
+                        if speaker.interrupted():
+                            buf = ""
+                            break
+                        buf += piece
+                        sentences, buf = pop_sentences(buf)
+                        for s_ in sentences:
+                            ui_state.set_state("speaking")
+                            said.append(s_)
+                            speaker.say(s_)
+                    if buf.strip():
+                        ui_state.set_state("speaking")
+                        said.append(buf)
+                        speaker.say(buf)
+                    ui_state.add_turn("jarvis", " ".join(said))
+                speaker.wait()
+            except Exception as exc:  # noqa: BLE001  (bir komut hatası kuyruğu öldürmesin)
+                print(f"[pano] komut hatası: {type(exc).__name__}: {exc}", flush=True)
+            finally:
+                ui_state.set_state("listening")
+
+    threading.Thread(target=worker, daemon=True).start()
+    dash = server.Dashboard(SimpleNamespace(brain=brain), submit)
+    url = dash.start()
+    print(f"      Pano açık: {url.split('?')[0]}", flush=True)
+    if not os.environ.get("DISPLAY"):
+        return None
+    return subprocess.Popen([sys.executable, "-m", "dashboard.window", url, "--parent", str(os.getpid())],
+                            cwd=str(Path(__file__).parent))
+
+
 def main():
     _lock = single_instance()  # noqa: F841
     import faulthandler  # noqa: PLC0415
@@ -74,6 +141,7 @@ def main():
     p.add_argument("--fresh", action="store_true", help="önceki konuşmayı yükleme (oturum devamlılığı kapalı değil, sıfırdan başlar)")
     p.add_argument("--ui", action="store_true", help="durum penceresi ve tepsi simgesi (ui.py) aç")
     p.add_argument("--telegram", action="store_true", help="Telegram köprüsü (önce: python telegram_bot.py --setup)")
+    p.add_argument("--dash", action="store_true", help="Komut Merkezi panosunu kendi penceresinde aç (V2)")
     p.add_argument("--morning", action="store_true", help="sabah (05-12) ilk açılışta günün özetini söyle (günde bir kez)")
     args = p.parse_args()
 
@@ -134,6 +202,7 @@ def main():
             print("      Telegram köprüsü açık.", flush=True)
         else:
             print("      Telegram kurulu değil (python telegram_bot.py --setup); atlandı.", flush=True)
+    notify = wrap_notify(notify)  # akışa yazar; odak modunda sesli söylemez
     reminders.set_notifier(notify)  # süre dolunca arka plan iş parçacığından sesli söyler
     agenda.Monitor(notify).start()  # etkinliğe 10 dk kala sesli uyarır
     battery.Monitor(notify).start()  # pil yüzde 20 ve 10'un altına düşünce bir kez uyarır
@@ -153,6 +222,9 @@ def main():
                 if speaker.is_busy():
                     speaker.stop()
         threading.Thread(target=enter_to_stop, daemon=True).start()
+    dash_proc = None
+    if args.dash:
+        dash_proc = start_dashboard(brain, speaker)
     speaker.say("Hazırım.")
     missed = reminders.restore()  # kapalıyken kurulan hatırlatıcılar geri yüklenir
     if missed:
@@ -221,6 +293,8 @@ def main():
     ui_state.set_state("stopped")
     if ui_proc:
         ui_proc.terminate()
+    if dash_proc:
+        dash_proc.terminate()
 
 
 if __name__ == "__main__":

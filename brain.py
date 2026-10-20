@@ -134,6 +134,9 @@ class Brain:
         self.persist = False           # True: konuşma geçmişi data/session.json'a yazılır (main.py açar)
         self._skip_primary_until = 0.0
         self.lock = threading.RLock()  # ses döngüsü ve Telegram aynı beyni sırayla kullanır
+        self.tool_stats: dict[str, int] = {}  # araç adı -> oturumda kaç kez çalıştı
+        self.tool_count = 0            # oturumdan beri çalışan araç sayısı (pano gösterir)
+        self.active_model = model      # son cevabı veren model (yedeğe düşüldüyse o)
         self.remote = False            # True iken (Telegram) REMOTE_BLOCKED araçlar reddedilir
 
     # -- ısınma: modeli belleğe al (ilk cevap gecikmesi azalır)
@@ -149,6 +152,8 @@ class Brain:
             return f"Hata: '{name}' adında bir araç yok."
         if self.remote and name in REMOTE_BLOCKED:
             return "Bunu güvenlik nedeniyle uzaktan yapmıyorum, bilgisayarın başındayken sor."
+        self.tool_count += 1
+        self.tool_stats[name] = self.tool_stats.get(name, 0) + 1
         try:
             return str(entry[1](**(args or {})))
         except Exception as exc:  # noqa: BLE001
@@ -186,6 +191,7 @@ class Brain:
                 last_exc = exc
                 print(f"\n[uyarı] {model} hata verdi ({type(exc).__name__}: {str(exc)[:80]}); sıradaki model deneniyor", flush=True)
                 continue
+            self.active_model = model
             if model != self.model:
                 if time.time() >= self._skip_primary_until:
                     print(f"\n[uyarı] yedek model kullanılıyor: {model}", flush=True)

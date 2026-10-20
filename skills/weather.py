@@ -50,6 +50,20 @@ def get_weather(city: str = "", day: str = "bugün") -> str:
     return f"{name} için {label} hava {desc}, {day_part}"
 
 
+def current_temp(city: str = "") -> int | None:
+    """Pano için yalnızca anlık sıcaklık (°C, tam sayı); ulaşılamazsa None."""
+    city = (city or DEFAULT_CITY).strip()
+    try:
+        geo = _get("https://geocoding-api.open-meteo.com/v1/search?" +
+                   urllib.parse.urlencode({"name": city, "count": 1, "language": "tr"}))
+        place = geo["results"][0]
+        data = _get("https://api.open-meteo.com/v1/forecast?" + urllib.parse.urlencode({
+            "latitude": place["latitude"], "longitude": place["longitude"], "current": "temperature_2m"}))
+        return round(data["current"]["temperature_2m"])
+    except Exception:  # noqa: BLE001
+        return None
+
+
 SKILLS = [
     {
         "name": "get_weather",
