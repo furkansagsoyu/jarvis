@@ -21,6 +21,7 @@ Bu proje bir öğrenci projesidir ve bir ev bilgisayarında çalışacak şekild
 | Güvenli dosya işlemi | taşıma ve çöpe atma sesli onayla çalışır, "geri al" ile geri döner |
 | Takvim ve görevler | "Yarın saat 14'te toplantı ekle", "bu hafta takvimimde ne var", "görev ekle: raporu bitir, cuma, yüksek öncelik", "görevlerim neler", "raporu bitir görevi bitti" (etkinliğe 10 dk kala sesli uyarır) |
 | Komut Merkezi panosu (V2) | `python main.py --dash`: kendi penceresinde canlı pano (sistem, ajanlar, modeller, akış, hızlı komutlar; görev/takvimi elle ekle-sil; gün/saate göre sohbet geçmişi, arama, otomatik silme; yetenek listesi; Yazışma sekmesinde Jarvis ile sohbet) |
+| Masaüstü uygulaması | `python install_app.py`: menüde JARVIS simgesi, terminalsiz başlar; Ayarlar sekmesinde tema (cyan, amber, yeşil, mor, açık) |
 | Hatırlatıcılar, hafıza | "20 dakika sonra beni uyar", "şunu hatırla…" (yeniden başlatınca da durur) |
 | Web | "Ankara'nın nüfusunu araştır" (sonuçları okur ve özetler) |
 | Tarayıcı kontrolü | "github.com'a git", "sayfayı oku", "arama kutusuna jarvis yaz ve ara" |
@@ -95,6 +96,7 @@ python main.py --help                  # tüm bayraklar
 
 | Ayar | Komut |
 |---|---|
+| Uygulama menüsüne simge | `python install_app.py` (masaüstüne de: `--desktop`, kaldırmak: `--remove`) |
 | Otomatik başlatma (oturum açılışında) | `python autostart.py --install` |
 | Telegram köprüsü | `python telegram_bot.py --setup`, sonra `python main.py --telegram` |
 | Tarayıcı için izinli siteler | `python browser_sites.py list / add <site> / remove <site>` |
@@ -114,6 +116,7 @@ Tarayıcı testleri gerçek bir Chromium ile yerel test sitesinde çalışır. F
 ## Proje yapısı
 
 ```
+app.py, install_app.py   masaüstü uygulaması (başlatıcı, simge/.desktop kurulumu), assets/ simgeler
 main.py          konuşma döngüsü
 convlog.py       kalıcı konuşma günlüğü (panodaki Konuşmalar; süreli otomatik silme) (mikrofon → STT → beyin → TTS)
 brain.py         model, araç çağırma, kural tabanlı hızlı yol, oturum, bağlam özetleme

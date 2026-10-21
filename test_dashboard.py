@@ -53,8 +53,8 @@ ui_state.add_turn("sen", "merhaba")
 brain = types.SimpleNamespace(model="gemma4:e4b", tools={"browser_open": 1, "agenda_add": 1, "mouse_click": 1}, history=[1, 2],
                               summary="", tool_count=5, active_model="qwen3:8b", agent=types.SimpleNamespace(state="plan", goal="x"))
 ctx = types.SimpleNamespace(brain=brain, fallbacks=["qwen3:8b"])
-sent, silents = [], []
-d = server.Dashboard(ctx, lambda t, silent=False: (sent.append(t), silents.append(silent)), port=8899)
+sent, silents, quits = [], [], []
+d = server.Dashboard(ctx, lambda t, silent=False: (sent.append(t), silents.append(silent)), port=8899, quit=lambda: quits.append(1))
 d.start()
 
 # ---- güvenlik
@@ -109,6 +109,19 @@ check("hızlı komut düğmeleri her zaman sesli", silents[-1] is False)
 check("durum chat_voice alanı", json.loads(req(d, "GET", "/api/state")[1])["durum"]["chat_voice"] is False)
 req(d, "POST", "/api/cmd", {"id": "chatvoice"})
 check("sesli cevap tekrar açılır", ui_state.chat_voice() is True)
+
+# ---- tema ve kapatma
+check("varsayılan tema cyan", ui_state.theme() == "cyan")
+check("geçerli tema kaydedilir", json.loads(req(d, "POST", "/api/cmd", {"theme": "amber"})[1])["ok"] and ui_state.theme() == "amber"
+      and json.loads(req(d, "GET", "/api/state")[1])["durum"]["theme"] == "amber")
+check("geçersiz tema reddedilir (ayar bozulmaz)", json.loads(req(d, "POST", "/api/cmd", {"theme": "<script>"})[1])["ok"] is False and ui_state.theme() == "amber")
+check("tüm temalar kabul", all(json.loads(req(d, "POST", "/api/cmd", {"theme": t})[1])["ok"] for t in ui_state.THEMES))
+ui_state.set_theme("cyan")
+check("kapatma komutu bağlı fonksiyonu çağırır", req(d, "POST", "/api/cmd", {"id": "quit"})[0] == 200 and quits == [1])
+check("anahtarsız kapatma yapılmaz", req(d, "POST", "/api/cmd", {"id": "quit"}, token=False)[0] == 403 and quits == [1])
+d2 = server.Dashboard(ctx, lambda t: None, port=8920)
+check("kapatma bağlı değilse hata (çökmez)", d2.run_command("quit")["ok"] is False)
+d2.httpd.server_close()
 
 # ---- durum
 s, body = req(d, "GET", "/api/state")

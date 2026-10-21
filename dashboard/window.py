@@ -76,7 +76,11 @@ def main() -> None:
 
     threading.Thread(target=watch, daemon=True).start()
     try:
-        webview.start()
+        icon = Path(__file__).resolve().parent.parent / "assets" / "jarvis-256.png"
+        try:
+            webview.start(icon=str(icon))
+        except TypeError:  # eski pywebview sürümü icon bilmez
+            webview.start()
     except Exception as exc:  # noqa: BLE001  (conda ortamında GTK/Qt yoksa vb.)
         print(f"[pano] pywebview penceresi açılamadı ({type(exc).__name__}); tarayıcı penceresine geçiliyor.", flush=True)
         open_fallback(url, a.parent)

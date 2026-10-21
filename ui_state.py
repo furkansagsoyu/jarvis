@@ -102,6 +102,23 @@ def set_chat_voice(value: bool) -> None:
     _store.save("settings.json", st)
 
 
+THEMES = ("cyan", "amber", "green", "violet", "light")
+
+
+def theme() -> str:
+    t = _store.load("settings.json", {}).get("theme", "cyan")
+    return t if t in THEMES else "cyan"
+
+
+def set_theme(name: str) -> bool:
+    if name not in THEMES:
+        return False
+    st = _store.load("settings.json", {})
+    st["theme"] = name
+    _store.save("settings.json", st)
+    return True
+
+
 def request_listen() -> None:
     """Panodan "Jarvis ile konuş": uyanma sözcüğü beklemeden hemen dinle."""
     ctl = _store.load("control.json", {})

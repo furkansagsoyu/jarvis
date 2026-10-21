@@ -14,6 +14,33 @@ function h(tag, props = {}, ...kids) {
 const fill = (el, ...kids) => el.replaceChildren(...kids.flat().filter(Boolean));
 let S = null, offline = 0;
 const sigs = {};
+let ACC = "31,216,255", CY = "#1fd8ff", CY2 = "#7be9ff", curTheme = "cyan";
+/* ---- temalar: cyan varsayılan (style.css :root); diğerleri değişkenleri ezer ---- */
+const THEME_META = { cyan: ["Cyan (varsayılan)", "#1fd8ff", "#030b18"], amber: ["Amber", "#ffb23f", "#0e0a03"], green: ["Yeşil", "#2ee89a", "#020d08"], violet: ["Mor", "#a779ff", "#08040f"], light: ["Açık tema", "#0b78b5", "#e9eff6"] };
+const HUES = { amber: 38, green: 152, violet: 265 };
+const THEME_KEYS = ["--bg", "--bg-a", "--line", "--line2", "--cy", "--cy2", "--cy-rgb", "--tx", "--tx2", "--mut", "--panel-a", "--panel-b", "--card", "--card2", "--side-a", "--side-b", "--solid", "--badge", "--gaugebg", "--on-cy", "--hi", "--orb-bg", "--orb-bg2", "--ok", "--warn", "--bad", "--vio"];
+function hsl2rgb(h, s, l) { s /= 100; l /= 100; const k = (n) => (n + h / 30) % 12, a = s * Math.min(l, 1 - l), f = (n) => l - a * Math.max(-1, Math.min(k(n) - 3, Math.min(9 - k(n), 1)));
+  return [Math.round(255 * f(0)), Math.round(255 * f(8)), Math.round(255 * f(4))]; }
+function themeVars(name) {
+  if (name === "light") return { "--bg": "#e9eff6", "--bg-a": "#ffffff", "--line": "#b8cadb", "--line2": "#7fa6c6", "--cy": "#0b78b5", "--cy2": "#0a5f93", "--cy-rgb": "11,120,181", "--tx": "#14283b", "--tx2": "#2b4660", "--mut": "#5d768c",
+    "--panel-a": "rgba(255,255,255,.92)", "--panel-b": "rgba(238,245,251,.95)", "--card": "rgba(255,255,255,.85)", "--card2": "rgba(255,255,255,.95)", "--side-a": "rgba(255,255,255,.95)", "--side-b": "rgba(233,241,248,.97)",
+    "--solid": "#f4f8fc", "--badge": "#d3e6f5", "--gaugebg": "#d6e3ee", "--on-cy": "#ffffff", "--hi": "#0b1b2b", "--orb-bg": "rgba(11,120,181,.12)", "--orb-bg2": "rgba(240,246,252,.9)", "--ok": "#0d8f5f", "--warn": "#b86e00", "--bad": "#d02c45", "--vio": "#7040d0" };
+  const h = HUES[name]; if (h == null) return null;
+  const hs = (s, l, a) => "hsla(" + h + "," + s + "%," + l + "%," + (a ?? 1) + ")";
+  return { "--bg": hs(60, 5), "--bg-a": hs(60, 14), "--line": hs(55, 22), "--line2": hs(60, 33), "--cy": hs(100, 58), "--cy2": hs(100, 76), "--cy-rgb": hsl2rgb(h, 100, 58).join(","), "--tx": hs(60, 90), "--tx2": hs(40, 82), "--mut": hs(25, 55),
+    "--panel-a": hs(70, 15, .78), "--panel-b": hs(70, 7, .82), "--card": hs(65, 12, .7), "--card2": hs(65, 9, .85), "--side-a": hs(65, 13, .85), "--side-b": hs(65, 6, .9), "--solid": hs(65, 9), "--badge": hs(60, 22), "--gaugebg": hs(55, 18),
+    "--on-cy": hs(90, 10), "--hi": "#fff", "--orb-bg": hs(70, 32, .35), "--orb-bg2": hs(65, 6, .85) };
+}
+function applyTheme(name) {
+  if (!THEME_META[name]) name = "cyan"; curTheme = name;
+  const st = document.documentElement.style; THEME_KEYS.forEach((k) => st.removeProperty(k));
+  const v = themeVars(name); if (v) Object.entries(v).forEach(([k, val]) => st.setProperty(k, val));
+  document.documentElement.dataset.theme = name;
+  const cs = getComputedStyle(document.documentElement); ACC = cs.getPropertyValue("--cy-rgb").trim() || "31,216,255"; CY = cs.getPropertyValue("--cy").trim() || "#1fd8ff"; CY2 = cs.getPropertyValue("--cy2").trim() || "#7be9ff";
+  try { localStorage.setItem("jv-theme", name); } catch (e) { /* depolama yoksa sorun değil */ }
+  sigs.chat0 = null;
+}
+try { applyTheme(localStorage.getItem("jv-theme") || "cyan"); } catch (e) { applyTheme("cyan"); }
 const changed = (key, obj) => { const j = JSON.stringify(obj); if (sigs[key] === j) return false; sigs[key] = j; return true; };
 
 async function api(path, body) {
@@ -60,7 +87,7 @@ function chatBox(extra = "") {
 const NAV = [
   ["merkez", "Komut Merkezi", "grid"], ["yazisma", "Yazışma", "chat"], ["cekirdek", "AI Çekirdeği", "cpu"], ["ajanlar", "Ajanlar", "bot"],
   ["gorevler", "Görevler", "list"], ["takvim", "Takvim", "cal"], ["hafiza", "Hafıza", "db"],
-  ["konusmalar", "Konuşmalar", "hist"], ["bilgi", "Bilgi Tabanı", "book"], ["araclar", "Araçlar ve Beceriler", "tool"], ["akislar", "İş Akışları", "flow"],
+  ["konusmalar", "Konuşmalar", "hist"], ["bilgi", "Bilgi Tabanı", "book"], ["araclar", "Araçlar ve Beceriler", "tool"], ["akislar", "İş Akışları", "flow"], ["ayarlar", "Ayarlar", "gear"],
 ];
 const row = (icon, title, sub, cls = "") => h("li", { class: cls }, SVG(icon), h("div", {}, h("b", {}, title), sub ? h("small", {}, sub) : null));
 function listUl(items, empty) {
@@ -196,6 +223,23 @@ VIEWS.araclar = {
         h("span", { class: "use" }, a.uses ? a.uses + "×" : "")))))) : h("div", { class: "empty" }, "Eşleşen yetenek yok."));
   },
 };
+VIEWS.ayarlar = {
+  title: "AYARLAR",
+  build(body) {
+    const grid = h("div", { class: "themes" }, Object.entries(THEME_META).map(([id, [label, accent, bg]]) => {
+      const b = h("button", { class: "tcard", "data-t": id, onclick: () => { applyTheme(id); api("/api/cmd", { theme: id }).catch(() => {}); markTheme(body); } },
+        h("div", { class: "sw", style: "background:" + bg }, h("b", { style: "background:" + accent }), h("i", { style: "background:" + accent })), h("span", {}, label));
+      return b; }));
+    const quit = confirmBtn("Jarvis'i kapat", () => { api("/api/cmd", { id: "quit" }).catch(() => {}); toast("Jarvis kapanıyor…"); });
+    body._c = h("div", { class: "scroll" },
+      h("div", { class: "setgrp" }, h("h5", {}, "TEMA"), h("p", {}, "Seçtiğin tema kaydedilir ve bir sonraki açılışta da kalır."), grid),
+      h("div", { class: "setgrp" }, h("h5", {}, "UYGULAMA"), h("p", {}, "Pencereyi kapatmak Jarvis'i kapatmaz; sesle çağırmaya devam edebilirsin. Panoyu tekrar açmak için menüden JARVIS simgesine tıkla. Tamamen kapatmak için:"), quit),
+      h("div", { class: "setgrp" }, h("h5", {}, "HATA AYIKLAMA"), h("p", {}, "Kayıt dosyası: ", h("code", {}, "data/jarvis.log"), ". Terminalde görmek için simgeye sağ tıkla > “Hata ayıklama (terminalde)” ya da ", h("code", {}, "python main.py --wake --dash"), ".")));
+    fill(body, body._c); markTheme(body);
+  },
+  update() {},
+};
+function markTheme(body) { body.querySelectorAll(".tcard").forEach((b) => b.classList.toggle("on", b.dataset.t === curTheme)); }
 let view = "merkez", builtView = null;
 function setQuery(q) { convQuery = q; $("#say").value = q; if (view !== "konusmalar") { view = "konusmalar"; showView(); } else if ($("#v-other")._body && $("#v-other")._body._load) $("#v-other")._body._load(true); }
 function buildNav() {
@@ -296,6 +340,7 @@ function buildQuick() { fill($("#quick"), QUICK.map(([id, l, ic]) => h("button",
 
 function render(s) {
   S = s;
+  if (s.durum && s.durum.theme && s.durum.theme !== curTheme) { applyTheme(s.durum.theme); if (builtView === "ayarlar") markTheme($("#v-other")._body); }
   PANELS.durum(s.durum); PANELS.core(s); PANELS.akis(s.akis); PANELS.ajanlar(s.ajanlar); PANELS.ajanda(s.ajanda);
   PANELS.sistem(s.sistem); PANELS.hafiza(s.hafiza); PANELS.model(s.model); PANELS.alt(s.alt);
   if (builtView) VIEWS[builtView].update(s, $("#v-other")._body, "v-" + builtView);
@@ -323,22 +368,22 @@ function waves() {
   const t = performance.now() / 1000;
   for (const id of ["wave", "wave2", "wave3"]) {
     const c = $("#" + id), x = c.getContext("2d"), w = c.width, hh = c.height, n = Math.floor(w / 4);
-    x.clearRect(0, 0, w, hh); x.fillStyle = "#1fd8ff";
+    x.clearRect(0, 0, w, hh); x.fillStyle = CY;
     for (let i = 0; i < n; i++) { const v = (Math.sin(t * 5 + i * .7) * .5 + .5) * (Math.sin(i * .35 + t) * .4 + .6), a = Math.max(.06, v * amp()), bar = a * hh;
       x.globalAlpha = .45 + a * .5; x.fillRect(i * 4, (hh - bar) / 2, 2, bar); }
   }
   for (const id of ["line1", "line2"]) {
     const c = $("#" + id), x = c.getContext("2d"), w = c.width = c.clientWidth || 200; x.clearRect(0, 0, w, 20);
-    x.fillStyle = "#1fd8ff"; for (let i = 0; i < w; i += 8) { x.globalAlpha = .2 + .3 * Math.abs(Math.sin(i / 25 + t * 2)); x.fillRect(i, 9, 2, 2); }
+    x.fillStyle = CY; for (let i = 0; i < w; i += 8) { x.globalAlpha = .2 + .3 * Math.abs(Math.sin(i / 25 + t * 2)); x.fillRect(i, 9, 2, 2); }
   }
 }
 const pts = []; (function () { let s = 7; const r = () => (s = (s * 16807) % 2147483647) / 2147483647; for (let i = 0; i < 40; i++) pts.push([r(), r()]); })();
 function drawMem(count) {
   const c = $("#mem"), x = c.getContext("2d"), w = c.width = c.clientWidth || 260, hh = c.height = 96; x.clearRect(0, 0, w, hh);
   const n = Math.min(pts.length, Math.max(count ? 3 : 0, Math.round(Math.log2(count + 1) * 4)));
-  x.strokeStyle = "rgba(31,216,255,.35)"; x.lineWidth = 1; x.beginPath();
+  x.strokeStyle = "rgba(" + ACC + ",.35)"; x.lineWidth = 1; x.beginPath();
   for (let i = 1; i < n; i++) { const a = pts[i], b = pts[i - 1]; x.moveTo(a[0] * w, a[1] * hh); x.lineTo(b[0] * w, b[1] * hh); } x.stroke();
-  x.fillStyle = "#7be9ff"; for (let i = 0; i < n; i++) { x.beginPath(); x.arc(pts[i][0] * w, pts[i][1] * hh, i % 5 ? 2 : 3.2, 0, 7); x.fill(); }
+  x.fillStyle = CY2; for (let i = 0; i < n; i++) { x.beginPath(); x.arc(pts[i][0] * w, pts[i][1] * hh, i % 5 ? 2 : 3.2, 0, 7); x.fill(); }
 }
 /* orb: dönen tel kafes küre + halkalar + parçacıklar */
 const orb = { c: null, x: null, P: [] };
@@ -351,20 +396,20 @@ function orbDraw() {
   const c = orb.c, x = orb.x, W = c.width = c.clientWidth, H = c.height = c.clientHeight; if (!W) return;
   const t = performance.now() / 1000, cx = W / 2, cy = H * .5, R = Math.min(W, H) * .34, a = amp();
   x.clearRect(0, 0, W, H);
-  const g = x.createRadialGradient(cx, cy, R * .1, cx, cy, R * 1.25); g.addColorStop(0, "rgba(31,216,255," + (.10 + .1 * a) + ")"); g.addColorStop(.7, "rgba(20,110,200,.12)"); g.addColorStop(1, "rgba(0,0,0,0)");
+  const g = x.createRadialGradient(cx, cy, R * .1, cx, cy, R * 1.25); g.addColorStop(0, "rgba(" + ACC + "," + (.10 + .1 * a) + ")"); g.addColorStop(.7, "rgba(20,110,200,.12)"); g.addColorStop(1, "rgba(0,0,0,0)");
   x.fillStyle = g; x.beginPath(); x.arc(cx, cy, R * 1.25, 0, 7); x.fill();
-  x.strokeStyle = "rgba(31,216,255,.5)"; x.lineWidth = 1; x.beginPath(); x.arc(cx, cy, R, 0, 7); x.stroke();
+  x.strokeStyle = "rgba(" + ACC + ",.5)"; x.lineWidth = 1; x.beginPath(); x.arc(cx, cy, R, 0, 7); x.stroke();
   const ry = t * .25, cs = Math.cos(ry), sn = Math.sin(ry), pr = [];
   for (const p of orb.P) { const X = p[0] * cs + p[2] * sn, Z = -p[0] * sn + p[2] * cs; pr.push([cx + X * R, cy + p[1] * R, Z]); }
   x.lineWidth = .6;
   for (let i = 0; i < pr.length; i++) for (let j = i + 1; j < pr.length; j += 7) {
     const dx = pr[i][0] - pr[j][0], dy = pr[i][1] - pr[j][1], d = dx * dx + dy * dy;
-    if (d < R * R * .035) { x.strokeStyle = "rgba(31,216,255," + (.18 + .14 * (pr[i][2] + 1) / 2) + ")"; x.beginPath(); x.moveTo(pr[i][0], pr[i][1]); x.lineTo(pr[j][0], pr[j][1]); x.stroke(); }
+    if (d < R * R * .035) { x.strokeStyle = "rgba(" + ACC + "," + (.18 + .14 * (pr[i][2] + 1) / 2) + ")"; x.beginPath(); x.moveTo(pr[i][0], pr[i][1]); x.lineTo(pr[j][0], pr[j][1]); x.stroke(); }
   }
-  for (const p of pr) { x.fillStyle = "rgba(160,240,255," + (.35 + .5 * (p[2] + 1) / 2) + ")"; x.beginPath(); x.arc(p[0], p[1], 1 + (p[2] + 1) * .8, 0, 7); x.fill(); }
-  for (let k = 0; k < 3; k++) { x.save(); x.translate(cx, cy); x.rotate(-.5 + k * .55 + t * .05); x.scale(1, .24 + k * .04); x.strokeStyle = "rgba(31,216,255," + (.22 + .15 * a) + ")"; x.lineWidth = 1.2;
+  for (const p of pr) { x.fillStyle = "rgba(" + ACC + "," + (.35 + .5 * (p[2] + 1) / 2) + ")"; x.beginPath(); x.arc(p[0], p[1], 1 + (p[2] + 1) * .8, 0, 7); x.fill(); }
+  for (let k = 0; k < 3; k++) { x.save(); x.translate(cx, cy); x.rotate(-.5 + k * .55 + t * .05); x.scale(1, .24 + k * .04); x.strokeStyle = "rgba(" + ACC + "," + (.22 + .15 * a) + ")"; x.lineWidth = 1.2;
     x.beginPath(); x.arc(0, 0, R * (1.25 + k * .22 + .03 * Math.sin(t * 2 + k) * a), 0, 7); x.stroke(); x.restore(); }
-  x.strokeStyle = "rgba(31,216,255,.28)"; for (let k = 0; k < 5; k++) { x.beginPath(); x.ellipse(cx, cy + R * 1.12, R * (.55 + k * .2), R * (.07 + k * .02), 0, 0, 7); x.stroke(); }
+  x.strokeStyle = "rgba(" + ACC + ",.28)"; for (let k = 0; k < 5; k++) { x.beginPath(); x.ellipse(cx, cy + R * 1.12, R * (.55 + k * .2), R * (.07 + k * .02), 0, 0, 7); x.stroke(); }
 }
 function frame() { waves(); orbDraw(); requestAnimationFrame(frame); }
 

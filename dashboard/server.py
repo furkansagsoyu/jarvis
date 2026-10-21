@@ -44,13 +44,14 @@ COMMANDS = {
     "focus": ("act", "focus"),
     "talk": ("act", "talk"),
     "chatvoice": ("act", "chatvoice"),
+    "quit": ("act", "quit"),
 }
 
 
 class Dashboard:
-    def __init__(self, ctx, submit, port: int | None = None):
+    def __init__(self, ctx, submit, port: int | None = None, quit=None):
         """ctx: .brain taşıyan nesne; submit(text): komutu Jarvis'in sırasına koyar."""
-        self.ctx, self.submit = ctx, submit
+        self.ctx, self.submit, self.quit = ctx, submit, quit
         self.token = secrets.token_urlsafe(16)
         self.httpd = None
         want = port or int(os.environ.get("JARVIS_DASH_PORT", "8765"))
@@ -76,7 +77,9 @@ class Dashboard:
             self.httpd.shutdown()
 
     # ------------------------------------------------------------ komutlar
-    def run_command(self, cid: str = "", say: str = "", chat: bool = False) -> dict:
+    def run_command(self, cid: str = "", say: str = "", chat: bool = False, theme: str = "") -> dict:
+        if theme:
+            return {"ok": ui_state.set_theme(theme)}
         if say:
             say = " ".join(say.split())[:MAX_SAY]
             st.feed("KOMUT", f"Panodan: {say}")
@@ -98,6 +101,11 @@ class Dashboard:
             ui_state.set_muted(not ui_state.is_muted())
         elif val == "focus":
             ui_state.set_focus(not ui_state.is_focus())
+        elif val == "quit":
+            if not self.quit:
+                return {"ok": False, "error": "kapatma bağlı değil"}
+            st.feed("UYARI", "Jarvis kapatılıyor…")
+            self.quit()
         elif val == "chatvoice":
             ui_state.set_chat_voice(not ui_state.chat_voice())
         elif val == "talk":
@@ -242,6 +250,6 @@ class Dashboard:
                     return self._json(200, dash.agenda_op(data))
                 if self.path == "/api/conv":
                     return self._json(200, dash.conv_op(data))
-                return self._json(200, dash.run_command(str(data.get("id", "")), str(data.get("say", "")), bool(data.get("chat"))))
+                return self._json(200, dash.run_command(str(data.get("id", "")), str(data.get("say", "")), bool(data.get("chat")), str(data.get("theme", ""))))
 
         return H

@@ -111,7 +111,14 @@ def start_dashboard(brain, speaker):
                 ui_state.set_state("listening")
 
     threading.Thread(target=worker, daemon=True).start()
-    dash = server.Dashboard(SimpleNamespace(brain=brain), submit)
+    def quit_all():  # panodaki "Jarvis'i kapat": temiz çıkış (Ctrl+C gibi), takılırsa 4 sn sonra zorla
+        import signal  # noqa: PLC0415
+        t = threading.Timer(4.0, os._exit, [0])
+        t.daemon = True
+        t.start()
+        os.kill(os.getpid(), signal.SIGINT)
+
+    dash = server.Dashboard(SimpleNamespace(brain=brain), submit, quit=quit_all)
     url = dash.start()
     print(f"      Pano açık: {url.split('?')[0]}", flush=True)
     if not os.environ.get("DISPLAY"):
