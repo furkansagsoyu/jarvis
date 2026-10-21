@@ -2,7 +2,6 @@ faster-whisper
 sounddevice
 numpy
 ollama
-piper-tts
 openwakeword
 ema-lightning
 pystray   # isteğe bağlı: tepsi simgesi (ui.py); yoksa yalnızca pencere açılır

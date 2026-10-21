@@ -17,7 +17,6 @@ import argparse
 import json
 import os
 import threading
-import time
 import urllib.parse
 import urllib.request
 

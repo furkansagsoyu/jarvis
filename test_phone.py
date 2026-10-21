@@ -129,7 +129,6 @@ fake.key_ok = True
 fake.state = 0
 check("çalan arama yokken aç", P.phone_answer() == "Şu an çalan bir arama yok.")
 fake.state = 1
-class Ans(FakePhone): pass
 orig = fake.run
 def run_answer(args, timeout=0):
     if "KEYCODE_CALL" in args: fake.state = 2; return 0, ""

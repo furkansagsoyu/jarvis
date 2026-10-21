@@ -13,7 +13,7 @@ import threading
 import time
 
 from . import _confirm, _store
-from ._trdate import AYLAR, GUNLER, capitalize, lower, parse_when
+from ._trdate import capitalize, lower, parse_when
 
 FILE = "agenda.json"
 PRIORITIES = ("yüksek", "orta", "düşük")

@@ -34,7 +34,7 @@ from skills import agenda as _agenda
 from skills import browser as _browser
 from skills import files as _files
 from skills import phone as _phone
-from skills import HIDDEN, capability_summary, load_skills
+from skills import HIDDEN, load_skills
 
 MODEL = "gemma4:e4b"
 MAX_HISTORY = 16

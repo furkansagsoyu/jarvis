@@ -12,8 +12,6 @@ Menüdeki simgeye sağ tıklayınca "Hata ayıklama (terminalde)" eylemi de çı
 from __future__ import annotations
 
 import argparse
-import os
-import shlex
 import shutil
 import subprocess
 import sys

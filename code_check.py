@@ -7,7 +7,6 @@ Kutu (bubblewrap) çalışıyor mu, kod internete çıkabiliyor mu, ev klasörü
 from __future__ import annotations
 
 import json
-import os
 import shutil
 import sys
 

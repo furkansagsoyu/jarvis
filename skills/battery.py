@@ -1,7 +1,6 @@
 """Pil durumu ve düşük pil uyarısı (Linux: /sys/class/power_supply)."""
 import os
 import threading
-import time
 from pathlib import Path
 
 SYS = Path(os.environ.get("JARVIS_POWER_DIR", "/sys/class/power_supply"))
