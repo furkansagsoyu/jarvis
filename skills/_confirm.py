@@ -10,6 +10,9 @@ import time
 
 TTL = 60  # saniye; süre dolarsa işlem iptal sayılır
 YES = re.compile(r"^\W*(evet|onaylıyorum|onayla|tamam|olur|peki|yap|sil|taşı|aynen|kesinlikle)\b", re.I)
+# Plan onayı ("Başlayayım mı?") için doğal cevaplar da geçerli; tehlikeli işlem onayında (classify) KULLANILMAZ.
+PLAN_YES = re.compile(r"^\W*(?:evet|onaylıyorum|onayla|tamam|olur|peki|yap|aynen|kesinlikle|başla\w*|başlat\w*|devam\w*|hadi|haydi|buyur|çalıştır\w*)\b", re.I)
+PLAN_NO = re.compile(r"\b(?:başlama\w*|başlatma\w*|etme\w*|çalıştırma\w*)\b", re.I)
 NO = re.compile(r"\b(hayır|hayir|vazgeç|vazgeçtim|iptal|yapma|olmaz|dur|istemiyorum)\b", re.I)
 
 _lock = threading.Lock()
@@ -39,6 +42,13 @@ def classify(text: str) -> str:
     if YES.search(text or ""):
         return "yes"
     return "other"
+
+
+def classify_plan(text: str) -> str:
+    """Plan onayı için 'yes' | 'no' | 'other' ("başla", "devam et" de evet sayılır; hayır önceliklidir)."""
+    if NO.search(text or "") or PLAN_NO.search(text or ""):
+        return "no"
+    return "yes" if PLAN_YES.search(text or "") else "other"
 
 
 def approve() -> str:

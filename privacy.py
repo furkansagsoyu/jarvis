@@ -3,7 +3,8 @@
 Kural: kişisel veri (parola, anahtar, adres, telefon, e-posta, kimlik/kart/IBAN numarası), hafıza, konuşma kaydı, ekran/kamera
 görüntüsü ve "private" işaretli içerik ASLA ücretsiz bulut modellerine gitmez (ücretsiz katmanlar veriyi eğitimde kullanabilir /
 insan gözüyle inceleyebilir). Şüpheli bir şey bulunursa mesaj buluta HİÇ gönderilmez; çağıran yerel modele döner.
-Yalnızca ev dizini yolları (/home/kullanıcı) sessizce maskelenir.
+Yalnızca ev dizini yolları (/home/kullanıcı) sessizce maskelenir. "public": True işaretli mesajlar (web sayfası gibi herkese açık kaynaklar)
+taranmaz; "private": True işaretliler ise her zaman engellenir (private, public'ten önceliklidir).
 """
 from __future__ import annotations
 
@@ -86,6 +87,9 @@ def gate(messages: list[dict]) -> list[dict]:
         content = m.get("content")
         if not isinstance(content, str):
             reasons.append("metin olmayan içerik")
+            continue
+        if m.get("public"):  # kullanıcıdan değil, web gibi herkese açık kaynaktan geldi (web sayfalarındaki e-posta/telefon engel sayılmaz)
+            out.append({"role": m.get("role", "user"), "content": redact(content)})
             continue
         for r in inspect(content):
             if r not in reasons:

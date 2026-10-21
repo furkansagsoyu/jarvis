@@ -76,7 +76,7 @@ class Agent:
             if time.time() > self.plan_expires:
                 self.abort()
             else:
-                verdict = confirm.classify(text)
+                verdict = confirm.classify_plan(text)
                 if verdict == "yes":
                     self.state = "running"
                     return self.run()

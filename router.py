@@ -232,7 +232,8 @@ class Router:
                     yield pid, p, m
 
     def chat(self, messages: list[dict], *, task: str = "hard", max_tokens: int = 1200, temperature: float = 0.2,
-             json_mode: bool = False, effort: str = "medium", timeout: float = 60) -> Reply:
+             json_mode: bool = False, effort: str = "medium", timeout: float = 60,
+             models: list[str] | None = None, extra: dict | None = None) -> Reply:
         """Bulut modeline sorar. Blocked: gizlilik/ayar; TooLarge: girdi büyük; Unavailable: hiçbiri cevap veremedi."""
         if task not in CLOUD_TASKS:
             raise Blocked(f"'{task}' görevi buluta gönderilemez")
@@ -246,7 +247,10 @@ class Router:
         size = sum(len(m["content"]) for m in clean)
         errors: list[str] = []
         tried = 0
-        for pid, p, model in list(self._candidates()):
+        cands = list(self._candidates())
+        if models:  # verilen listedeki sıra geçerli (örn. aramada önce küçük/hızlı model)
+            cands = sorted((c for c in cands if c[2] in models), key=lambda c: models.index(c[2]))
+        for pid, p, model in cands:
             if pid in self._dead_providers:
                 continue
             if size / CHARS_PER_TOKEN > int(p.get("max_input_tokens", 5000)):
@@ -257,6 +261,8 @@ class Router:
                 body["reasoning_effort"] = effort
             if json_mode:
                 body["response_format"] = {"type": "json_object"}
+            if extra:
+                body.update(extra)
             tried += 1
             t0 = self.now()
             res = self._attempt(pid, p, model, key, body, timeout, errors)
@@ -265,6 +271,15 @@ class Router:
                 return res
         why = "; ".join(errors[-4:]) or ("anahtar tanımlı değil (data/keys.env)" if not tried else "cevap alınamadı")
         raise Unavailable(why)
+
+    SEARCH_MODELS = ["openai/gpt-oss-20b", "openai/gpt-oss-120b"]  # Groq'un sunucu tarafı 'browser_search' aracını destekleyenler
+
+    def search(self, query: str) -> str:
+        """Groq'un yerleşik web aramasıyla (gpt-oss + browser_search) soruyu arar; yalnızca sorgu buluta gider (gizlilik kapısından geçer)."""
+        rep = self.chat([{"role": "system", "content": "Web'de ara ve bulduklarını kısaca, kaynak site adlarıyla özetle. Fiyat ve tarih gibi sayıları aynen ver."},
+                         {"role": "user", "content": query}], task="hard", max_tokens=900, effort="low", timeout=45,
+                        models=self.SEARCH_MODELS, extra={"tools": [{"type": "browser_search"}], "tool_choice": "required"})
+        return rep.text
 
     def _send(self, p: dict, body: dict, timeout: float):
         headers = {"Authorization": f"Bearer {self._key(p)}", "Content-Type": "application/json", "User-Agent": UA, "Accept": "application/json"}

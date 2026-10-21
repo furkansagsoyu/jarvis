@@ -27,6 +27,7 @@ import ollama
 
 import agent as _agent
 import router as _router
+import team as _team
 from skills import _confirm as confirm
 from skills import _store
 from skills import agenda as _agenda
@@ -132,6 +133,7 @@ class Brain:
         self.system = system
         self.history: list[dict] = []
         self.agent = _agent.Agent(self)
+        self.team = _team.Team(self)   # ekip modu (çoklu ajan)
         self.summary = ""              # geçmişten atılan eski konuşmaların kısa özeti
         self._fold_lock = threading.Lock()
         self._fold_thread: threading.Thread | None = None
@@ -457,18 +459,21 @@ class Brain:
         if WORD_RESET.search(user_text):
             confirm.cancel()
             self.agent.abort()
+            self.team.abort()
             self.reset()
             yield "Tamam, konuşmayı sıfırladım."
             return
         cm = WORD_CLOUD.match(user_text.strip())
-        if cm and not confirm.has_pending() and self.agent.state == "idle":
+        if cm and not confirm.has_pending() and self.agent.state == "idle" and self.team.state == "idle":
             answer = self._cloud_answer(cm.group("q").strip())
             self.history.extend([{"role": "user", "content": user_text}, {"role": "assistant", "content": answer}])
             self.history = self.history[-MAX_HISTORY:]
             self.save_session()
             yield answer
             return
-        gen = self.agent.handle(user_text)  # ajan modu: görev başlatma, plan onayı
+        gen = self.team.handle(user_text)  # ekip modu (çoklu ajan): "ekip: ..." / "araştır: ..."
+        if gen is None:
+            gen = self.agent.handle(user_text)  # ajan modu: görev başlatma, plan onayı
         if gen is not None:
             said: list[str] = []
             for piece in gen:
@@ -485,9 +490,12 @@ class Brain:
                 yield confirm.approve()
                 for piece in self.agent.after_confirm():  # ajan görevinin sıradaki adımları
                     yield piece
+                for piece in self.team.after_confirm():  # ekip görevinin sıradaki adımları
+                    yield piece
                 return
             confirm.cancel()
             self.agent.abort()
+            self.team.abort()
             if verdict == "no":
                 yield "Tamam, vazgeçtim."
                 return

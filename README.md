@@ -29,6 +29,15 @@ python router_check.py            # anahtar ve gizlilik kapısı denemesi
   ```
   ve anahtarı `data/keys.env`'e yaz. Model adlarını sağlayıcının güncel listesinden doğrula.
 
+## Ekip modu (çoklu ajan)
+
+Çok adımlı işleri uzman ajanlar yapar: **Planlayıcı → Araştırma Ajanı / Dosya Ajanı → Yazar**. Her ajan yalnızca kendi rolünün araçlarını kullanır.
+
+- Başlatma: **"ekip: <görev>"** (planı model çıkarır) ya da **"araştır: <konu>"** (hazır plan: Araştırma + Yazar). Plan baştan okunur, tek "evet" ile başlar; riskli adımlar kendi onayını ister.
+- Model seçimi her çağrıda yapılır: **bağlam temizse ücretsiz bulut** (güçlü model), değilse ya da bulut yoksa **yerel**. Kişisel veri okuyan bir görev (Dosya Ajanı) ve ona bağlı her görev (Yazar dahil) yalnızca yerelde çalışır; sonucu buluta gitmez. Web'den gelen içerik buluta gidebilir (herkese açık kaynak).
+- Güvenlik ajan modundakiyle aynıdır: plan yalnızca senin cümlenden çıkar, araç sonuçları "yalnızca veri" sayılır, rol dışı araç çağrılamaz, dosya okunduktan sonra internete giden adım onay ister. En fazla 5 görev ve 10 araç çağrısı.
+- Görevler sırayla çalışır (ücretsiz bulut limiti paralel çağrıya yetmez). Panoda Ajanlar sekmesi canlı durumu gösterir; `data/team_runs.jsonl` yalnızca özet tutar (sonuç metni yok).
+
 ## Neler yapabiliyor
 
 | Alan | Örnek cümle |
@@ -144,6 +153,7 @@ skills/          beceriler: her dosya kendini tanımlar ve otomatik yüklenir
   desktop_input.py  fare/klavye (xdotool)
   agenda.py      takvim ve görevler (yerel, Türkçe tarih ayrıştırıcı: _trdate.py)
   screen.py, camera.py, files.py, web.py, reminders.py, hardware.py, ...
+team.py          Ekip modu (çoklu ajan: planlayıcı, uzman ajanlar, yazar)
 router.py, privacy.py  Model yönlendirici (ücretsiz bulut, yedek zinciri) ve gizlilik kapısı
 dashboard/       Komut Merkezi: server.py (yalnızca 127.0.0.1, rastgele anahtar), state.py (panel sağlayıcıları), window.py (Qt penceresi + sistem tepsisi), static/
 stt.py, tts.py, wake.py     konuşma tanıma, sentez, uyanma sözcüğü

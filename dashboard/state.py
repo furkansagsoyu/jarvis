@@ -212,14 +212,31 @@ def _ajanlar(ctx):
     ast = getattr(ag, "state", "idle")
     ag_status = {"running": "Çalışıyor", "confirm": "Onay bekliyor", "plan": "Plan onayı bekliyor"}.get(ast, "Hazır")
     has = lambda n: n in brain.tools  # noqa: E731
-    return [
+    team = getattr(brain, "team", None)
+    snap = team.snapshot() if team else {"state": "idle", "goal": "", "active_role": "", "active_do": "", "done": 0, "total": 0, "tasks": []}
+    tst = {"running": "Çalışıyor", "confirm": "Onay bekliyor", "plan": "Plan onayı bekliyor"}.get(snap["state"], "Hazır")
+    rows = [
         {"name": "Ajan Modu", "status": ag_status, "detail": (getattr(ag, "goal", "") or "Çok adımlı görevler (plan + onay)")[:60] if ast != "idle" else "Çok adımlı görevler (plan + onay)"},
+        {"name": "Ekip Modu", "status": tst, "detail": (f"{snap['goal'][:40]} — {snap['done']}/{snap['total']} görev" if snap["state"] != "idle"
+                                                       else "Çoklu ajan: “ekip: …” ya da “araştır: …”")},
+    ]
+    try:
+        import team as _team  # noqa: PLC0415
+        for key, role in _team.ROLES.items():
+            ready = all(t in brain.tools for t in role.tools[:1])
+            busy = snap["state"] in ("running", "confirm") and snap["active_role"] == key
+            where = "yalnızca yerel" if role.private else "bulut destekli (temiz veride), yoksa yerel"
+            rows.append({"name": role.title, "status": ("Çalışıyor" if busy else "Hazır") if ready else "Kapalı",
+                         "detail": (snap["active_do"][:50] if busy else f"{role.about}; {where}")})
+    except Exception:  # noqa: BLE001
+        pass
+    rows += [
         {"name": "Tarayıcı", "status": "Hazır" if has("browser_open") else "Kapalı", "detail": "İzinli sitelerde gezinme"},
         {"name": "Takvim ve Görev", "status": "Hazır" if has("agenda_add") else "Kapalı", "detail": "Yerel takvim, 10 dk uyarı"},
         {"name": "Bilgisayar Kontrolü", "status": "Hazır" if has("mouse_click") else "Kapalı", "detail": "Fare ve klavye (onaylı)"},
-        {"name": "Araştırma Ajanı", "status": "Yakında", "detail": "Çoklu ajan aşamasında"},
-        {"name": "Kodlama Ajanı", "status": "Yakında", "detail": "Çoklu ajan aşamasında"},
+        {"name": "Kodlama Ajanı", "status": "Yakında", "detail": "Sıradaki aşama"},
     ]
+    return rows
 
 
 @provider("akis")
