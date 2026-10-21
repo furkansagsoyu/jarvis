@@ -88,6 +88,15 @@ DESKTOP = [
     ("Enter'a bas", "press_key"), ("escape tuşuna bas", "press_key"), ("kopyala", "press_key"), ("yeni sekme", "press_key"),
     ("ekran parlaklığını kıs", None), ("sesi kıs", None), ("not yaz", None), ("kesin yarın gelirim", None),
 ]
+PHONE = [
+    ("Annemi ara", "phone_call"), ("Ahmet'i arar mısın", "phone_call"), ("Ayşe Yılmaz'ı ara lütfen", "phone_call"),
+    ("0555 123 45 67'yi ara", "phone_call"), ("Anılinho adlı kişiyi ara", "phone_call"), ("Ahmet isimli kişiyi arar mısın", "phone_call"),
+    ("Anıl'a telefon aç", "phone_call"), ("babamı arayalım", "phone_call"), ("Ayşe kişisini ara", "phone_call"), ("aramayı kapat", "phone_hangup"), ("telefonu kapat", "phone_hangup"),
+    ("aramayı aç", "phone_answer"), ("gelen aramayı cevapla", "phone_answer"), ("telefon bağlı mı", "phone_status"),
+    ("rehberi telefondan al", "contacts_sync"), ("telefonun rehberini aktar", "contacts_sync"),
+    ("rehbere ekle: Annem 0555 123 45 67", "contact_add"),
+    ("ankara'nın nüfusunu araştır", None), ("bu kelimeyi sözlükte ara", None), ("ekranı kapat", None), ("tarayıcıyı kapat", None), ("dosyayı aç", None),
+]
 
 
 def main():
@@ -131,6 +140,12 @@ def main():
         ok = name == want
         bad += not ok
         print(f"{'OK  ' if ok else 'HATA'} [masaüstü] {text!r:38} -> {name}  (beklenen {want})")
+    for text, want in PHONE:
+        got = brain._fast_route(text)
+        name = got[0][0] if got else None
+        ok = name == want
+        bad += not ok
+        print(f"{'OK  ' if ok else 'HATA'} [telefon] {text!r:38} -> {name}  (beklenen {want})")
     from skills import browser  # noqa: PLC0415
     real = browser.is_active
     for label, cases, state in (("tarayıcı kapalı", BROWSER_CLOSED, False), ("tarayıcı açık", BROWSER_OPEN, True)):

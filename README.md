@@ -47,6 +47,15 @@ python router_check.py            # anahtar ve gizlilik kapısı denemesi
 - Yalnızca `python`, `python3`, `pytest`, `node` çalıştırılabilir (kabuk yok). Kutuyu denemek için: `python code_check.py`.
 - Ücretsiz bulutun küçük girdi sınırı nedeniyle uzun döngülerde eski adımlar kısa özete çevrilir; ajan dosyanın güncel halini `code_read` ile görür.
 
+## Telefon araması (Android, ADB)
+
+Telefonu USB ile bağla (Geliştirici seçenekleri → USB hata ayıklama açık, bilgisayara izin ver). Sonra: "**Annemi ara**", "**0555 123 45 67'yi ara**" (önce "…arayacağım, onaylıyor musun?" der, "evet" dersen arar), "**aramayı kapat**", "**aramayı aç**" (çalanı), "**telefon bağlı mı**".
+
+- Rehber: "**rehbere ekle: Annem 0555 123 45 67**" ya da "**rehberi telefondan al**". Rehber yalnızca `data/contacts.json` dosyasında kalır; buluta, Telegram'a, ekip/ajan modlarına gitmez.
+- Her arama sesli onay ister; model kendi kendine arayamaz. Numara yalnızca rakam ve baştaki `+` olabilir (`*#…` kodları ve komut ekleme reddedilir). Telegram'dan telefon komutları çalışmaz.
+- "Aranıyor" denmeden önce telefonun gerçek arama durumu okunur; görüşme başlamadıysa dürüstçe söyler. Telefon doğrudan aramayı engellerse arama ekranını numarayla açar, yeşil tuşa sen basarsın.
+- Aramayı kapatmak için Xiaomi'de "USB hata ayıklama (Güvenlik ayarları)" da açık olmalı. Tanılama: `python phone_check.py`.
+
 ## Neler yapabiliyor
 
 | Alan | Örnek cümle |
@@ -160,6 +169,7 @@ skills/          beceriler: her dosya kendini tanımlar ve otomatik yüklenir
   _confirm.py    onay kapısı
   browser.py     Playwright ile tarayıcı kontrolü
   desktop_input.py  fare/klavye (xdotool)
+  phone.py       telefon araması (ADB), yerel rehber
   agenda.py      takvim ve görevler (yerel, Türkçe tarih ayrıştırıcı: _trdate.py)
   screen.py, camera.py, files.py, web.py, reminders.py, hardware.py, ...
 skills/codeagent.py  Kod ajanı araçları (workspace/, güvenli kutu)

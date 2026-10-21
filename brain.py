@@ -33,6 +33,7 @@ from skills import _store
 from skills import agenda as _agenda
 from skills import browser as _browser
 from skills import files as _files
+from skills import phone as _phone
 from skills import HIDDEN, capability_summary, load_skills
 
 MODEL = "gemma4:e4b"
@@ -45,7 +46,7 @@ SUMMARY_MAX = 700  # özet bu kadar karakteri geçmez (prompt şişmesin, araç 
 SESSION_FILE = "session.json"
 SESSION_TTL = 12 * 3600  # bundan eski konuşma geçmişi yüklenmez
 # Uzaktan (Telegram) gelen komutlarda çalıştırılmayan araçlar: içerik makine dışına, üçüncü taraf sunucuya çıkar.
-REMOTE_BLOCKED = {"code_list", "code_read", "code_write", "code_run", "read_file", "recall", "look_at_screen", "look_at_camera", "browser_open", "browser_read", "browser_click",
+REMOTE_BLOCKED = {"phone_call", "phone_hangup", "phone_answer", "phone_status", "contact_add", "contacts_sync", "code_list", "code_read", "code_write", "code_run", "read_file", "recall", "look_at_screen", "look_at_camera", "browser_open", "browser_read", "browser_click",
                   "browser_type", "browser_back", "browser_close", "mouse_move", "mouse_click", "scroll",
                   "keyboard_type", "press_key"}
 
@@ -115,6 +116,12 @@ DK_SCROLL = re.compile(r"^(?:sayfa\w*\s+|ekran\w*\s+)?(?:(?P<a>biraz|az|çok)\s+
 DK_TYPE = re.compile(r"^(?:klavye\w*\s+(?P<t1>.+?)\s+yaz\w*|(?:şunu|şöyle)\s+yaz\w*:?\s+(?P<t2>.+))$", re.I)
 DK_KEY = re.compile(r"^(?P<k>enter|entır|escape|esc|tab|boşluk|silme|backspace|delete|yukarı ok|aşağı ok|sol ok|sağ ok|page up|page down|home|end|f5|f11)(?:['’]\w+)?\s*(?:tuşuna\s+)?bas\w*(?:\s+lütfen)?$", re.I)
 DK_SHORT = re.compile(r"^(?P<k>kopyala|yapıştır|kes|tümünü seç|kaydet|yeni sekme|sekmeyi kapat|sayfayı yenile|pencere değiştir|tam ekran|yazdır)(?:\s+lütfen)?$", re.I)
+PH_CALL = re.compile(r"^(?:lütfen\s+)?(?P<n>.+?)(?:\s+(?:adlı|isimli|adındaki|ismindeki)\s+(?:kişi\w*|numara\w*|arkadaş\w*)|\s+kişisi\w*)?\s+(?:telefondan\s+|telefonla\s+)?(?:ara|arar\s+mısın|arasana|arayabilir\s+misin|arayalım|aramak\s+istiyorum|aramanı\s+(?:istiyorum|rica\s+ediyorum)|telefon\s+(?:et|aç)|ara\s+lütfen)(?:\s+lütfen)?$", re.I)
+PH_HANGUP = re.compile(r"\b(?:aramayı|görüşmeyi|çağrıyı|telefonu)\s+(?:kapat|bitir|sonlandır|reddet)\w*", re.I)
+PH_ANSWER = re.compile(r"\b(?:aramayı|görüşmeyi|çağrıyı|telefonu)\s+(?:aç|cevapla|yanıtla|kabul\s+et)\w*", re.I)
+PH_STATUS = re.compile(r"\btelefon\w*\s+(?:bağlı|bağlantı)\w*|\btelefonu\s+kontrol", re.I)
+PH_SYNC = re.compile(r"\btelefon\w*.*\brehber\w*.*\b(?:al|çek|aktar|senkron\w*|eşitle|güncelle)\w*|\brehber\w*.*\btelefon\w*.*\b(?:al|çek|aktar|senkron\w*|eşitle|güncelle)\w*", re.I)
+PH_ADD = re.compile(r"^(?:rehbere|rehberime|kişilere)\s+ekle\s*[:,\-–]?\s*(?P<n>.+?)\s+(?P<p>\+?\d[\d\s\-().]{5,})$", re.I)
 TEXT_CALL = re.compile(r"^\s*`*([a-z_]+)\((.*)\)`*\s*$", re.S)
 NUDGE = "Bu isteği gerçekten yerine getirmek için uygun aracı çağır. Uygun araç yoksa yapamadığını söyle."
 FAIL_TEXT = "Bunu yapamadım."
@@ -375,6 +382,26 @@ class Brain:
                 return [("browser_click", {"text": m.group("t").strip(" '\"“”")})]
         return []
 
+    def _phone_route(self, text: str) -> list[tuple[str, dict]]:
+        if "phone_call" not in self.tools:
+            return []
+        t = text.strip().strip(".!?").strip()
+        m = PH_ADD.match(t)
+        if m:
+            return [("contact_add", {"name": m.group("n").strip(" :,-"), "number": m.group("p").strip()})]
+        if PH_SYNC.search(t):
+            return [("contacts_sync", {})]
+        if PH_HANGUP.search(t):
+            return [("phone_hangup", {})]
+        if PH_ANSWER.search(t):
+            return [("phone_answer", {})]
+        if PH_STATUS.search(t):
+            return [("phone_status", {})]
+        m = PH_CALL.match(t)
+        if m and len(m.group("n").split()) <= 4 and _phone.callable_target(m.group("n")):
+            return [("phone_call", {"target": m.group("n").strip()})]
+        return []
+
     def _fast_route(self, text: str) -> list[tuple[str, dict]]:
         """Kural tabanlı hızlı yol: (araç adı, argümanlar) listesi döndürür (boşsa model karar verir)."""
         calls = []
@@ -388,6 +415,9 @@ class Brain:
             return [("get_weather", {"day": "yarın"} if "yarın" in text.lower() else {})]
         if "undo_last_action" in self.tools and WORD_UNDO.search(text):
             return [("undo_last_action", {})]
+        ph = self._phone_route(text)
+        if ph:
+            return ph
         dk = self._desktop_route(text)
         if dk:
             return dk

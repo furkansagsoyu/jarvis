@@ -132,7 +132,7 @@ def _temp_text() -> str:
 
 CATEGORIES = {"agenda": "Takvim ve görevler", "apps": "Uygulamalar", "battery": "Pil", "briefing": "Günün özeti", "brightness": "Parlaklık",
               "browser": "Tarayıcı", "camera": "Kamera", "codeagent": "Kod ajanı", "clock": "Saat ve tarih", "desktop_input": "Fare ve klavye", "files": "Dosyalar",
-              "hardware": "Donanım", "help": "Yardım", "memory": "Hafıza", "reminders": "Hatırlatıcılar", "screen": "Ekran",
+              "hardware": "Donanım", "help": "Yardım", "memory": "Hafıza", "phone": "Telefon (ADB)", "reminders": "Hatırlatıcılar", "screen": "Ekran",
               "undo": "Geri alma", "volume": "Ses", "weather": "Hava durumu", "web": "Web araması"}
 
 
@@ -233,6 +233,7 @@ def _ajanlar(ctx):
     rows += [
         {"name": "Tarayıcı", "status": "Hazır" if has("browser_open") else "Kapalı", "detail": "İzinli sitelerde gezinme"},
         {"name": "Takvim ve Görev", "status": "Hazır" if has("agenda_add") else "Kapalı", "detail": "Yerel takvim, 10 dk uyarı"},
+        {"name": "Telefon (ADB)", "status": "Hazır" if has("phone_call") else "Kapalı", "detail": "Arama, rehber (her arama onaylı)"},
         {"name": "Bilgisayar Kontrolü", "status": "Hazır" if has("mouse_click") else "Kapalı", "detail": "Fare ve klavye (onaylı)"},
     ]
     return rows
