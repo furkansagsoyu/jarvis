@@ -3,8 +3,9 @@
 
 Uygulama menüsündeki "JARVIS" simgesi bunu çalıştırır (kurulum: python install_app.py).
 - Jarvis kapalıysa: arka planda başlatır (çıktı data/jarvis.log), model yüklenince pano penceresi kendiliğinden açılır.
-- Jarvis zaten çalışıyorsa: yalnızca pano penceresini yeniden açar (pencereyi kapatmak Jarvis'i kapatmaz;
-  tamamen kapatmak için panoda Ayarlar > "Jarvis'i kapat" ya da "Jarvis, kapat kendini" de).
+- Jarvis zaten çalışıyorsa: pano penceresini öne getirir ya da yeniden açar (tek pencere kuralı dashboard/window.py'de).
+  Pencereyi kapatmak Jarvis'i kapatmaz: pencere sağ alttaki sistem tepsisine iner, simgeye tıklayınca geri gelir.
+  Tamamen kapatmak için tepsi menüsü > "Jarvis'i kapat", panoda Ayarlar > "Jarvis'i kapat" ya da "Jarvis, kapat kendini" de.
 - Bayrakları değiştirmek için data/launch_args.txt dosyasına tek satır yaz (örn. --wake --dash --telegram).
 - Terminalde hata ayıklamak için: python main.py --wake --dash
 """

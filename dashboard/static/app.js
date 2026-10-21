@@ -230,14 +230,18 @@ VIEWS.ayarlar = {
       const b = h("button", { class: "tcard", "data-t": id, onclick: () => { applyTheme(id); api("/api/cmd", { theme: id }).catch(() => {}); markTheme(body); } },
         h("div", { class: "sw", style: "background:" + bg }, h("b", { style: "background:" + accent }), h("i", { style: "background:" + accent })), h("span", {}, label));
       return b; }));
+    const tray = h("button", { class: "pill vo", title: "Açıkken pencereyi kapatınca Jarvis sağ alttaki sistem tepsisine iner; simgeye tıklayınca pano geri açılır" });
+    tray.onclick = () => send({ id: "traytoggle" }); body._tray = tray;
     const quit = confirmBtn("Jarvis'i kapat", () => { api("/api/cmd", { id: "quit" }).catch(() => {}); toast("Jarvis kapanıyor…"); });
     body._c = h("div", { class: "scroll" },
       h("div", { class: "setgrp" }, h("h5", {}, "TEMA"), h("p", {}, "Seçtiğin tema kaydedilir ve bir sonraki açılışta da kalır."), grid),
-      h("div", { class: "setgrp" }, h("h5", {}, "UYGULAMA"), h("p", {}, "Pencereyi kapatmak Jarvis'i kapatmaz; sesle çağırmaya devam edebilirsin. Panoyu tekrar açmak için menüden JARVIS simgesine tıkla. Tamamen kapatmak için:"), quit),
+      h("div", { class: "setgrp" }, h("h5", {}, "UYGULAMA"), h("p", {}, "Pencereyi kapatmak Jarvis'i kapatmaz; sesle çağırmaya devam edebilirsin. Açıkken pencere sağ alttaki sistem tepsisine iner, simgeye tıklayınca pano geri gelir. Kapalıyken pencere kapanır, panoyu menüdeki JARVIS simgesiyle açarsın."), tray,
+        h("p", {}, "Tamamen kapatmak için:"), quit),
       h("div", { class: "setgrp" }, h("h5", {}, "HATA AYIKLAMA"), h("p", {}, "Kayıt dosyası: ", h("code", {}, "data/jarvis.log"), ". Terminalde görmek için simgeye sağ tıkla > “Hata ayıklama (terminalde)” ya da ", h("code", {}, "python main.py --wake --dash"), ".")));
     fill(body, body._c); markTheme(body);
   },
-  update() {},
+  update(s, body) { const on = !s.durum || s.durum.close_to_tray !== false; body._tray.classList.toggle("on", on);
+    fill(body._tray, SVG("tool"), "Kapatınca tepsiye in: " + (on ? "Açık" : "Kapalı")); },
 };
 function markTheme(body) { body.querySelectorAll(".tcard").forEach((b) => b.classList.toggle("on", b.dataset.t === curTheme)); }
 let view = "merkez", builtView = null;

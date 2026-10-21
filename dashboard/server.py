@@ -44,6 +44,7 @@ COMMANDS = {
     "focus": ("act", "focus"),
     "talk": ("act", "talk"),
     "chatvoice": ("act", "chatvoice"),
+    "traytoggle": ("act", "traytoggle"),
     "quit": ("act", "quit"),
 }
 
@@ -108,6 +109,8 @@ class Dashboard:
             self.quit()
         elif val == "chatvoice":
             ui_state.set_chat_voice(not ui_state.chat_voice())
+        elif val == "traytoggle":
+            ui_state.set_close_to_tray(not ui_state.close_to_tray())
         elif val == "talk":
             ui_state.request_listen()
         return {"ok": True}

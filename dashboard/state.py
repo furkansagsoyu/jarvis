@@ -55,6 +55,36 @@ def cached(key: str, ttl: float, fn):
     return val
 
 
+_bg_running: set = set()
+
+
+def cached_bg(key: str, ttl: float, fn, default=None):
+    """Ağ gibi yavaş/takılabilen kaynaklar: istek asla beklemez. Bayatsa arka planda yenilenir, o ana dek bilinen değer döner.
+    Başarısız (boş) sonuç 60 sn sonra yeniden denenir (internet sonradan gelirse pano toparlansın)."""
+    now = time.time()
+    with _cache_lock:
+        hit = _cache.get(key)
+        if hit and now - hit[0] < ttl:
+            return hit[1]
+        last = hit[1] if hit else default
+        if key in _bg_running:
+            return last
+        _bg_running.add(key)
+
+    def work():
+        try:
+            val = fn()
+        except Exception:  # noqa: BLE001
+            val = last
+        stamp = time.time() if val else time.time() - ttl + min(60.0, ttl)
+        with _cache_lock:
+            _cache[key] = (stamp, val)
+            _bg_running.discard(key)
+
+    threading.Thread(target=work, daemon=True).start()
+    return last
+
+
 # ------------------------------------------------------------ arka plan örnekleyici (istek başına bekleme olmasın)
 class Sampler(threading.Thread):
     def __init__(self, every: float = 2.0):
@@ -128,7 +158,7 @@ def _durum(ctx):
     except Exception:  # noqa: BLE001
         pending = False
     return {"state": st.get("state", "starting"), "label": ui_state.STATES.get(st.get("state"), "—"),
-            "muted": ui_state.is_muted(), "focus": ui_state.is_focus(), "chat_voice": ui_state.chat_voice(), "theme": ui_state.theme(), "pending": pending,
+            "muted": ui_state.is_muted(), "focus": ui_state.is_focus(), "chat_voice": ui_state.chat_voice(), "close_to_tray": ui_state.close_to_tray(), "theme": ui_state.theme(), "pending": pending,
             "turns": st.get("turns", []), "uptime": int(time.time() - START)}
 
 
@@ -226,8 +256,8 @@ def _konusma(ctx):
 
 @provider("alt")
 def _alt(ctx):
-    return {"temp": cached("temp", 900.0, _temp_text) or "",
-            "online": bool(cached("online", 20.0, _online)),
+    return {"temp": cached_bg("temp", 900.0, _temp_text, "") or "",
+            "online": bool(cached_bg("online", 20.0, _online, False)),
             "city": os.environ.get("JARVIS_CITY", "Tokat")}
 
 

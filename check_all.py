@@ -463,6 +463,13 @@ def logic_tests() -> None:
         assert r.returncode == 0, "\n".join(l for l in r.stdout.splitlines() if l.startswith("HATA"))[:400] or r.stderr[-300:]
         return f"{r.stdout.count('OK   ')} OK"
 
+    @check("Pano penceresi: tek pencere, tepsiye inme, bekçi, kapatma (test_window, sahte Qt)")
+    def _():
+        r = subprocess.run([sys.executable, str(HERE / "test_window.py")], capture_output=True, text=True,
+                           env={**os.environ, "PYTHONPATH": str(HERE), "JARVIS_DATA": str(TMP / "win_test")}, timeout=60)
+        assert r.returncode == 0, "\n".join(l for l in r.stdout.splitlines() if l.startswith("HATA"))[:400] or r.stderr[-300:]
+        return f"{r.stdout.count('OK   ')} OK"
+
     @check("Masaüstü uygulaması: .desktop, simge kurulum/kaldırma, başlatıcı (test_app)")
     def _():
         r = subprocess.run([sys.executable, str(HERE / "test_app.py")], capture_output=True, text=True,

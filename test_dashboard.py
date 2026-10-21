@@ -11,7 +11,11 @@ os.environ.setdefault("JARVIS_DATA", tempfile.mkdtemp())
 sys.modules.setdefault("ollama", types.ModuleType("ollama"))
 import ui_state  # noqa: E402
 from dashboard import server, state  # noqa: E402
-from skills import agenda  # noqa: E402
+from skills import agenda, weather  # noqa: E402
+
+# Testler gerçek ağa çıkmasın (yavaş internette panoyu bekletip testi düşürüyordu)
+weather._get = lambda url: ({"results": [{"latitude": 1, "longitude": 2}]} if "geocoding" in url else {"current": {"temperature_2m": 17.6}})
+state._online = lambda: True
 
 bad = 0
 
@@ -257,5 +261,23 @@ weather._get = lambda url: (_ for _ in ()).throw(OSError("ağ yok"))
 check("hava: ağ yoksa None (pano '—' gösterir)", weather.current_temp() is None)
 
 d.stop()
+# yavaş ağ: pano durumu ağı beklemez (bağlantısı olmayan/yavaş internette istek takılmasın)
+import threading as _th  # noqa: E402
+import time as _t  # noqa: E402
+_gate = _th.Event()
+state._cache.clear()
+weather._get = lambda url: (_gate.wait(5), {"results": [{"latitude": 1, "longitude": 2}]} if "geocoding" in url else {"current": {"temperature_2m": 20.4}})[1]
+state._online = lambda: (_gate.wait(5), True)[1]
+_t0 = _t.time()
+_slow = state.build_state(types.SimpleNamespace(brain=None))
+check("yavaş ağda pano durumu beklemez (<1 sn), sıcaklık boş", _t.time() - _t0 < 1.0 and _slow["alt"]["temp"] == "")
+_gate.set()
+_t.sleep(0.5)
+state._cache.pop("temp", None)
+_fast = state.build_state(types.SimpleNamespace(brain=None))
+_t.sleep(0.5)
+_fast = state.build_state(types.SimpleNamespace(brain=None))
+check("ağ gelince sıcaklık arka planda dolar", _fast["alt"]["temp"] == "20°C", str(_fast["alt"]))
+
 print("TÜMÜ TAMAM" if not bad else f"{bad} HATA")
 sys.exit(1 if bad else 0)

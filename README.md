@@ -127,7 +127,7 @@ skills/          beceriler: her dosya kendini tanımlar ve otomatik yüklenir
   desktop_input.py  fare/klavye (xdotool)
   agenda.py      takvim ve görevler (yerel, Türkçe tarih ayrıştırıcı: _trdate.py)
   screen.py, camera.py, files.py, web.py, reminders.py, hardware.py, ...
-dashboard/       Komut Merkezi: server.py (yalnızca 127.0.0.1, rastgele anahtar), state.py (panel sağlayıcıları), window.py, static/
+dashboard/       Komut Merkezi: server.py (yalnızca 127.0.0.1, rastgele anahtar), state.py (panel sağlayıcıları), window.py (Qt penceresi + sistem tepsisi), static/
 stt.py, tts.py, wake.py     konuşma tanıma, sentez, uyanma sözcüğü
 ui.py, telegram_bot.py, autostart.py
 check_all.py     tek komutlu test ve ortam kontrolü

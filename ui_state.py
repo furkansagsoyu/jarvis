@@ -102,6 +102,17 @@ def set_chat_voice(value: bool) -> None:
     _store.save("settings.json", st)
 
 
+def close_to_tray() -> bool:
+    """Pano penceresini kapatınca Jarvis sistem tepsisine insin mi? (kalıcı ayar; varsayılan açık)"""
+    return bool(_store.load("settings.json", {}).get("close_to_tray", True))
+
+
+def set_close_to_tray(value: bool) -> None:
+    st = _store.load("settings.json", {})
+    st["close_to_tray"] = bool(value)
+    _store.save("settings.json", st)
+
+
 THEMES = ("cyan", "amber", "green", "violet", "light")
 
 
