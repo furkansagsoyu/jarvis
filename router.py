@@ -43,7 +43,8 @@ DEFAULTS = {
 
 
 class Unavailable(Exception):
-    """Hiçbir bulut modeli cevap veremedi (anahtar yok, sınır dolu, ağ yok...)."""
+    """Hiçbir bulut modeli cevap veremedi (anahtar yok, sınır dolu, ağ yok...). wait: limit dolduysa en erken kaç sn sonra denenebilir."""
+    wait: float | None = None
 
 
 class TooLarge(Exception):
@@ -216,6 +217,21 @@ class Router:
         return {"enabled": self.enabled(), "providers": provs, "blocked": st.get("blocked", 0), "last_block": st.get("last_block", ""),
                 "calls": sum(m["calls"] for m in st["models"].values()), "tokens": sum(m["tokens"] for m in st["models"].values())}
 
+    def wait_hint(self) -> float | None:
+        """Anahtarı olan canlı modeller arasında en erken hazır olacak olana kaç saniye var (0: şimdi hazır). Hiç aday yoksa None."""
+        now, best = self.now(), None
+        for pid in self.cfg["order"]:
+            p = self.cfg["providers"].get(pid)
+            if not p or p.get("disabled") or not self._key(p) or pid in self._dead_providers:
+                continue
+            for m in p.get("models", []):
+                k = f"{pid}/{m}"
+                if k in self._dead_models:
+                    continue
+                w = max(0.0, self._cool.get(k, 0) - now)
+                best = w if best is None else min(best, w)
+        return best
+
     def ready(self) -> bool:
         return self.enabled() and bool(list(self._candidates()))
 
@@ -269,8 +285,18 @@ class Router:
             if res is not None:
                 res.ms = int((self.now() - t0) * 1000)
                 return res
-        why = "; ".join(errors[-4:]) or ("anahtar tanımlı değil (data/keys.env)" if not tried else "cevap alınamadı")
-        raise Unavailable(why)
+        hint = self.wait_hint()
+        if errors:
+            why = "; ".join(errors[-4:])
+        elif hint is None:
+            why = "anahtar tanımlı değil (data/keys.env)"
+        elif hint > 0:
+            why = f"tüm bulut modelleri limitte/beklemede (en erken ~{int(hint) + 1} sn sonra)"
+        else:
+            why = "cevap alınamadı"
+        exc = Unavailable(why)
+        exc.wait = hint if hint else None
+        raise exc
 
     SEARCH_MODELS = ["openai/gpt-oss-20b", "openai/gpt-oss-120b"]  # Groq'un sunucu tarafı 'browser_search' aracını destekleyenler
 

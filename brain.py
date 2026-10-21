@@ -45,7 +45,7 @@ SUMMARY_MAX = 700  # özet bu kadar karakteri geçmez (prompt şişmesin, araç 
 SESSION_FILE = "session.json"
 SESSION_TTL = 12 * 3600  # bundan eski konuşma geçmişi yüklenmez
 # Uzaktan (Telegram) gelen komutlarda çalıştırılmayan araçlar: içerik makine dışına, üçüncü taraf sunucuya çıkar.
-REMOTE_BLOCKED = {"read_file", "recall", "look_at_screen", "look_at_camera", "browser_open", "browser_read", "browser_click",
+REMOTE_BLOCKED = {"code_list", "code_read", "code_write", "code_run", "read_file", "recall", "look_at_screen", "look_at_camera", "browser_open", "browser_read", "browser_click",
                   "browser_type", "browser_back", "browser_close", "mouse_move", "mouse_click", "scroll",
                   "keyboard_type", "press_key"}
 

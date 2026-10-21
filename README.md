@@ -38,6 +38,15 @@ python router_check.py            # anahtar ve gizlilik kapısı denemesi
 - Güvenlik ajan modundakiyle aynıdır: plan yalnızca senin cümlenden çıkar, araç sonuçları "yalnızca veri" sayılır, rol dışı araç çağrılamaz, dosya okunduktan sonra internete giden adım onay ister. En fazla 5 görev ve 10 araç çağrısı.
 - Görevler sırayla çalışır (ücretsiz bulut limiti paralel çağrıya yetmez). Panoda Ajanlar sekmesi canlı durumu gösterir; `data/team_runs.jsonl` yalnızca özet tutar (sonuç metni yok).
 
+## Kod ajanı
+
+"**kod: bir hesap makinesi yaz**" dersin; plan okunur, "başla" dersin. Kod Ajanı (ücretsiz bulut modeli, kişisel veri varsa yerel) küçük adımlarla kod yazar, çalıştırır, hata çıkarsa düzeltir; sonucu Yazar sesli özetler. Kod `workspace/<proje>/` klasöründe kalır (git'e girmez); beğendiğini kendin projene kopyalarsın.
+
+- Dosya araçları yalnızca o proje klasöründe çalışır (mutlak yol, `..`, `~`, gizli dosya, sembolik bağ kaçışı, izinsiz uzantı reddedilir; boyut/sayı sınırı var). Gerçek projelerine ve ev klasörüne erişemez.
+- Kod **bubblewrap güvenli kutusunda** çalışır: internet yok, ev klasörün/anahtar dosyaların görünmez, ortam değişkenleri temiz, 30 sn süre sınırı. Kutu yoksa her çalıştırma onay ister (`sudo apt install bubblewrap`).
+- Yalnızca `python`, `python3`, `pytest`, `node` çalıştırılabilir (kabuk yok). Kutuyu denemek için: `python code_check.py`.
+- Ücretsiz bulutun küçük girdi sınırı nedeniyle uzun döngülerde eski adımlar kısa özete çevrilir; ajan dosyanın güncel halini `code_read` ile görür.
+
 ## Neler yapabiliyor
 
 | Alan | Örnek cümle |
@@ -153,6 +162,7 @@ skills/          beceriler: her dosya kendini tanımlar ve otomatik yüklenir
   desktop_input.py  fare/klavye (xdotool)
   agenda.py      takvim ve görevler (yerel, Türkçe tarih ayrıştırıcı: _trdate.py)
   screen.py, camera.py, files.py, web.py, reminders.py, hardware.py, ...
+skills/codeagent.py  Kod ajanı araçları (workspace/, güvenli kutu)
 team.py          Ekip modu (çoklu ajan: planlayıcı, uzman ajanlar, yazar)
 router.py, privacy.py  Model yönlendirici (ücretsiz bulut, yedek zinciri) ve gizlilik kapısı
 dashboard/       Komut Merkezi: server.py (yalnızca 127.0.0.1, rastgele anahtar), state.py (panel sağlayıcıları), window.py (Qt penceresi + sistem tepsisi), static/

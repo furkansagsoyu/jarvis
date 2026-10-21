@@ -139,7 +139,7 @@ check("ajanda: açık 3, geciken 1", st["ajanda"]["open_tasks"] == 3 and st["aja
 check("ajanda: bugünün etkinlikleri saat sırasıyla", [e["time"] for e in st["ajanda"]["events_today"]] == ["08:30", "23:50"])
 check("akış: geciken görev uyarısı", any(i["level"] == "UYARI" and "gecik" in i["text"] for i in st["akis"]))
 check("ajanlar: gerçek yetenekler Hazır, çoklu ajan Yakında", {a["name"]: a["status"] for a in st["ajanlar"]}["Tarayıcı"] == "Hazır"
-      and {a["name"]: a["status"] for a in st["ajanlar"]}["Kodlama Ajanı"] == "Yakında")
+      and {a["name"]: a["status"] for a in st["ajanlar"]}["Ekip Modu"] == "Hazır")
 check("ajan planı onay bekliyor görünür", {a["name"]: a["status"] for a in st["ajanlar"]}["Ajan Modu"] == "Plan onayı bekliyor")
 check("hafıza sayısı", st["hafiza"]["count"] == 0 and st["hafiza"]["turns"] == 1)
 

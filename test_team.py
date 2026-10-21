@@ -12,6 +12,9 @@ try:
 except ImportError:
     ollama = sys.modules["ollama"] = types.ModuleType("ollama")
 os.environ["GROQ_API_KEY"] = "gsk_testtesttesttesttesttest"
+WS = tempfile.mkdtemp()
+os.environ["JARVIS_WORKSPACE"] = WS
+os.environ["JARVIS_CODE_SANDBOX"] = "off"   # yalnızca test: gerçek kutu yok
 import brain as B  # noqa: E402
 import privacy  # noqa: E402
 import router as R  # noqa: E402
@@ -31,7 +34,9 @@ def check(name, cond, extra=""):
 SECRET = "GIZLI-ICERIK-123"
 cloud_log, local_log, tool_log, quiet_seen = [], [], [], []
 from skills import web  # noqa: E402
-cfg = {"plan": None, "research_mode": "normal", "local_down": False}
+from skills import codeagent  # noqa: E402
+CODE_SKILLS = codeagent.SKILLS
+cfg = {"plan": None, "research_mode": "normal", "local_down": False, "kod_script": []}
 
 
 def cloud_ok(text):
@@ -57,6 +62,8 @@ def respond(messages, where):
         if not has_obs:
             return "```json\n" + json.dumps({"tool": "read_file", "args": {"name": "notlar.txt"}}) + "\n```"
         return json.dumps({"final": f"Dosyada not var ({where})."})
+    if "Kod Ajanısın" in sysm:
+        return cfg["kod_script"].pop(0) if cfg["kod_script"] else json.dumps({"final": "bitti"})
     if "Yazar ajansın" in sysm:
         if cfg.get("writer_style") == "bullets":
             return "- Hedef: fiyat öğrenmek\n- Fiyat **15.000 TL**\n1. Not: veri eski"
@@ -86,13 +93,15 @@ def mk_tools():
         tool("read_file", ["name"], lambda name="": tool_log.append(("read_file", name)) or f"not: {SECRET}"),
         tool("find_files", ["query"], lambda query="": "notlar.txt"),
         tool("browser_open", ["url"], lambda url="": confirm.request(f"{url} açılacak.", lambda: "Açıldı.")),
+        *[tool(sk["name"], list(sk["parameters"]["properties"]), sk["run"]) for sk in CODE_SKILLS],
     ])
 
 
 def fresh(router_key=True):
     cloud_log.clear(); local_log.clear(); tool_log.clear()
     confirm.cancel()
-    cfg.update(plan=None, research_mode="normal")
+    cfg.update(plan=None, research_mode="normal", kod_script=[])
+    codeagent.set_project(None)
     os.environ["GROQ_API_KEY"] = "gsk_testtesttesttesttesttest" if router_key else ""
     b = B.Brain(tools=mk_tools())
     b.team.router = R.Router({}, post=fake_post)
@@ -228,9 +237,116 @@ check("canlı durum: çalışıyor, aktif rol ve görev listesi (pano için)", s
 for _ in gen:
     pass
 
-# ---------------------------------------------------------------- pano satırları
 from dashboard import state  # noqa: E402
+from pathlib import Path  # noqa: E402
 
+# ---------------------------------------------------------------- Kod Ajanı
+J = json.dumps
+def kod_run(goal, script, say_word="başla"):
+    b = fresh()
+    cfg["kod_script"] = list(script)
+    plan = say(b, f"kod: {goal}")
+    out = say(b, say_word)
+    return b, plan, out
+
+
+b, plan, out = kod_run("hesap makinesi yaz", [
+    J({"tool": "code_write", "args": {"path": "main.py", "content": "print(2 + 3)\n"}}),
+    J({"tool": "code_run", "args": {"command": "python main.py"}}),
+    J({"final": "main.py yazdım; python main.py çalıştırınca 5 verdi."})])
+proj = Path(WS) / "hesap-makinesi-yaz"
+check("'kod:' hazır plan: Kod Ajanı + Yazar, onay bekler (planlayıcı çağrılmaz)", "Kod Ajanı" in plan and "Yazar" in plan and "Başlayayım mı" in plan and not any("planlayıcısısın" in c["messages"][0]["content"] for c in cloud_log))
+check("kod yazıldı ve çalıştırıldı: dosya workspace/<proje>/ altında", (proj / "main.py").read_text() == "print(2 + 3)\n")
+check("sesli ilerleme: 'Kod yazıyorum.' ve 'Çalıştırıp deniyorum.' bir kez", out.count("Kod yazıyorum.") == 1 and out.count("Çalıştırıp deniyorum.") == 1, out[:200])
+check("sonuçta proje klasörü söylenir, kod ajanı bulutta çalıştı", "workspace/hesap-makinesi-yaz klasöründe" in out and any("Kod Ajanısın" in c["messages"][0]["content"] for c in cloud_log))
+kod_req = json.dumps([c["messages"] for c in cloud_log if "Kod Ajanısın" in c["messages"][0]["content"]][0], ensure_ascii=False)
+check("kod ajanına 'workspace/...' yolu GÖSTERİLMEZ (yollara önek eklemesin), kökten yazması söylenir", "workspace/" not in kod_req and "kökten itibaren" in kod_req)
+check("yazara proje klasörü bildirilir", any("Proje klasörü: workspace/hesap-makinesi-yaz" in json.dumps(c["messages"], ensure_ascii=False) for c in cloud_log if "Yazar ajansın" in c["messages"][0]["content"]))
+check("kod ajanı isteklerinde max_tokens yüksek (dosya yazabilsin)", any(c["max_tokens"] == 1800 for c in cloud_log))
+
+b, plan, out = kod_run("toplama programı yaz", [
+    J({"tool": "code_write", "args": {"path": "main.py", "content": "raise ValueError('bozuk')\n"}}),
+    J({"tool": "code_run", "args": {"command": "python main.py"}}),
+    J({"tool": "code_write", "args": {"path": "main.py", "content": "print('düzeldi')\n"}}),
+    J({"tool": "code_run", "args": {"command": "python main.py"}}),
+    J({"final": "Hatayı düzelttim; artık çalışıyor."})])
+reqs = [json.dumps(c["messages"], ensure_ascii=False) for c in cloud_log if "Kod Ajanısın" in c["messages"][0]["content"]]
+check("hata döngüsü: traceback bir sonraki istekte ajana görünür, düzeltip tekrar çalıştırır", "ValueError: bozuk" in reqs[2] and (Path(WS) / "toplama-programi-yaz" / "main.py").read_text() == "print('düzeldi')\n")
+
+# bağlam sıkıştırma: uzun döngüde istek boyutu sınırda kalır, eski adımlar özetlenir
+big = "x = 1\n" * 900
+script = [J({"tool": "code_write", "args": {"path": "big.py", "content": big}})] + [J({"tool": "code_read", "args": {"path": "big.py", "start_line": i}}) for i in range(1, 11)] + [J({"final": "okudum"})]
+b, plan, out = kod_run("büyük dosya okuma denemesi", script)
+sizes = [sum(len(m["content"]) for m in c["messages"]) for c in cloud_log if "Kod Ajanısın" in c["messages"][0]["content"]]
+check("uzun kod döngüsünde her istek ücretsiz bulut sınırına sığar (sıkıştırma)", max(sizes) <= T.VIEW_BUDGET * 1.3 + 3500, str(max(sizes)))
+check("eski adımlar kısa özet olarak taşınır", any("Önceki adımların kısa özeti" in json.dumps(c["messages"], ensure_ascii=False) for c in cloud_log))
+check("hiçbir istek bulut girdi sınırını aşmadı (yerel modele düşülmedi)", not local_log)
+
+# rol sınırı: kod ajanı web/dosya aracı çağıramaz; araştırma ajanı kod aracı çağıramaz
+b, plan, out = kod_run("deneme programı yaz", [J({"tool": "web_search", "args": {"query": "x"}}), J({"tool": "read_file", "args": {"name": "gizli.txt"}}), J({"tool": "web_search", "args": {"query": "x"}})])
+check("kod ajanı rol dışı araç (web_search/read_file) çağıramaz", not tool_log)
+b = fresh()
+cfg["research_mode"] = "inject"
+check("araştırma rolünün araç listesinde kod aracı yok", not set(T.ROLES["arastirma"].tools) & {"code_write", "code_run"} and "read_file" not in T.ROLES["kod"].tools)
+
+# kişisel veri içeren hedef: bulut atlanır, yerelde çalışır
+b, plan, out = kod_run("0532 123 45 67 numaralı rehber programı yaz", [J({"tool": "code_write", "args": {"path": "r.py", "content": "print(1)"}}), J({"final": "yazdım"})])
+check("hedefte telefon varsa kod ajanı YEREL çalışır, bulut isteğinde numara yok", not any("0532" in json.dumps(c) for c in cloud_log) and any("Kod Ajanısın" in m[0]["content"] for m in local_log))
+
+# güvenli kutu yoksa: çalıştırma onay ister, onaydan sonra sürer
+os.environ.pop("JARVIS_CODE_SANDBOX")
+codeagent.reset_sandbox_cache()
+_w = codeagent.shutil.which
+codeagent.shutil.which = lambda n: None if n == "bwrap" else _w(n)
+b = fresh()
+cfg["kod_script"] = [J({"tool": "code_write", "args": {"path": "main.py", "content": "print('merhaba')\n"}}), J({"tool": "code_run", "args": {"command": "python main.py"}}), J({"final": "çalıştı"})]
+say(b, "kod: selamlama programı yaz")
+out = say(b, "başla")
+check("güvenli kutu yokken çalıştırma onay ister, ekip 'onay bekliyor' durumuna geçer", b.team.state == "confirm" and "Güvenli kutu yok" in out, out[-200:])
+out = say(b, "evet")
+check("onaydan sonra kod çalışır ve görev biter", b.team.state == "idle" and "Sonuç hazır" in out and "selamlama-programi-yaz" in out, out[-200:])
+codeagent.shutil.which = _w
+os.environ["JARVIS_CODE_SANDBOX"] = "off"
+
+# bulut kısa süre limitteyse kod ajanı yerel modele düşmez, bekler ve bulutta sürer
+b = fresh()
+tclock = [5000.0]
+b.team.router = R.Router({}, post=None, now=lambda: tclock[0])
+rate = {"n": 0}
+
+
+def limited_post(url, headers, body, timeout):
+    if rate["n"] < 5:
+        rate["n"] += 1
+        return 429, {"retry-after": "20"}, {"error": {"message": "rate limit"}}
+    return fake_post(url, headers, body, timeout)
+
+
+b.team.router.post = limited_post
+slept = []
+b.team.sleep = lambda sec: (slept.append(sec), tclock.__setitem__(0, tclock[0] + sec))
+cfg["kod_script"] = [J({"tool": "code_write", "args": {"path": "main.py", "content": "print(7)\n"}}), J({"final": "yazdım"})]
+say(b, "kod: bekleme denemesi programı yaz")
+out = say(b, "başla")
+check("kod ajanı bulut limitteyken yerel modele düşmez: bekler (≈21 sn) ve bulutta sürer", slept and 20 <= slept[0] <= 22 and not any("Kod Ajanısın" in m[0]["content"] for m in local_log) and (Path(WS) / "bekleme-denemesi-programi-yaz" / "main.py").exists(), str(slept))
+b = fresh()
+b.team.router = R.Router({}, post=lambda *a: (429, {"retry-after": "300"}, {}), now=lambda: tclock[0])
+slept.clear()
+b.team.sleep = lambda sec: slept.append(sec)
+cfg["kod_script"] = [J({"final": "yerelde yazdım"})]
+say(b, "kod: uzun bekleme denemesi yaz")
+say(b, "başla")
+check("limit çok uzunsa (300 sn) beklemeden yerele düşer", not slept and any("Kod Ajanısın" in m[0]["content"] for m in local_log))
+
+# planlayıcı kod ajanını da kullanabilir
+b = fresh()
+cfg["plan"] = {"tasks": [{"id": "t1", "role": "arastirma", "do": "API belgesini ara", "after": []}, {"id": "t2", "role": "kod", "do": "örnek istemci yaz", "after": ["t1"]},
+                         {"id": "t3", "role": "yazar", "do": "özetle", "after": ["t1", "t2"]}]}
+plan = say(b, "ekip: bir API için örnek istemci yaz")
+check("planlayıcı planında Kod Ajanı yer alabilir; kod görevi araştırma sonucuna bağlanır", "Kod Ajanı" in plan and b.team.tasks[1].after == ["t1"] and [t.role for t in b.team.tasks] == ["arastirma", "kod", "yazar"])
+check("panel: kod ajanı satırı", {r["name"]: r for r in state._ajanlar(types.SimpleNamespace(brain=b))}["Kod Ajanı"]["status"] == "Hazır")
+
+# ---------------------------------------------------------------- pano satırları
 b = fresh()
 rows = {r["name"]: r for r in state._ajanlar(types.SimpleNamespace(brain=b))}
 check("pano: ekip modu ve uzman ajanlar listelenir", rows["Ekip Modu"]["status"] == "Hazır" and rows["Araştırma Ajanı"]["status"] == "Hazır" and rows["Dosya Ajanı"]["status"] == "Hazır" and "yalnızca yerel" in rows["Dosya Ajanı"]["detail"])

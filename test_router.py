@@ -151,6 +151,24 @@ except R.Unavailable as e:
     ok = "429" in str(e)
 check("hepsi limitte: Unavailable (yerel modele dönülür)", ok and len(calls) == 5)
 
+# hepsi bekleme süresinde: "anahtar yok" DEĞİL, bekleme süresi söylenir
+r = new()
+script.extend([(429, {"retry-after": "40"}, {})] * 5)
+try:
+    r.chat(MSG)
+except R.Unavailable:
+    pass
+n = len(calls)
+clock[0] += 10
+try:
+    r.chat(MSG)
+    ok = False
+except R.Unavailable as e:
+    ok = "limitte" in str(e) and "anahtar" not in str(e) and 29 <= e.wait <= 31 and len(calls) == n
+check("tüm modeller bekleme süresindeyse: doğru neden ('limitte, ~31 sn') ve wait bilgisi, ağa çıkılmaz", ok)
+check("wait_hint: anahtar yoksa None, varsa en erken hazır olma süresi", R.Router({}, post=fake_post).wait_hint() is not None and new(key="").wait_hint() is None)
+clock[0] += 100
+
 # engeller
 r = new()
 for msgs, why in (([{"role": "user", "content": "şifrem: kedi1234 bunu çöz"}], "parola"), ([{"role": "user", "content": "x", "private": True}], "özel")):

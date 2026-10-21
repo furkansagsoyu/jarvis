@@ -477,6 +477,13 @@ def logic_tests() -> None:
         assert r.returncode == 0, "\n".join(l for l in r.stdout.splitlines() if l.startswith("HATA"))[:400] or r.stderr[-300:]
         return f"{r.stdout.count('OK   ')} OK"
 
+    @check("Kod ajanı araçları: yol güvenliği, sınırlar, çalıştırma kısıtları, güvenli kutu komutu (test_code)")
+    def _():
+        r = subprocess.run([sys.executable, str(HERE / "test_code.py")], capture_output=True, text=True,
+                           env={**os.environ, "PYTHONPATH": str(HERE), "JARVIS_DATA": str(TMP / "code_test")}, timeout=90)
+        assert r.returncode == 0, "\n".join(l for l in r.stdout.splitlines() if l.startswith("HATA"))[:400] or r.stderr[-300:]
+        return f"{r.stdout.count('OK   ')} OK"
+
     @check("Web arama: arka uç sırası, sessiz kip, Tavily, Groq yerleşik arama (test_web)")
     def _():
         r = subprocess.run([sys.executable, str(HERE / "test_web.py")], capture_output=True, text=True,
