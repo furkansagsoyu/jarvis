@@ -470,6 +470,13 @@ def logic_tests() -> None:
         assert r.returncode == 0, "\n".join(l for l in r.stdout.splitlines() if l.startswith("HATA"))[:400] or r.stderr[-300:]
         return f"{r.stdout.count('OK   ')} OK"
 
+    @check("Model yönlendirici + gizlilik kapısı: Groq zinciri, limit/hata, engeller, 'bulut:' komutu (test_router)")
+    def _():
+        r = subprocess.run([sys.executable, str(HERE / "test_router.py")], capture_output=True, text=True,
+                           env={**os.environ, "PYTHONPATH": str(HERE), "JARVIS_DATA": str(TMP / "router_test")}, timeout=60)
+        assert r.returncode == 0, "\n".join(l for l in r.stdout.splitlines() if l.startswith("HATA"))[:400] or r.stderr[-300:]
+        return f"{r.stdout.count('OK   ')} OK"
+
     @check("Masaüstü uygulaması: .desktop, simge kurulum/kaldırma, başlatıcı (test_app)")
     def _():
         r = subprocess.run([sys.executable, str(HERE / "test_app.py")], capture_output=True, text=True,

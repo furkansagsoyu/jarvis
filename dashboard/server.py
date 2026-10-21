@@ -45,6 +45,7 @@ COMMANDS = {
     "talk": ("act", "talk"),
     "chatvoice": ("act", "chatvoice"),
     "traytoggle": ("act", "traytoggle"),
+    "cloudtoggle": ("act", "cloudtoggle"),
     "quit": ("act", "quit"),
 }
 
@@ -111,6 +112,8 @@ class Dashboard:
             ui_state.set_chat_voice(not ui_state.chat_voice())
         elif val == "traytoggle":
             ui_state.set_close_to_tray(not ui_state.close_to_tray())
+        elif val == "cloudtoggle":
+            ui_state.set_cloud_enabled(not ui_state.cloud_enabled())
         elif val == "talk":
             ui_state.request_listen()
         return {"ok": True}

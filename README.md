@@ -12,6 +12,23 @@ açılan siteler hariç).
 
 Bu proje bir öğrenci projesidir ve bir ev bilgisayarında çalışacak şekilde yazıldı. Linux (X11) için geliştirildi ve orada test edildi.
 
+## Model yönlendirici (ücretsiz bulut modelleri)
+
+Yerel model (Ollama) varsayılandır ve kişisel her şeyi o yapar. Zor işler için (kod, plan, genel sorular) **ücretsiz** bulut modelleri yedek zincirle kullanılır.
+
+```bash
+python router_check.py --init     # data/keys.env şablonu (git'e gitmez); GROQ_API_KEY= satırına anahtarı yaz
+python router_check.py            # anahtar ve gizlilik kapısı denemesi
+```
+- Kullanım: "bulut: python'da sözlük nasıl sıralanır" (yalnızca bu cümle gider; geçmiş, hafıza, ekran eklenmez).
+- **Gizlilik kapısı** (`privacy.py`): parola/anahtar/e-posta/telefon/adres/kart/IBAN/T.C. no içeren hiçbir şey buluta gitmez; hafıza, konuşma kaydı, ekran, kamera hiç gönderilmez. Ayarlar > Bulut modelleri ile tamamen kapatılabilir.
+- Sınırlar: Groq ücretsiz katmanında dakikada ~8K token vardır; büyük girdi hiç gönderilmeden reddedilir. 429'da sıradaki modele geçilir.
+- Sağlayıcı eklemek (OpenAI uyumlu herhangi biri): `data/models.json`
+  ```json
+  {"providers": {"mistral": {"label": "Mistral", "base_url": "https://api.mistral.ai/v1", "key_env": "MISTRAL_API_KEY", "models": ["mistral-small-latest"]}}}
+  ```
+  ve anahtarı `data/keys.env`'e yaz. Model adlarını sağlayıcının güncel listesinden doğrula.
+
 ## Neler yapabiliyor
 
 | Alan | Örnek cümle |
@@ -127,6 +144,7 @@ skills/          beceriler: her dosya kendini tanımlar ve otomatik yüklenir
   desktop_input.py  fare/klavye (xdotool)
   agenda.py      takvim ve görevler (yerel, Türkçe tarih ayrıştırıcı: _trdate.py)
   screen.py, camera.py, files.py, web.py, reminders.py, hardware.py, ...
+router.py, privacy.py  Model yönlendirici (ücretsiz bulut, yedek zinciri) ve gizlilik kapısı
 dashboard/       Komut Merkezi: server.py (yalnızca 127.0.0.1, rastgele anahtar), state.py (panel sağlayıcıları), window.py (Qt penceresi + sistem tepsisi), static/
 stt.py, tts.py, wake.py     konuşma tanıma, sentez, uyanma sözcüğü
 ui.py, telegram_bot.py, autostart.py

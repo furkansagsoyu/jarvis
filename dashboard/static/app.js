@@ -103,9 +103,16 @@ VIEWS.yazisma = { title: "YAZIŞMA — JARVİS İLE KONUŞ",
     body.append(h("div", { class: "convbar" }, b, h("span", { class: "muted" }, "Kapalıyken yalnızca yazıyla cevap verir; sesle konuşman etkilenmez.")), chatBox("full").el); },
   update(s, body) { const on = !s.durum || s.durum.chat_voice !== false; body._vb.classList.toggle("on", on);
     fill(body._vb, SVG("vol"), "Sesli cevap: " + (on ? "Açık" : "Kapalı")); } };
+const cloudRows = (s) => { const c = s.model && s.model.cloud; if (!c) return [];
+  const rows = [["bolt", "Bulut modelleri", c.enabled ? "Açık (yalnızca zor işler; kişisel veri buluta gitmez)" : "Kapalı — hiçbir şey buluta gitmez"]];
+  c.providers.forEach((p) => { const ok = p.models.filter((m) => m.state === "hazır").length;
+    rows.push(["bot", p.label + " (ücretsiz)", p.state === "hazır" ? ok + "/" + p.models.length + " model hazır; bugün " + p.models.reduce((a, m) => a + m.calls, 0) + " çağrı"
+      + (p.models.some((m) => m.state === "bekliyor") ? "; limit beklemesi var" : "") : p.state]); });
+  rows.push(["db", "Gizlilik kapısı", c.blocked ? c.blocked + " mesaj engellendi (son: " + (c.last_block || "—") + ")" : "Engellenen mesaj yok"]); return rows; };
 VIEWS.cekirdek = simple("YAPAY ZEKÂ ÇEKİRDEĞİ", (s) => s.model && [
   ["cpu", "Dil modeli", s.model.llm.map((m) => m.name + " (" + m.role + (m.active ? ", aktif" : "") + ")").join(", ")], ["vol", "Konuşma tanıma", s.model.stt], ["vol", "Ses motoru", s.model.tts],
-  ["bolt", "Uyanma sözcüğü", s.model.wake], ["tool", "Yetenek sayısı", String(s.model.tools)], ["tool", "Araç çağrısı (oturum)", String(s.model.tool_calls)]]);
+  ["bolt", "Uyanma sözcüğü", s.model.wake], ["tool", "Yetenek sayısı", String(s.model.tools)], ["tool", "Araç çağrısı (oturum)", String(s.model.tool_calls)],
+  ...cloudRows(s)]);
 VIEWS.ajanlar = simple("AJANLAR", (s) => (s.ajanlar || []).map((a) => ["bot", a.name, a.status + " — " + a.detail]));
 VIEWS.hafiza = simple("HAFIZA", (s) => ((s.hafiza || {}).last || []).map((t) => ["db", t, ""]), "Kayıtlı bilgi yok.");
 VIEWS.bilgi = simple("BİLGİ TABANI — YAKINDA", () => [], "Bu bölüm henüz yok; ileride eklenecek.");
@@ -232,16 +239,20 @@ VIEWS.ayarlar = {
       return b; }));
     const tray = h("button", { class: "pill vo", title: "Açıkken pencereyi kapatınca Jarvis sağ alttaki sistem tepsisine iner; simgeye tıklayınca pano geri açılır" });
     tray.onclick = () => send({ id: "traytoggle" }); body._tray = tray;
+    const cloud = h("button", { class: "pill vo", title: "Kapalıyken hiçbir şey ücretsiz bulut modellerine gitmez; yalnızca yerel model çalışır" });
+    cloud.onclick = () => send({ id: "cloudtoggle" }); body._cloud = cloud;
     const quit = confirmBtn("Jarvis'i kapat", () => { api("/api/cmd", { id: "quit" }).catch(() => {}); toast("Jarvis kapanıyor…"); });
     body._c = h("div", { class: "scroll" },
       h("div", { class: "setgrp" }, h("h5", {}, "TEMA"), h("p", {}, "Seçtiğin tema kaydedilir ve bir sonraki açılışta da kalır."), grid),
       h("div", { class: "setgrp" }, h("h5", {}, "UYGULAMA"), h("p", {}, "Pencereyi kapatmak Jarvis'i kapatmaz; sesle çağırmaya devam edebilirsin. Açıkken pencere sağ alttaki sistem tepsisine iner, simgeye tıklayınca pano geri gelir. Kapalıyken pencere kapanır, panoyu menüdeki JARVIS simgesiyle açarsın."), tray,
         h("p", {}, "Tamamen kapatmak için:"), quit),
+      h("div", { class: "setgrp" }, h("h5", {}, "BULUT MODELLERİ"), h("p", {}, "Zor işlerde (kod, plan, “bulut: …” ile sorduğun genel sorular) ücretsiz bulut modelleri kullanılır. Parola, adres, telefon, hafıza, konuşma kaydı, ekran ve kamera ASLA gönderilmez; şüpheli bir şey varsa mesaj hiç gitmez."), cloud),
       h("div", { class: "setgrp" }, h("h5", {}, "HATA AYIKLAMA"), h("p", {}, "Kayıt dosyası: ", h("code", {}, "data/jarvis.log"), ". Terminalde görmek için simgeye sağ tıkla > “Hata ayıklama (terminalde)” ya da ", h("code", {}, "python main.py --wake --dash"), ".")));
     fill(body, body._c); markTheme(body);
   },
   update(s, body) { const on = !s.durum || s.durum.close_to_tray !== false; body._tray.classList.toggle("on", on);
-    fill(body._tray, SVG("tool"), "Kapatınca tepsiye in: " + (on ? "Açık" : "Kapalı")); },
+    fill(body._tray, SVG("tool"), "Kapatınca tepsiye in: " + (on ? "Açık" : "Kapalı"));
+    const cl = !s.durum || s.durum.cloud !== false; body._cloud.classList.toggle("on", cl); fill(body._cloud, SVG("bolt"), "Bulut modelleri: " + (cl ? "Açık" : "Kapalı")); },
 };
 function markTheme(body) { body.querySelectorAll(".tcard").forEach((b) => b.classList.toggle("on", b.dataset.t === curTheme)); }
 let view = "merkez", builtView = null;

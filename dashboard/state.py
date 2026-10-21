@@ -158,7 +158,7 @@ def _durum(ctx):
     except Exception:  # noqa: BLE001
         pending = False
     return {"state": st.get("state", "starting"), "label": ui_state.STATES.get(st.get("state"), "—"),
-            "muted": ui_state.is_muted(), "focus": ui_state.is_focus(), "chat_voice": ui_state.chat_voice(), "close_to_tray": ui_state.close_to_tray(), "theme": ui_state.theme(), "pending": pending,
+            "muted": ui_state.is_muted(), "focus": ui_state.is_focus(), "chat_voice": ui_state.chat_voice(), "close_to_tray": ui_state.close_to_tray(), "cloud": ui_state.cloud_enabled(), "theme": ui_state.theme(), "pending": pending,
             "turns": st.get("turns", []), "uptime": int(time.time() - START)}
 
 
@@ -182,7 +182,12 @@ def _model(ctx):
     names = [(brain.model, "Birincil")] + [(m, "Yedek") for m in FALLBACKS if m != brain.model]
     llm = [{"name": n, "role": r, "active": n == getattr(brain, "active_model", brain.model),
             "installed": (n in installed) if installed is not None else None} for n, r in names]
-    return {"llm": llm,
+    try:
+        import router  # noqa: PLC0415
+        cloud = (getattr(brain, "router", None) or router.get()).status()
+    except Exception:  # noqa: BLE001
+        cloud = None
+    return {"llm": llm, "cloud": cloud,
             "stt": "Whisper large-v3-turbo", "tts": "EMA Lightning (CPU)", "wake": "hey_jarvis",
             "tools": len(brain.tools), "tool_calls": getattr(brain, "tool_count", 0)}
 

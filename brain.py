@@ -26,6 +26,7 @@ import time
 import ollama
 
 import agent as _agent
+import router as _router
 from skills import _confirm as confirm
 from skills import _store
 from skills import agenda as _agenda
@@ -86,6 +87,10 @@ WORD_CAMERA = re.compile(r"\b(kamera\w*|web\s?(?:cam|kam)\w*)\b.*\b(bak\w*|ne va
 WORD_CAMERA_NOT = re.compile(r"\b(aç|kapat|ayarla|kur|indir|yükle)\w*\b", re.I)
 WORD_SCREEN_NOT = re.compile(r"karart|aydınlat|parlak|kapat|kilitle|görüntüsü al|ekran görüntüsü|kaydet", re.I)
 WORD_HW = re.compile(r"\b(cpu|işlemci\w*|ram|vram|gpu|ekran kart\w*|disk\w*|depolama\w*|sistem durumu\w*|bilgisayar\w*\s+(nasıl|durumu|ne durumda|sıcaklığ\w*)|donanım\w*)\b", re.I)
+# "bulut: ..." / "bulutta sor, ...": yalnızca bu cümle (konuşma geçmişi, hafıza, ekran HİÇ eklenmeden) ücretsiz bulut modeline sorulur
+WORD_CLOUD = re.compile(r"^\W*bulut(?:ta|tan|la)?\s*(?:(?:sor|çöz|cevapla)\b\s*[:,\-–]?|[:\-–])\s*(?P<q>.{6,})$", re.I | re.S)
+CLOUD_SYSTEM = ("Kısa ve net Türkçe cevap ver; cevap sesli okunacak: en fazla 5 cümle, madde işareti, başlık ve kod bloğu kullanma. "
+                "Bilmiyorsan bilmediğini söyle.")
 WORD_RESET = re.compile(r"konuşmayı\s+(sıfırla|unut|temizle)|yeni konuşma|baştan başla|geçmişi\s+(sil|temizle|unut)", re.I)
 WORD_BRIEF = re.compile(r"günaydın|günün özeti|sabah özeti|bugün neler var|bugünün özeti|özet ver", re.I)
 WORD_CONTEXT_REF = re.compile(r"\b(onu|bunu|şunu|ilk\w*|birinci\w*|ikinci\w*|üçüncü\w*|dördüncü\w*|beşinci\w*)\b", re.I)
@@ -138,6 +143,7 @@ class Brain:
         self.tool_count = 0            # oturumdan beri çalışan araç sayısı (pano gösterir)
         self.active_model = model      # son cevabı veren model (yedeğe düşüldüyse o)
         self.remote = False            # True iken (Telegram) REMOTE_BLOCKED araçlar reddedilir
+        self.router = None             # ilk bulut sorusunda router.get() ile oluşur (testte sahte verilebilir)
 
     # -- ısınma: modeli belleğe al (ilk cevap gecikmesi azalır)
     def warm_up(self):
@@ -429,6 +435,20 @@ class Brain:
             results.append("Bunu yapamadım." if result.startswith("Hata:") else result)
         return results
 
+    def _cloud_answer(self, question: str) -> str:
+        """Tek cümleyi (başka hiçbir bağlam eklemeden) bulut modeline sorar; gizlilik kapısı engellerse yerelde kalınır."""
+        r = self.router or _router.get()
+        try:
+            rep = r.chat([{"role": "system", "content": CLOUD_SYSTEM}, {"role": "user", "content": question}], task="hard", max_tokens=700)
+        except _router.Blocked as b:
+            return f"Bunu buluta göndermedim: {b.text}. İstersen yerel modelle cevaplarım, 'bulut' demeden sor."
+        except _router.TooLarge:
+            return "Soru bulut modelinin ücretsiz sınırına sığmıyor; yerel modelle sorabilirsin."
+        except _router.Unavailable as exc:
+            return f"Bulut modellerine şu an ulaşamadım ({str(exc)[:80]}). 'bulut' demeden sorarsan yerel modelle cevaplarım."
+        self.active_model = f"{rep.provider}/{rep.model}"
+        return rep.text
+
     def reply_stream(self, user_text: str):
         """Kullanıcı cümlesine cevabı parça parça (str) üretir.
 
@@ -439,6 +459,14 @@ class Brain:
             self.agent.abort()
             self.reset()
             yield "Tamam, konuşmayı sıfırladım."
+            return
+        cm = WORD_CLOUD.match(user_text.strip())
+        if cm and not confirm.has_pending() and self.agent.state == "idle":
+            answer = self._cloud_answer(cm.group("q").strip())
+            self.history.extend([{"role": "user", "content": user_text}, {"role": "assistant", "content": answer}])
+            self.history = self.history[-MAX_HISTORY:]
+            self.save_session()
+            yield answer
             return
         gen = self.agent.handle(user_text)  # ajan modu: görev başlatma, plan onayı
         if gen is not None:

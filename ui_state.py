@@ -113,6 +113,17 @@ def set_close_to_tray(value: bool) -> None:
     _store.save("settings.json", st)
 
 
+def cloud_enabled() -> bool:
+    """Ücretsiz bulut modelleri kullanılabilsin mi? (kalıcı ayar; varsayılan açık; kapalıyken hiçbir şey buluta gitmez)"""
+    return bool(_store.load("settings.json", {}).get("cloud", True))
+
+
+def set_cloud_enabled(value: bool) -> None:
+    st = _store.load("settings.json", {})
+    st["cloud"] = bool(value)
+    _store.save("settings.json", st)
+
+
 THEMES = ("cyan", "amber", "green", "violet", "light")
 
 
