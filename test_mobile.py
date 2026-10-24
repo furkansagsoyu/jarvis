@@ -17,7 +17,6 @@ sys.modules.setdefault("ollama", types.ModuleType("ollama"))
 import remote  # noqa: E402
 import ui_state  # noqa: E402
 from dashboard import server, state  # noqa: E402
-from skills import agenda  # noqa: E402
 
 HERE = Path(__file__).resolve().parent
 STATIC = HERE / "dashboard" / "static"

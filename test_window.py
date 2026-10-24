@@ -13,7 +13,6 @@ import types
 os.environ.setdefault("JARVIS_DATA", tempfile.mkdtemp())
 os.environ["JARVIS_WINDOW_LOCK"] = os.path.join(tempfile.mkdtemp(), "win.lock")
 from dashboard import window as W  # noqa: E402
-from skills import _store  # noqa: E402
 import ui_state  # noqa: E402
 
 bad = 0

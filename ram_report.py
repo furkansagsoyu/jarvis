@@ -25,7 +25,7 @@ GB = 1048576.0
 
 # Bileşen sınıflama: (ad, cmdline/ad deseni). Sırayla ilk eşleşen kazanır.
 COMPONENTS = [
-    ("ollama", re.compile(r"(^|/)ollama(\s|$)")),
+    ("ollama", re.compile(r"(^|/)(ollama|llama-server)(\s|$)")),  # modeli llama-server alt süreci taşır
     ("jarvis (main.py)", re.compile(r"python[\d.]*\s+.*\bmain\.py\b")),
     ("pano penceresi", re.compile(r"dashboard\.window|QtWebEngineProcess|jarvis.*--app=")),
     ("kod kutusu (bwrap)", re.compile(r"(^|/)bwrap(\s|$)")),
@@ -95,8 +95,9 @@ def _read(p: Path) -> str:
         return ""
 
 
-def process_table(proc: Path = Path("/proc")) -> dict[str, dict]:
-    """{bileşen: {gb, n}}. PSS (ortak sayfaları paylaştırır) okunabiliyorsa o, değilse RSS."""
+def process_table(proc: Path = Path("/proc"), others: dict | None = None) -> dict[str, dict]:
+    """{bileşen: {gb, swap, n}}. gb: PSS (okunabiliyorsa) ya da RSS = şu an RAM'de olan; swap: swap'a atılmış kısım (VmSwap).
+    Boşta bir süreç swap'a atılmış olabilir; yalnız RSS'e bakmak bileşenin gerçek boyutunu olduğundan küçük gösterir."""
     out: dict[str, dict] = {}
     try:
         pids = [d for d in proc.iterdir() if d.name.isdigit()]
@@ -106,14 +107,18 @@ def process_table(proc: Path = Path("/proc")) -> dict[str, dict]:
         status = _read(d / "status")
         if not status:
             continue
-        comm, rss = "", 0
+        comm, rss, swp = "", 0, 0
         for ln in status.splitlines():
             if ln.startswith("Name:"):
                 comm = ln.split(None, 1)[1].strip()
-            elif ln.startswith("VmRSS:"):
+            elif ln.startswith(("VmRSS:", "VmSwap:")):
                 p = ln.split()
-                rss = int(p[1]) if len(p) > 1 and p[1].isdigit() else 0
-        if not rss:
+                val = int(p[1]) if len(p) > 1 and p[1].isdigit() else 0
+                if ln.startswith("VmRSS:"):
+                    rss = val
+                else:
+                    swp = val
+        if not rss and not swp:
             continue
         pss = 0
         m = re.search(r"^Pss:\s+(\d+)", _read(d / "smaps_rollup"), re.M)
@@ -121,9 +126,12 @@ def process_table(proc: Path = Path("/proc")) -> dict[str, dict]:
             pss = int(m.group(1))
         cmd = _read(d / "cmdline").replace("\0", " ").strip()
         comp = classify(cmd, comm)
-        e = out.setdefault(comp, {"gb": 0.0, "n": 0})
+        e = out.setdefault(comp, {"gb": 0.0, "swap": 0.0, "n": 0})
         e["gb"] += (pss or rss) / GB
+        e["swap"] += swp / GB
         e["n"] += 1
+        if others is not None and comp == "diğer":  # Jarvis dışı uygulamalar: ada göre topla
+            others[comm] = others.get(comm, 0.0) + ((pss or rss) + swp) / GB
     return out
 
 
@@ -161,27 +169,34 @@ def ollama_env() -> dict[str, str]:
 
 
 def scenario_table(total_gb: float, vram_total: float | None, measured: dict[str, float]) -> list[tuple[str, float, float, str]]:
+    """measured: bileşen -> RAM+swap GB. Ölçüm yalnızca tahmini artırır (GPU'ya taşınmış ya da swap'ta bekleyen
+    bellek RSS'i olduğundan küçük gösterir; küçük ölçüm tahmini düşürmemeli)."""
     base = dict(BASE)
-    for key, comp in (("jarvis", "jarvis (main.py)"), ("ollama", "ollama")):
-        if measured.get(comp):
-            base[key] = measured[comp]
+    for key, comp in (("jarvis", "jarvis (main.py)"), ("ollama", "ollama"), ("os", "diğer")):
+        base[key] = max(base[key], measured.get(comp, 0.0))  # "os": masaüstü + geliştirme araçları + tarayıcı vb. (Jarvis dışı her şey)
     rows = []
     for name, d in SCENARIOS:
         if d.get("replace_base"):
             ram = base["os"] + base["ollama"] + d["ram"] - 1.0
             vram = d["vram"] + (vram_total or 8.0) * 0.9
+            v = verdict(ram, total_gb)
+            v = "YAVAŞ (model RAM'e taşar)" if v == "TAMAM" else v
         else:
             ram = sum(base.values()) + d["ram"]
             vram = VRAM_BASE + d["vram"]
-        v = verdict(ram, total_gb)
-        if vram_total and vram > vram_total * 0.97:
-            v = "RİSKLİ" if v != "RİSKLİ" else v
+            v = verdict(ram, total_gb)
+            if vram_total and vram > vram_total * 0.97:
+                v = "RİSKLİ"
         rows.append((name, ram, vram, v))
     return rows
 
 
-def advice(mi: dict, env: dict[str, str], ps: list[dict], psi: float | None) -> list[str]:
+def advice(mi: dict, env: dict[str, str], ps: list[dict], psi: float | None, others: dict | None = None) -> list[str]:
     out = []
+    big = sorted((others or {}).items(), key=lambda kv: -kv[1])[:5]
+    if sum((others or {}).values()) > 4.0:
+        out.append(f"Jarvis dışı uygulamalar {sum(others.values()):.1f} GB kullanıyor (en büyükler: {', '.join(f'{n} {g:.1f}' for n, g in big)}). "
+                   "Kod ajanı/tarayıcı gibi ağır işlerden önce gereksiz olanları kapatmak en büyük kazanç.")
     if mi["swap_total"] < 0.5:
         out.append("Swap yok/çok az: bellek bitince çekirdek rastgele süreç öldürür ve sistem donar. 4 GB swap dosyası ekle (RAM.md'de komutlar) "
                    "ve `sudo apt install earlyoom` kur.")
@@ -191,6 +206,12 @@ def advice(mi: dict, env: dict[str, str], ps: list[dict], psi: float | None) -> 
         out.append("OLLAMA_NUM_PARALLEL=1 yap: tek kullanıcı için paralel istek KV önbelleğini boşuna büyütür.")
     if env.get("OLLAMA_KV_CACHE_TYPE") not in ("q8_0", "q4_0") or env.get("OLLAMA_FLASH_ATTENTION") != "1":
         out.append("OLLAMA_FLASH_ATTENTION=1 ve OLLAMA_KV_CACHE_TYPE=q8_0: KV önbelleği yaklaşık yarıya iner (uzun bağlamda VRAM/RAM kazancı).")
+    st = mi["swap_total"]
+    if st > 0.5 and (st - mi["swap_free"]) / st > 0.5:
+        used = st - mi["swap_free"]
+        out.append(f"Swap %{used / st * 100:.0f} dolu ({used:.1f}/{st:.1f} GB): geçmişte bellek baskısı yaşandı, atılan sayfalar dokunulmadıkça geri gelmez. "
+                   "RAM şu an boşsa `sudo swapoff -a && sudo swapon -a` ile boşaltılır (bir süre sürer); hemen yeniden dolarsa gerçek bir bellek sıkışıklığı var, "
+                   "`--watch` ile bak.")
     for m in ps:
         if m["cpu_pct"] > 0:
             out.append(f"{m['name']} kısmen CPU/RAM'de çalışıyor (%{m['cpu_pct']:.0f}): VRAM yetmiyor, yanıt yavaşlar ve RAM şişer. "
@@ -207,7 +228,8 @@ def advice(mi: dict, env: dict[str, str], ps: list[dict], psi: float | None) -> 
 def report() -> int:
     mi = memguard.read_meminfo()
     psi = memguard.read_psi()
-    comps = process_table()
+    others: dict = {}
+    comps = process_table(others=others)
     ps = ollama_ps()
     env = ollama_env()
     gpu = gpu_mem()
@@ -216,15 +238,20 @@ def report() -> int:
     if gpu:
         print(f"VRAM  : {gpu[0]:.1f} / {gpu[1]:.1f} GB")
     print(f"Düzey : {memguard.level(mi, psi)} (uyarı eşiği {memguard.LOW_GB} GB, kritik {memguard.CRIT_GB} GB boş)")
-    print("\nBileşenler (PSS/RSS, GB):")
+    print("\nBileşenler (GB):  RAM'de   swap'ta")
     measured = {}
-    for name, e in sorted(comps.items(), key=lambda kv: -kv[1]["gb"]):
-        print(f"  {name:<24}{e['gb']:6.2f}   ({e['n']} süreç)")
-        measured[name] = e["gb"]
+    for name, e in sorted(comps.items(), key=lambda kv: -(kv[1]["gb"] + kv[1]["swap"])):
+        print(f"  {name:<24}{e['gb']:6.2f}   {e['swap']:6.2f}   ({e['n']} süreç)")
+        measured[name] = e["gb"] + e["swap"]
+    top_others = sorted(others.items(), key=lambda kv: -kv[1])[:6]
+    if top_others:
+        print("  'diğer' içinde en büyükler: " + ", ".join(f"{n} {g:.1f}" for n, g in top_others))
     print("\nOllama modelleri:" + ("" if ps else " (yüklü model yok ya da ollama bulunamadı)"))
     for m in ps:
         where = "GPU" if m["cpu_pct"] == 0 else f"%{m['cpu_pct']:.0f} CPU / %{m['gpu_pct']:.0f} GPU"
         print(f"  {m['name']:<22}{m['size_gb']:5.1f} GB   {where}   bağlam {m['ctx'] or '?'}")
+    if ps and gpu and sum(m["size_gb"] for m in ps) < 1.0 and gpu[0] > 2.0:
+        print("  (Ollama'nın llamacpp çalıştırıcısı boyutu eksik raporluyor; gerçek bellek: yukarıdaki 'ollama' satırı + VRAM)")
     if env:
         print("Ollama ayarları: " + ", ".join(f"{k}={v}" for k, v in sorted(env.items())))
     print("\nSenaryo tahmini (kaba; gerçek için --watch):")
@@ -232,7 +259,7 @@ def report() -> int:
     for name, ram, vram, v in scenario_table(mi["total"], gpu[1] if gpu else None, measured):
         print(f"  {name:<46}{ram:6.1f}G{vram:6.1f}G  {v}")
     print("\nÖneriler:")
-    for a in advice(mi, env, ps, psi):
+    for a in advice(mi, env, ps, psi, others):
         print(f"  - {a}")
     return 0
 

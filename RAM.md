@@ -67,3 +67,18 @@ python ram_report.py --watch 240 --label "yedek-model"       # birincil modeli k
 ```
 Özet şunları verir: en az boş bellek, en yüksek swap/PSI/VRAM, bileşen tepeleri, en kötü anda en çok kullananlar. Tüm örnekler `data/ram_watch.csv`'ye eklenir.
 Yorum: **en az boş bellek 1,5 GB üstü** → rahat; 0,8–1,5 GB → sıkı (Jarvis uyarır); 0,8 GB altı → riskli (bu senaryoyu sınırla ya da swap/earlyoom kur).
+
+## Flutter/Gradle derlemesi (telefon uygulaması) bellek yer
+Gradle/Kotlin arka plan süreçleri (`java`) derleme bittikten sonra da bellekte kalır (varsayılan 3 saat) ve Flutter şablonu
+`android/gradle.properties` içine büyük bir yığın sınırı (`-Xmx8G`) yazar: derleme sırasında 8 GB'a kadar çıkabilir.
+Jarvis + Ollama açıkken bu, 15 GB'lık makinede riskli. Çözüm (bir kez):
+```
+# 1) uygulama klasöründe: phone_app/android/gradle.properties  -> ilk satırı şöyle yap
+org.gradle.jvmargs=-Xmx2G -XX:MaxMetaspaceSize=1G -XX:+HeapDumpOnOutOfMemoryError
+# 2) tüm projeler için: ~/.gradle/gradle.properties
+org.gradle.daemon.idletimeout=600000
+kotlin.daemon.jvmargs=-Xmx768m
+# 3) şu an kalan arka plan süreçlerini kapat
+cd phone_app/android && ./gradlew --stop ; pkill -f KotlinCompileDaemon
+```
+Derleme biraz yavaşlayabilir; bellek zaten kısıtlıysa buna değer.

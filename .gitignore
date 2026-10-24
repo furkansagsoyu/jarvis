@@ -1,7 +1,21 @@
 __pycache__/
+.ruff_cache/
+.pytest_cache/
+*.zip
 *.pyc
 .venv/
 venv/
 data/
 *.log
 .DS_Store
+
+# anahtar dosyaları
+.env
+*.env
+keys.env
+
+# kod ajanının ürettiği projeler
+workspace/
+
+# telefon uygulaması: Firebase yapılandırması kişisel projene aittir
+phone_app/android/app/google-services.json
