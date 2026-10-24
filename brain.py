@@ -46,7 +46,7 @@ SUMMARY_MAX = 700  # özet bu kadar karakteri geçmez (prompt şişmesin, araç 
 SESSION_FILE = "session.json"
 SESSION_TTL = 12 * 3600  # bundan eski konuşma geçmişi yüklenmez
 # Uzaktan (Telegram) gelen komutlarda çalıştırılmayan araçlar: içerik makine dışına, üçüncü taraf sunucuya çıkar.
-REMOTE_BLOCKED = {"phone_call", "phone_hangup", "phone_answer", "phone_status", "contact_add", "contacts_sync", "code_list", "code_read", "code_write", "code_run", "read_file", "recall", "look_at_screen", "look_at_camera", "browser_open", "browser_read", "browser_click",
+REMOTE_BLOCKED = {"phone_ring", "phone_call", "phone_hangup", "phone_answer", "phone_status", "contact_add", "contacts_sync", "code_list", "code_read", "code_write", "code_run", "read_file", "recall", "look_at_screen", "look_at_camera", "browser_open", "browser_read", "browser_click",
                   "browser_type", "browser_back", "browser_close", "mouse_move", "mouse_click", "scroll",
                   "keyboard_type", "press_key"}
 
@@ -119,6 +119,7 @@ DK_SHORT = re.compile(r"^(?P<k>kopyala|yapıştır|kes|tümünü seç|kaydet|yen
 PH_CALL = re.compile(r"^(?:lütfen\s+)?(?P<n>.+?)(?:\s+(?:adlı|isimli|adındaki|ismindeki)\s+(?:kişi\w*|numara\w*|arkadaş\w*)|\s+kişisi\w*)?\s+(?:telefondan\s+|telefonla\s+)?(?:ara|arar\s+mısın|arasana|arayabilir\s+misin|arayalım|aramak\s+istiyorum|aramanı\s+(?:istiyorum|rica\s+ediyorum)|telefon\s+(?:et|aç)|ara\s+lütfen)(?:\s+lütfen)?$", re.I)
 PH_HANGUP = re.compile(r"\b(?:aramayı|görüşmeyi|çağrıyı|telefonu)\s+(?:kapat|bitir|sonlandır|reddet)\w*", re.I)
 PH_ANSWER = re.compile(r"\b(?:aramayı|görüşmeyi|çağrıyı|telefonu)\s+(?:aç|cevapla|yanıtla|kabul\s+et)\w*", re.I)
+PH_RING = re.compile(r"\btelefon\w*\b.*\b(?:çaldır\w*|çalsın|alarm\w*)\b|\b(?:çaldır\w*)\b.*\btelefon\w*", re.I)
 PH_STATUS = re.compile(r"\btelefon\w*\s+(?:bağlı|bağlantı)\w*|\btelefonu\s+kontrol", re.I)
 PH_SYNC = re.compile(r"\btelefon\w*.*\brehber\w*.*\b(?:al|çek|aktar|senkron\w*|eşitle|güncelle)\w*|\brehber\w*.*\btelefon\w*.*\b(?:al|çek|aktar|senkron\w*|eşitle|güncelle)\w*", re.I)
 PH_ADD = re.compile(r"^(?:rehbere|rehberime|kişilere)\s+ekle\s*[:,\-–]?\s*(?P<n>.+?)\s+(?P<p>\+?\d[\d\s\-().]{5,})$", re.I)
@@ -395,6 +396,8 @@ class Brain:
             return [("phone_hangup", {})]
         if PH_ANSWER.search(t):
             return [("phone_answer", {})]
+        if PH_RING.search(t):
+            return [("phone_ring", {"text": t})]
         if PH_STATUS.search(t):
             return [("phone_status", {})]
         m = PH_CALL.match(t)

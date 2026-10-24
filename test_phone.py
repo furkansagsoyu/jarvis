@@ -23,12 +23,27 @@ class FakePhone:
     def __init__(self):
         self.log, self.state, self.devs = [], 0, "List of devices attached\nABC123\tdevice\n"
         self.call_ok, self.dial_ok, self.key_ok, self.contacts_out, self.call_starts = True, True, True, "", True
+        self.good_addr, self.mdns_out = "192.168.1.9:5555", ""
 
     def run(self, args, timeout=0):
         self.log.append(args)
         if args[1:2] == ["devices"]:
             return 0, self.devs
+        if args[1:2] == ["connect"]:
+            if args[2] == self.good_addr:
+                if args[2] not in self.devs:
+                    self.devs += f"{args[2]}\tdevice\n"
+                return 0, f"connected to {args[2]}"
+            return 0, f"failed to connect to {args[2]}"
+        if args[1:2] == ["mdns"]:
+            return 0, self.mdns_out
+        if args[1:2] == ["disconnect"]:
+            return 0, ""
+        if args[1:2] == ["-s"] and args[3:4] == ["tcpip"]:
+            return 0, "restarting in TCP mode port: " + args[4]
         cmd = args[4:] if args[1:2] == ["-s"] else args[1:]
+        if cmd[:2] == ["ip", "-f"]:
+            return 0, "    inet 192.168.1.9/24 brd 192.168.1.255 scope global wlan0"
         if cmd[:3] == ["dumpsys", "telephony.registry"]:
             return 0, f"  mCallState={self.state}\n  mCallState={self.state}"
         if cmd[:2] == ["am", "start"]:
@@ -50,6 +65,7 @@ class FakePhone:
 
 
 fake = FakePhone()
+REAL_ADB_PATH = P.adb_path
 P.adb_path = lambda: "/usr/bin/adb"
 P._run = fake.run
 P.time.sleep = lambda s: None
@@ -149,6 +165,44 @@ check("rehber alınır: yeni kişiler eklenir, var olan ezilmez, bozuk numara at
 check("virgüllü ad ayrıştırılır", book.get("Doe, John") == "+905332222222")
 fake.contacts_out = "Permission Denial: opening provider"
 check("rehber izni yoksa elle ekleme yolunu gösterir", "izin verilmedi" in P.sync_contacts())
+
+# --- kablosuz ADB
+def connects():
+    return [a for a in fake.log if a[1:2] == ["connect"]]
+
+fake.devs = "List of devices attached\n"
+P._last_try = 0
+check("USB yok, kayıt yok: kablosuz kurulum yolunu söyler, bağlanmayı denemez", "--wifi" in P.pick_device()[1] and not connects())
+check("USB'siz kurulum reddedilir", "USB ile bağla" in P.setup_wifi())
+fake.devs = "List of devices attached\nABC123\tdevice\n"
+r = P.setup_wifi()
+check("USB takılıyken kurulum: tcpip + bağlan + adres/seri kaydı", r.startswith("Kablosuz bağlantı hazır: 192.168.1.9:5555")
+      and P.wireless_config() == {"addr": "192.168.1.9:5555", "serial": "ABC123"}, r + str(P.wireless_config()))
+fake.devs = "List of devices attached\n"        # kablo çıkarıldı, kablosuz da düştü
+fake.log.clear(); P._last_try = 0
+check("USB yokken kayıtlı adrese otomatik bağlanır", P.pick_device() == ("192.168.1.9:5555", "") and len(connects()) == 1)
+fake.devs = "List of devices attached\n"; fake.log.clear()
+P.pick_device()
+check("20 sn içinde tekrar denemez (her komutta bekleme olmasın)", not connects())
+# USB hazırken kablosuza hiç dokunmaz
+fake.devs = "List of devices attached\nABC123\tdevice\n"; fake.log.clear(); P._last_try = 0
+check("USB hazırken kablosuz denenmez", P.pick_device()[0] == "ABC123" and not connects())
+# port değişti: mDNS ile yeni adres
+P.save_wireless("192.168.1.9:6000", "ABC123"); fake.good_addr = "192.168.1.9:41234"
+fake.devs = "List of devices attached\n"; fake.log.clear(); P._last_try = 0
+fake.mdns_out = "List of discovered mdns services\nadb-ZZZ999-abcdef\t_adb-tls-connect._tcp.\t192.168.1.50:1111\nadb-ABC123-xyz\t_adb-tls-connect._tcp.\t192.168.1.9:41234\n"
+check("port değişince mDNS'ten yeni adres bulunur ve kaydedilir; başka cihaza bağlanmaz",
+      P.pick_device() == ("192.168.1.9:41234", "") and P.wireless_config()["addr"] == "192.168.1.9:41234" and not any(a[2] == "192.168.1.50:1111" for a in connects()))
+fake.mdns_out = "adb-ZZZ999-abcdef\t_adb-tls-connect._tcp.\t192.168.1.50:1111\n"
+P.save_wireless("192.168.1.9:6000", "ABC123"); fake.devs = "List of devices attached\n"; fake.log.clear(); P._last_try = 0
+check("kayıtlı olmayan telefonun mDNS ilanı yok sayılır", P.pick_device()[0] is None and not any(a[2] == "192.168.1.50:1111" for a in connects()))
+_store_cfg = P.wireless_config(); P._store.save(P.WIRELESS_FILE, {"addr": "x; reboot", "serial": "ABC123"}); fake.log.clear(); P._last_try = 0
+check("bozuk/enjeksiyonlu kayıtlı adrese bağlanılmaz", P.pick_device()[0] is None and not connects())
+check("eşleştirme/bağlanma girdileri doğrulanır", "6 haneli" in P.pair_wifi("192.168.1.9:3", "12") and "biçiminde" in P.connect_wifi("1.2.3.4; id"))
+P._store.save(P.WIRELESS_FILE, {}); fake.devs = "List of devices attached\nABC123\tdevice\n"
+os.environ["JARVIS_ADB"] = "/bin/sh"
+check("JARVIS_ADB ile tek bir adb sabitlenir", REAL_ADB_PATH() == "/bin/sh")
+del os.environ["JARVIS_ADB"]
 
 # --- gizlilik: telefon araçları uzaktan (Telegram) çalışmaz ve model şemasında görünmez
 import brain  # noqa: E402

@@ -4,6 +4,15 @@
     python phone_check.py                 # yalnızca okuma/yoklama, hiçbir şey aramaz
     python phone_check.py --dial 05XXXXXXXXX   # arama ekranını numarayla açar (aramaz)
     python phone_check.py --call 05XXXXXXXXX   # GERÇEKTEN arar (önce sorar); beklediğin biri için kullan
+
+Telefon uygulaması (internet üzerinden, kablosuz ve uzaktan):
+    python phone_check.py --app-pair     # BİR KEZ: uygulamayla eşleşir (telefon USB/kablosuz ADB ile bağlıyken)
+    python phone_check.py --app-test     # telefona deneme bildirimi gönderir
+
+Kablosuz (kabloyu çıkarabilmek için):
+    python phone_check.py --wifi                       # USB takılıyken BİR KEZ: telefonu Wi-Fi'dan ADB'ye açar, adresi kaydeder
+    python phone_check.py --pair 192.168.1.23:37000 123456   # alternatif: Kablosuz hata ayıklama > "Eşleştirme koduyla eşleştir"
+    python phone_check.py --connect 192.168.1.23:41234      # eşleştirmeden sonra ana ekrandaki IP:port ile
 """
 import re
 import sys
@@ -18,6 +27,25 @@ def step(ok, text):
 
 def main():
     args = sys.argv[1:]
+    if "--app-pair" in args or "--app-test" in args:
+        import phonelink  # noqa: PLC0415
+        if "--app-pair" in args:
+            serial, err = P.pick_device()
+            print(phonelink.pair(P.adb_path(), serial, P._run) if serial else err)
+        else:
+            ok, msg = phonelink.send("ping", ttl=30)
+            print(("✓ Telefona gönderildi: bildirim gelmeli. Gelmezse uygulamayı aç, pil/otomatik başlatma ayarlarına bak." if ok else "✗ " + msg))
+        return 0
+    if "--wifi" in args:
+        print(P.setup_wifi())
+        return 0
+    if "--pair" in args:
+        i = args.index("--pair")
+        print(P.pair_wifi(args[i + 1] if len(args) > i + 1 else "", args[i + 2] if len(args) > i + 2 else ""))
+        return 0
+    if "--connect" in args:
+        print(P.connect_wifi(args[args.index("--connect") + 1] if len(args) > args.index("--connect") + 1 else ""))
+        return 0
     if not step(bool(P.adb_path()), "adb kurulu" if P.adb_path() else "adb yok: sudo apt install adb"):
         return 1
     rows = P.devices()

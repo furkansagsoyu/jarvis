@@ -54,7 +54,17 @@ Telefonu USB ile bağla (Geliştirici seçenekleri → USB hata ayıklama açık
 - Rehber: "**rehbere ekle: Annem 0555 123 45 67**" ya da "**rehberi telefondan al**". Rehber yalnızca `data/contacts.json` dosyasında kalır; buluta, Telegram'a, ekip/ajan modlarına gitmez.
 - Her arama sesli onay ister; model kendi kendine arayamaz. Numara yalnızca rakam ve baştaki `+` olabilir (`*#…` kodları ve komut ekleme reddedilir). Telegram'dan telefon komutları çalışmaz.
 - "Aranıyor" denmeden önce telefonun gerçek arama durumu okunur; görüşme başlamadıysa dürüstçe söyler. Telefon doğrudan aramayı engellerse arama ekranını numarayla açar, yeşil tuşa sen basarsın.
+- **Kablosuz (kablosuz kablo yok):** telefon USB'deyken bir kez `python phone_check.py --wifi` çalıştır; telefon Wi-Fi üzerinden ADB'ye açılır, adres `data/phone.json`'a kaydedilir. Sonra kabloyu çıkarsan da (aynı Wi-Fi'da) otomatik bağlanır. Telefon yeniden başlarsa komutu bir kez daha çalıştır. Alternatif: Android 11+ Kablosuz hata ayıklama (`--pair`, `--connect`). Bilgisayarda iki farklı `adb` varsa (`flutter doctor` uyarısı) birini sabitle: `export JARVIS_ADB=/tam/yol/adb`.
 - Aramayı kapatmak için Xiaomi'de "USB hata ayıklama (Güvenlik ayarları)" da açık olmalı. Tanılama: `python phone_check.py`.
+
+## Telefon uygulaması (Jarvis Telefon)
+
+USB/ADB olmadan, internet üzerinden: bilgisayar Firebase (FCM) ile telefondaki küçük uygulamaya imzalı komut yollar. Uygulama (`phone_app/`, Flutter + Kotlin) komutu doğrular ve yürütür.
+
+- "**Anılinho'yu ara**" (onaydan sonra), "**aramayı kapat**", "**telefonu yarın saat 14'te çaldır, toplantı**" (alarmı telefon kurar; bilgisayar kapansa da çalar).
+- ADB bağlıysa arama ADB ile yapılır (durumu doğrular); değilse uygulama kullanılır.
+- Gizlilik: mesajda numara yok, yalnızca kişi adı gider; numarayı telefon kendi rehberinden bulur. Mesajlar HMAC imzalı, 2 dakikadan eski ya da tekrar eden mesaj reddedilir. Gizli anahtar ADB ile telefona yazılır, ağdan geçmez.
+- Kurulum: `phone_app/KURULUM.md`. Eşleştirme: `python phone_check.py --app-pair`, deneme: `--app-test`.
 
 ## Neler yapabiliyor
 
@@ -169,7 +179,9 @@ skills/          beceriler: her dosya kendini tanımlar ve otomatik yüklenir
   _confirm.py    onay kapısı
   browser.py     Playwright ile tarayıcı kontrolü
   desktop_input.py  fare/klavye (xdotool)
-  phone.py       telefon araması (ADB), yerel rehber
+  phone.py       telefon araması (ADB ya da uygulama), alarm, yerel rehber
+phonelink.py     telefon uygulamasına imzalı FCM komutu; eşleştirme
+phone_app/       Jarvis Telefon uygulaması (Flutter + Kotlin; Firebase Messaging)
   agenda.py      takvim ve görevler (yerel, Türkçe tarih ayrıştırıcı: _trdate.py)
   screen.py, camera.py, files.py, web.py, reminders.py, hardware.py, ...
 skills/codeagent.py  Kod ajanı araçları (workspace/, güvenli kutu)

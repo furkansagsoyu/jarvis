@@ -9,3 +9,5 @@ pillow    # pystray için simge çizimi
 playwright   # isteğe bağlı: tarayıcı kontrolü; kurulumdan sonra: playwright install chromium
 opencv-python-headless   # isteğe bağlı: webcam görüşü (ya da sistemde ffmpeg)
 pywebview  # isteğe bağlı: Komut Merkezi penceresi (--dash)
+google-auth   # isteğe bağlı: telefon uygulamasına (Firebase) komut göndermek için
+requests      # google-auth'un aktarımı için

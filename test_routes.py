@@ -95,6 +95,7 @@ PHONE = [
     ("aramayı aç", "phone_answer"), ("gelen aramayı cevapla", "phone_answer"), ("telefon bağlı mı", "phone_status"),
     ("rehberi telefondan al", "contacts_sync"), ("telefonun rehberini aktar", "contacts_sync"),
     ("rehbere ekle: Annem 0555 123 45 67", "contact_add"),
+    ("telefonu yarın saat 14'te çaldır toplantı", "phone_ring"), ("toplantı için telefonuma alarm kur yarın 9", "phone_ring"),
     ("ankara'nın nüfusunu araştır", None), ("bu kelimeyi sözlükte ara", None), ("ekranı kapat", None), ("tarayıcıyı kapat", None), ("dosyayı aç", None),
 ]
 
