@@ -67,6 +67,16 @@ USB/ADB olmadan, internet üzerinden: bilgisayar Firebase (FCM) ile telefondaki 
 - Gizlilik: mesajda numara yok, yalnızca kişi adı gider; numarayı telefon kendi rehberinden bulur. Mesajlar HMAC imzalı, 2 dakikadan eski ya da tekrar eden mesaj reddedilir. Gizli anahtar ADB ile telefona yazılır, ağdan geçmez.
 - Kurulum: `phone_app/KURULUM.md`. Eşleştirme: `python phone_check.py --app-pair`, deneme: `--app-test`.
 
+## Telefondan Jarvis (mobil ekran, Tailscale)
+
+Telefon tarayıcısında (ana ekrana eklenebilir) çalışan sayfa: **yazışma**, **sesle konuşma**, **görevler ve takvim**, **durum ve hızlı komutlar**. Hiçbir bulut sunucusu araya girmez: bağlantı Tailscale'in özel ağı (tailnet) içinde bilgisayarla telefon arasında gider; sesin yazıya çevrilmesi bilgisayardaki Whisper'da olur.
+
+- Kurulum: bilgisayara ve telefona Tailscale'i kur (aynı hesap), yönetim panelinde (login.tailscale.com/admin/dns) **MagicDNS** ve **HTTPS Certificates**'ı aç. Sonra `python remote_setup.py` çalıştır: yayın `tailscale serve` ile yalnızca tailnet'e açılır ve telefon için bir bağlantı (varsa QR) yazar. Telefonda Tailscale açıkken bağlantıyı Chrome'da aç, menüden "Ana ekrana ekle". `pip install qrcode` kurulu ise terminalde QR çıkar.
+- Jarvis'i her zamanki gibi başlat (`python main.py ...`); telefon erişimi açıksa pano sunucusu pencere açmadan da çalışır.
+- Güvenlik: telefonun anahtarı bilgisayardaki pano anahtarından **ayrıdır** (`data/remote.json`, yalnızca sana okunur) ve yalnızca `/m` sayfası ile `/api/m/*` uçlarında geçerlidir; kapatma, tema, bulut ayarı gibi pano uçları uzaktan açılmaz. Uzaktan yazışma Telegram ile aynı kısıtlı kiptedir (telefon araması, kod ajanı, dosya okuma kapalı). Yanlış anahtar denemesi 1 dakika kilitler. Anahtar adreste `#` sonrasındadır (sunucuya/günlüğe gitmez). Funnel (İnternete açık yayın) açıksa kurulum reddedilir.
+- Yönetim: `python remote_setup.py --new-token` (anahtarı yenile), `--revoke` (kapat), `--status`.
+- Telefondan çalışan hızlı komutlar: günün özeti, bugün, görevler, hava, pil, sistem, evet/vazgeç, sustur, mikrofon, odak.
+
 ## Neler yapabiliyor
 
 | Alan | Örnek cümle |
@@ -182,13 +192,14 @@ skills/          beceriler: her dosya kendini tanımlar ve otomatik yüklenir
   desktop_input.py  fare/klavye (xdotool)
   phone.py       telefon araması (ADB ya da uygulama), alarm, yerel rehber
 phonelink.py     telefon uygulamasına imzalı FCM komutu; eşleştirme
+remote.py        mobil sayfa erişimi: ayrı anahtar, Host denetimi, kilitleme, Tailscale yardımcıları (remote_setup.py)
 phone_app/       Jarvis Telefon uygulaması (Flutter + Kotlin; Firebase Messaging)
   agenda.py      takvim ve görevler (yerel, Türkçe tarih ayrıştırıcı: _trdate.py)
   screen.py, camera.py, files.py, web.py, reminders.py, hardware.py, ...
 skills/codeagent.py  Kod ajanı araçları (workspace/, güvenli kutu)
 team.py          Ekip modu (çoklu ajan: planlayıcı, uzman ajanlar, yazar)
 router.py, privacy.py  Model yönlendirici (ücretsiz bulut, yedek zinciri) ve gizlilik kapısı
-dashboard/       Komut Merkezi: server.py (yalnızca 127.0.0.1, rastgele anahtar), state.py (panel sağlayıcıları), window.py (Qt penceresi + sistem tepsisi), static/
+dashboard/       Komut Merkezi: server.py (yalnızca 127.0.0.1, rastgele anahtar), state.py (panel sağlayıcıları), window.py (Qt penceresi + sistem tepsisi), static/ (app.js = pano, m.html/m.js/m.css = telefon sayfası)
 stt.py, tts.py, wake.py     konuşma tanıma, sentez, uyanma sözcüğü
 ui.py, telegram_bot.py, autostart.py
 check_all.py     tek komutlu test ve ortam kontrolü

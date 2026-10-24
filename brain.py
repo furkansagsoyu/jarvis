@@ -67,7 +67,8 @@ ACTION_CLAIM = re.compile(
     r"\b(açıyorum|açtım|kısıyorum|kıstım|artırıyorum|azaltıyorum|azalttım|ayarlıyorum|ayarladım|"
     r"arıyorum|aradım|başlatıyorum|kapatıyorum|çalıştırıyorum|yükseltiyorum|düşürüyorum|"
     r"çağırıyorum|kullanıyorum|öğreniyorum|bakıyorum|kontrol ediyorum|kullanmalıyım|çağırmalıyım|"
-    r"açıldı|kapatıldı|ayarlandı|yapıldı|kısıldı|kısıldı|artırıldı|azaltıldı|arandı|başlatıldı|çalıştırıldı)\b|"
+    r"açıldı|kapatıldı|ayarlandı|yapıldı|kısıldı|kısıldı|artırıldı|azaltıldı|arandı|başlatıldı|çalıştırıldı|"
+    r"iptal edildi|iptal ettim|sonlandırıldı|sonlandırdım|kapattım|bitirdim|durduruldu|durdurdum)\b|"
     r"\baraç|"
     r"\b(open_app|set_volume|change_volume|get_time|get_date|web_search|list_abilities|remember|recall|forget|set_reminder|list_reminders|cancel_reminders|get_weather|get_battery|morning_brief|look_at_screen|look_at_camera|browser_open|browser_read|browser_click|browser_type|browser_back|browser_close|mouse_move|mouse_click|keyboard_type|press_key|get_system_status|find_files|read_file|move_file|trash_file|undo_last_action)\b",
     re.IGNORECASE,
@@ -117,7 +118,7 @@ DK_TYPE = re.compile(r"^(?:klavye\w*\s+(?P<t1>.+?)\s+yaz\w*|(?:şunu|şöyle)\s+
 DK_KEY = re.compile(r"^(?P<k>enter|entır|escape|esc|tab|boşluk|silme|backspace|delete|yukarı ok|aşağı ok|sol ok|sağ ok|page up|page down|home|end|f5|f11)(?:['’]\w+)?\s*(?:tuşuna\s+)?bas\w*(?:\s+lütfen)?$", re.I)
 DK_SHORT = re.compile(r"^(?P<k>kopyala|yapıştır|kes|tümünü seç|kaydet|yeni sekme|sekmeyi kapat|sayfayı yenile|pencere değiştir|tam ekran|yazdır)(?:\s+lütfen)?$", re.I)
 PH_CALL = re.compile(r"^(?:lütfen\s+)?(?P<n>.+?)(?:\s+(?:adlı|isimli|adındaki|ismindeki)\s+(?:kişi\w*|numara\w*|arkadaş\w*)|\s+kişisi\w*)?\s+(?:telefondan\s+|telefonla\s+)?(?:ara|arar\s+mısın|arasana|arayabilir\s+misin|arayalım|aramak\s+istiyorum|aramanı\s+(?:istiyorum|rica\s+ediyorum)|telefon\s+(?:et|aç)|ara\s+lütfen)(?:\s+lütfen)?$", re.I)
-PH_HANGUP = re.compile(r"\b(?:aramayı|görüşmeyi|çağrıyı|telefonu)\s+(?:kapat|bitir|sonlandır|reddet)\w*", re.I)
+PH_HANGUP = re.compile(r"\b(?:ara(?:ma)?(?:\s*['’]?\s*(?:yı|yi|ı|i|sını|sini))?|görüşme\w*|çağrı\w*|telefon\w*)\s+(?:\w+\s+)?(?:kapat|bitir|sonlandır|reddet|iptal\s+et)\w*", re.I)  # "aramayı kapat", "Arama'ı kapat", "telefon aramasını kapat", STT: "ara mai kapat"
 PH_ANSWER = re.compile(r"\b(?:aramayı|görüşmeyi|çağrıyı|telefonu)\s+(?:aç|cevapla|yanıtla|kabul\s+et)\w*", re.I)
 PH_RING = re.compile(r"\btelefon\w*\b.*\b(?:çaldır\w*|çalsın|alarm\w*)\b|\b(?:çaldır\w*)\b.*\btelefon\w*", re.I)
 PH_STATUS = re.compile(r"\btelefon\w*\s+(?:bağlı|bağlantı)\w*|\btelefonu\s+kontrol", re.I)

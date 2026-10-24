@@ -65,6 +65,9 @@ import numpy as np  # noqa: E402
 
 
 class Listener:
+    _lock = threading.Lock()  # ana döngü ve telefondan gelen ses aynı Whisper modelini sırayla kullanır
+    MAX_PHONE_SECONDS = 120
+
     def __init__(
         self,
         model: str = "large-v3-turbo",
@@ -113,15 +116,76 @@ class Listener:
     def transcribe(self, audio: np.ndarray) -> str:
         if len(audio) < MIN_SECONDS * SAMPLE_RATE:
             return ""
-        segments, _ = self.model.transcribe(
-            audio,
-            language="tr",
-            beam_size=self.beam,
-            vad_filter=True,
-            initial_prompt=self.prompt or None,
-            condition_on_previous_text=False,
-        )
-        return " ".join(s.text.strip() for s in segments).strip()
+        with self._lock:  # segments tembel üretilir: tüketimi de kilidin içinde
+            segments, _ = self.model.transcribe(
+                audio,
+                language="tr",
+                beam_size=self.beam,
+                vad_filter=True,
+                initial_prompt=self.prompt or None,
+                condition_on_previous_text=False,
+            )
+            return " ".join(s.text.strip() for s in segments).strip()
+
+    @staticmethod
+    def _decode_fw(data: bytes) -> np.ndarray:
+        import io  # noqa: PLC0415
+
+        from faster_whisper.audio import decode_audio  # noqa: PLC0415
+
+        return np.asarray(decode_audio(io.BytesIO(data), sampling_rate=SAMPLE_RATE), dtype=np.float32)
+
+    @staticmethod
+    def _decode_av(data: bytes) -> np.ndarray:
+        """PyAV ile doğrudan çözme (faster-whisper'ın yardımcısı sürüme göre bozulursa yedek)."""
+        import io  # noqa: PLC0415
+
+        import av  # noqa: PLC0415
+
+        parts = []
+        with av.open(io.BytesIO(data), mode="r") as container:
+            rs = av.audio.resampler.AudioResampler(format="flt", layout="mono", rate=SAMPLE_RATE)
+            for frame in list(container.decode(audio=0)) + [None]:
+                out = rs.resample(frame)
+                for f in (out if isinstance(out, list) else [out]):
+                    if f is not None:
+                        parts.append(np.asarray(f.to_ndarray(), dtype=np.float32).reshape(-1))
+        if not parts:
+            raise ValueError("ses karesi yok")
+        return np.concatenate(parts)
+
+    @staticmethod
+    def _decode_ffmpeg(data: bytes) -> np.ndarray:
+        import shutil  # noqa: PLC0415
+        import subprocess  # noqa: PLC0415
+
+        exe = shutil.which("ffmpeg")
+        if not exe:
+            raise FileNotFoundError("ffmpeg yok")
+        r = subprocess.run([exe, "-v", "error", "-i", "pipe:0", "-f", "f32le", "-ac", "1", "-ar", str(SAMPLE_RATE), "pipe:1"],
+                           input=data, capture_output=True, timeout=60)
+        if r.returncode != 0 or not r.stdout:
+            raise ValueError("ffmpeg çözemedi: " + r.stderr.decode("utf-8", "replace")[:120])
+        return np.frombuffer(r.stdout, dtype=np.float32).copy()
+
+    def transcribe_bytes(self, data: bytes) -> str:
+        """Telefondan gelen kayıt (webm/opus, mp4/aac, wav...): 16 kHz'e çözülür, yerelde yazıya çevrilir.
+        Çözücüler sırayla denenir (faster-whisper → PyAV → ffmpeg); hepsi olmazsa ilk hata ayrıntısıyla yükseltilir."""
+        import traceback  # noqa: PLC0415
+
+        first = None
+        for dec in (self._decode_fw, self._decode_av, self._decode_ffmpeg):
+            try:
+                audio = dec(data)
+                break
+            except Exception as exc:  # noqa: BLE001
+                print(f"[stt] telefon sesi çözülemedi ({dec.__name__}): {type(exc).__name__}: {exc}", flush=True)
+                if first is None:
+                    first = exc
+                    traceback.print_exc()
+        else:
+            raise RuntimeError(f"{type(first).__name__}: {str(first)[:100]}") from first
+        return self.transcribe(audio[: self.MAX_PHONE_SECONDS * SAMPLE_RATE])
 
     def listen_once(self) -> str:
         audio = self.record_push_to_talk()

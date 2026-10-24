@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#030b18">
+<meta name="referrer" content="no-referrer">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Jarvis">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" href="/static/m-icon-192.png">
+<link rel="apple-touch-icon" href="/static/m-icon-192.png">
+<title>Jarvis</title>
+<link rel="stylesheet" href="/static/m.css">
+</head>
+<body>
+<div id="app">
+  <header id="bar">
+    <img src="/static/m-icon-192.png" alt="" class="logo" width="30" height="30">
+    <div class="ttl"><b>JARVIS</b><span id="pill" class="pill">…</span></div>
+    <button id="speak" class="ib" type="button" aria-pressed="false" title="Cevapları sesli oku">
+      <svg viewBox="0 0 24 24"><path d="M4 9v6h4l5 4V5L8 9H4z"/><path d="M16.5 8.5a5 5 0 010 7M19 6a8.5 8.5 0 010 12" class="wv"/></svg>
+    </button>
+    <button id="reload" class="ib" type="button" title="Yenile">
+      <svg viewBox="0 0 24 24"><path d="M20 12a8 8 0 11-2.6-5.9M20 4v5h-5"/></svg>
+    </button>
+  </header>
+  <div id="banner" class="banner" hidden></div>
+
+  <main>
+    <section id="v-pair" class="view" hidden>
+      <div class="card center">
+        <h2>Bağlantı gerekli</h2>
+        <p>Bu sayfa, bilgisayarında <code>python remote_setup.py</code> komutunun yazdığı bağlantıyla (veya QR ile) bir kez eşleştirilmelidir.</p>
+        <p class="mut">Tailscale'in telefonda açık olduğundan emin ol.</p>
+      </div>
+    </section>
+
+    <section id="v-chat" class="view">
+      <div id="chips" class="chips" role="toolbar" aria-label="Hızlı komutlar">
+        <button type="button" data-cmd="brief">Günün özeti</button>
+        <button type="button" data-cmd="today">Bugün</button>
+        <button type="button" data-cmd="tasks">Görevlerim</button>
+        <button type="button" data-cmd="weather">Hava</button>
+        <button type="button" data-cmd="battery">Pil</button>
+        <button type="button" data-cmd="system">Sistem</button>
+      </div>
+      <div id="log" class="log" aria-live="polite"></div>
+      <div id="confirm" class="confirm" hidden>
+        <span>Onay bekleniyor</span>
+        <button type="button" data-cmd="yes" class="ok">Evet</button>
+        <button type="button" data-cmd="no" class="no">Vazgeç</button>
+      </div>
+      <form id="composer" class="composer" autocomplete="off">
+        <button id="mic" class="mic" type="button" title="Konuş (dokun: başla / dokun: bitir)">
+          <svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0014 0M12 18v3"/></svg>
+          <i id="rectime" hidden></i>
+        </button>
+        <input id="msg" type="text" enterkeyhint="send" placeholder="Jarvis'e yaz…" maxlength="600" aria-label="Mesaj">
+        <button id="sendbtn" class="send" type="submit" title="Gönder">
+          <svg viewBox="0 0 24 24"><path d="M4 12l16-8-6 17-3-7-7-2z"/></svg>
+        </button>
+      </form>
+    </section>
+
+    <section id="v-agenda" class="view" hidden>
+      <div class="card"><h2>Bugün</h2><ul id="ev-today" class="list"></ul></div>
+      <div class="card">
+        <h2>Görevler <span id="task-count" class="tag"></span></h2>
+        <ul id="tasks" class="list"></ul>
+        <form id="f-task" class="form" autocomplete="off">
+          <input name="title" type="text" placeholder="Yeni görev…" maxlength="120" required aria-label="Görev">
+          <div class="row">
+            <input name="due" type="date" aria-label="Son tarih">
+            <select name="priority" aria-label="Öncelik"><option value="orta">Orta</option><option value="yüksek">Yüksek</option><option value="düşük">Düşük</option></select>
+            <button type="submit" class="pri">Ekle</button>
+          </div>
+        </form>
+      </div>
+      <div class="card">
+        <h2>Yaklaşan etkinlikler</h2>
+        <ul id="events" class="list"></ul>
+        <form id="f-event" class="form" autocomplete="off">
+          <input name="title" type="text" placeholder="Yeni etkinlik…" maxlength="120" required aria-label="Etkinlik">
+          <div class="row">
+            <input name="date" type="date" required aria-label="Tarih">
+            <input name="time" type="time" aria-label="Saat">
+            <button type="submit" class="pri">Ekle</button>
+          </div>
+        </form>
+      </div>
+    </section>
+
+    <section id="v-status" class="view" hidden>
+      <div class="card">
+        <h2>Jarvis <span id="st-online" class="tag"></span></h2>
+        <div class="kv"><span>Durum</span><b id="st-state">—</b></div>
+        <div class="kv"><span>Model</span><b id="st-model">—</b></div>
+        <div class="kv"><span>Hava</span><b id="st-temp">—</b></div>
+      </div>
+      <div class="card">
+        <h2>Bilgisayar</h2>
+        <div id="gauges"></div>
+      </div>
+      <div class="card">
+        <h2>Denetim</h2>
+        <div class="grid3">
+          <button type="button" id="b-stop" class="big">Sustur</button>
+          <button type="button" id="b-mute" class="big" aria-pressed="false">Mikrofon</button>
+          <button type="button" id="b-focus" class="big" aria-pressed="false">Odak</button>
+        </div>
+        <p class="mut small">Sustur: bilgisayardaki konuşmayı keser. Mikrofon: bilgisayarın dinlemesini kapatır/açar. Odak: sesli bildirimleri susturur.</p>
+        <button type="button" id="unpair" class="link">Bu telefonun eşleşmesini kaldır</button>
+      </div>
+    </section>
+  </main>
+
+  <nav id="tabs">
+    <button type="button" data-view="chat" class="on"><svg viewBox="0 0 24 24"><path d="M4 5h16v11H9l-5 4V5z"/></svg>Sohbet</button>
+    <button type="button" data-view="agenda"><svg viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M9 3v4M15 3v4"/></svg>Ajanda<em id="nbadge" hidden></em></button>
+    <button type="button" data-view="status"><svg viewBox="0 0 24 24"><path d="M3 13h4l3-8 4 15 3-7h4"/></svg>Durum</button>
+  </nav>
+</div>
+<div id="toast" class="toast" hidden></div>
+<script src="/static/m.js"></script>
+</body>
+</html>

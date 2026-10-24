@@ -498,6 +498,13 @@ def logic_tests() -> None:
         assert r.returncode == 0, "\n".join(l for l in r.stdout.splitlines() if l.startswith("HATA"))[:400] or r.stderr[-300:]
         return f"{r.stdout.count('OK   ')} OK"
 
+    @check("Telefon (mobil) arayüzü: ayrı anahtar/kapsam, Host+Origin, kilit, yazışma, ses, komutlar, ajanda, Tailscale, sayfa (test_mobile)")
+    def _():
+        r = subprocess.run([sys.executable, str(HERE / "test_mobile.py")], capture_output=True, text=True, cwd=str(HERE),
+                           env={**os.environ, "PYTHONPATH": str(HERE), "JARVIS_DATA": str(TMP / "mobile_test")}, timeout=120)
+        assert r.returncode == 0, "\n".join(l for l in r.stdout.splitlines() if l.startswith("HATA"))[:400] or r.stderr[-300:]
+        return f"{r.stdout.count('OK   ')} OK"
+
     @check("Web arama: arka uç sırası, sessiz kip, Tavily, Groq yerleşik arama (test_web)")
     def _():
         r = subprocess.run([sys.executable, str(HERE / "test_web.py")], capture_output=True, text=True,

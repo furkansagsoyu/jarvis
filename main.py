@@ -63,7 +63,24 @@ def wrap_notify(say):
     return notify
 
 
-def start_dashboard(brain, speaker):
+def run_remote(brain, text: str, tag: str, timeout: float | None = None) -> str:
+    """Uzaktan (Telegram/telefon) mesaj: kısıtlı kip (brain.remote), ses döngüsüyle aynı kilit. Yazıyla cevap döner."""
+    if not (brain.lock.acquire() if timeout is None else brain.lock.acquire(timeout=timeout)):
+        raise TimeoutError("beyin meşgul")
+    try:
+        brain.remote = True  # uzaktan: read_file, recall, telefon ve kod araçları kapalı
+        try:
+            ui_state.add_turn("sen", f"[{tag}] {text}")
+            reply = "".join(brain.reply_stream(text)).strip()
+            ui_state.add_turn("jarvis", reply)
+            return reply
+        finally:
+            brain.remote = False
+    finally:
+        brain.lock.release()
+
+
+def start_dashboard(brain, speaker, listener=None, window: bool = True):
     """Pano sunucusunu (127.0.0.1) başlatır, komut kuyruğunu işleyen iş parçacığını ve pencereyi açar."""
     import queue  # noqa: PLC0415
     from types import SimpleNamespace  # noqa: PLC0415
@@ -118,10 +135,20 @@ def start_dashboard(brain, speaker):
         t.start()
         os.kill(os.getpid(), signal.SIGINT)
 
-    dash = server.Dashboard(SimpleNamespace(brain=brain), submit, quit=quit_all)
+    dash = server.Dashboard(SimpleNamespace(brain=brain), submit, quit=quit_all,
+                            chat=lambda text: run_remote(brain, text, "Telefon", timeout=90),
+                            transcribe=(listener.transcribe_bytes if listener else None))
     url = dash.start()
     print(f"      Pano açık: {url.split('?')[0]}", flush=True)
-    if not os.environ.get("DISPLAY"):
+    try:
+        import remote  # noqa: PLC0415
+        if remote.enabled():
+            def _sync():
+                print(f"      {remote.sync(dash.port)}", flush=True)
+            threading.Thread(target=_sync, daemon=True).start()
+    except Exception as exc:  # noqa: BLE001  (telefon erişimi ayarı panoyu açmayı engellemesin)
+        print(f"      telefon erişimi okunamadı: {type(exc).__name__}", flush=True)
+    if not window or not os.environ.get("DISPLAY"):
         return None
     return subprocess.Popen([sys.executable, "-m", "dashboard.window", url, "--parent", str(os.getpid())],
                             cwd=str(Path(__file__).parent))
@@ -192,15 +219,7 @@ def main():
         import telegram_bot  # noqa: PLC0415
 
         def on_telegram(text: str) -> str:
-            with brain.lock:
-                brain.remote = True  # uzaktan: read_file ve recall kapalı
-                try:
-                    ui_state.add_turn("sen", f"[Telegram] {text}")
-                    reply = "".join(brain.reply_stream(text)).strip()
-                    ui_state.add_turn("jarvis", reply)
-                    return reply
-                finally:
-                    brain.remote = False
+            return run_remote(brain, text, "Telegram")
 
         bot = telegram_bot.make_bot(on_telegram)
         if bot:
@@ -233,8 +252,13 @@ def main():
                     speaker.stop()
         threading.Thread(target=enter_to_stop, daemon=True).start()
     dash_proc = None
-    if args.dash:
-        dash_proc = start_dashboard(brain, speaker)
+    try:
+        import remote  # noqa: PLC0415
+        phone_on = remote.enabled()
+    except Exception:  # noqa: BLE001
+        phone_on = False
+    if args.dash or phone_on:  # telefon erişimi açıksa pano sunucusu pencere olmadan da çalışır
+        dash_proc = start_dashboard(brain, speaker, listener, window=args.dash)
     speaker.say("Hazırım.")
     missed = reminders.restore()  # kapalıyken kurulan hatırlatıcılar geri yüklenir
     if missed:

@@ -91,7 +91,9 @@ DESKTOP = [
 PHONE = [
     ("Annemi ara", "phone_call"), ("Ahmet'i arar mısın", "phone_call"), ("Ayşe Yılmaz'ı ara lütfen", "phone_call"),
     ("0555 123 45 67'yi ara", "phone_call"), ("Anılinho adlı kişiyi ara", "phone_call"), ("Ahmet isimli kişiyi arar mısın", "phone_call"),
-    ("Anıl'a telefon aç", "phone_call"), ("babamı arayalım", "phone_call"), ("Ayşe kişisini ara", "phone_call"), ("aramayı kapat", "phone_hangup"), ("telefonu kapat", "phone_hangup"),
+    ("Anıl'a telefon aç", "phone_call"), ("babamı arayalım", "phone_call"), ("Ayşe kişisini ara", "phone_call"), ("aramayı kapat", "phone_hangup"), ("Arama'ı kapat.", "phone_hangup"), ("Telefon aramasını kapat", "phone_hangup"),
+    ("Ara mai kapat", "phone_hangup"), ("Telefondaki aramayı kapat", "phone_hangup"), ("görüşmeyi bitir", "phone_hangup"), ("aramayı sonlandır", "phone_hangup"),
+    ("bilgisayarı kapat", None), ("pencereyi kapat", None), ("sesi kapat", None), ("uygulamayı kapat", None), ("tarayıcıyı kapat", None), ("telefonu kapat", "phone_hangup"),
     ("aramayı aç", "phone_answer"), ("gelen aramayı cevapla", "phone_answer"), ("telefon bağlı mı", "phone_status"),
     ("rehberi telefondan al", "contacts_sync"), ("telefonun rehberini aktar", "contacts_sync"),
     ("rehbere ekle: Annem 0555 123 45 67", "contact_add"),
