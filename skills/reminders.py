@@ -5,7 +5,7 @@ import datetime as dt
 import subprocess
 import threading
 
-from . import _store
+from . import _phonenotify, _store
 
 _lock = threading.Lock()
 _active: list[dict] = []   # {"id", "when", "message", "timer"}
@@ -111,7 +111,14 @@ def set_reminder(minutes: float = 0, at: str = "", message: str = "") -> str:
         _next_id += 1
         _arm(rid, now + dt.timedelta(seconds=delay), (message or "").strip(), delay)
         _persist()
-    return f"Tamam, {_duration_text(delay)} sonra hatırlatacağım."
+    text = f"Tamam, {_duration_text(delay)} sonra hatırlatacağım."
+    ok, why = _phonenotify.schedule(f"rem{rid}", now + dt.timedelta(seconds=delay), (message or "").strip() or "Süre doldu")
+    if ok:
+        text += " Telefonuna da alarm kurdum."
+    elif ok is False:
+        text += " Telefona alarm gönderemedim."
+        print(f"[telefon] hatırlatıcı gönderilemedi: {why}", flush=True)
+    return text
 
 
 def list_reminders() -> str:
@@ -127,10 +134,13 @@ def list_reminders() -> str:
 def cancel_reminders() -> str:
     with _lock:
         n = len(_active)
+        ids = [r["id"] for r in _active]
         for r in _active:
             r["timer"].cancel()
         _active.clear()
         _persist()
+    for rid in ids:
+        _phonenotify.cancel(f"rem{rid}")
     return f"{n} hatırlatıcıyı iptal ettim." if n else "İptal edilecek hatırlatıcı yok."
 
 

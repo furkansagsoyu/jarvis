@@ -5,6 +5,7 @@ import android.content.ComponentName
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
+import android.os.Bundle
 import android.os.PowerManager
 import android.provider.Settings
 import com.google.firebase.messaging.FirebaseMessaging
@@ -13,6 +14,20 @@ import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 
 class MainActivity : FlutterActivity() {
+    private fun stopAlarmIfAsked(i: Intent?) {
+        if (i?.getBooleanExtra("stop_alarm", false) == true) stopService(Intent(this, AlarmService::class.java))
+    }
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        stopAlarmIfAsked(intent)
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        stopAlarmIfAsked(intent)
+    }
+
     private fun granted(p: String) = checkSelfPermission(p) == PackageManager.PERMISSION_GRANTED
 
     @Suppress("DEPRECATION")
@@ -79,6 +94,10 @@ class MainActivity : FlutterActivity() {
                 }
                 "openAppSettings" -> {
                     startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:$packageName")))
+                    result.success(null)
+                }
+                "stopAlarm" -> {
+                    stopService(Intent(this, AlarmService::class.java))
                     result.success(null)
                 }
                 "testAlarm" -> {

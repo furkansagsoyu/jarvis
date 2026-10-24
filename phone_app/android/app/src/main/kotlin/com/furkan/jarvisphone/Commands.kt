@@ -18,7 +18,8 @@ import android.telecom.TelecomManager
 
 /** Bilgisayardan gelen doğrulanmış komutları yürütür: ara, kapat, çal (alarm), iptal. */
 object Commands {
-    const val CH_ALARM = "jarvis_alarm"
+    const val CH_ALARM = "jarvis_alarm"          // sesli bildirim: yalnızca yedek yol (servis başlatılamazsa)
+    const val CH_QUIET = "jarvis_alarm_quiet"    // alarm servisinin bildirimi: ses/titreşimi servis kendisi çalar
     const val CH_INFO = "jarvis_info"
     private const val MAX_SKEW_S = 120L
 
@@ -38,16 +39,25 @@ object Commands {
             lockscreenVisibility = Notification.VISIBILITY_PUBLIC
             setBypassDnd(true)
         }
+        val quiet = NotificationChannel(CH_QUIET, "Jarvis alarmı (çalıyor)", NotificationManager.IMPORTANCE_HIGH).apply {
+            description = "Alarm çalarken görünen bildirim; ses ayrı bir servisten çalar, başka bildirimler sesi kesmez"
+            setSound(null, null)
+            enableVibration(false)
+            lockscreenVisibility = Notification.VISIBILITY_PUBLIC
+            setBypassDnd(true)
+        }
         val info = NotificationChannel(CH_INFO, "Jarvis bilgi", NotificationManager.IMPORTANCE_DEFAULT).apply {
             description = "Jarvis'in yaptığı işlemler"
         }
         nm.createNotificationChannel(alarm)
+        nm.createNotificationChannel(quiet)
         nm.createNotificationChannel(info)
     }
 
-    private fun appIntent(c: Context): PendingIntent =
+    fun appIntent(c: Context, stopAlarm: Boolean = false): PendingIntent =
         PendingIntent.getActivity(
-            c, 0, Intent(c, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP),
+            c, if (stopAlarm) 2 else 0,
+            Intent(c, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP).putExtra("stop_alarm", stopAlarm),
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
         )
 
@@ -55,9 +65,24 @@ object Commands {
         android.os.Build.VERSION.SDK_INT < 33 ||
             c.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
 
-    /** Sesli, titreşimli, kapatılana dek tekrar eden bildirim (toplantı alarmı). */
+    /**
+     * Gerçek alarm gibi çalar: ön plan servisi alarm sesini kapatılana dek (en çok 2 dk) çalar; başka uygulamaların
+     * bildirimleri (Telegram vb.) sesi kesemez. Servis başlatılamazsa eski yola (sesli bildirim) düşer.
+     */
     fun showAlarm(c: Context, id: String, title: String, body: String) {
         ensureChannels(c)
+        try {
+            c.startForegroundService(
+                Intent(c, AlarmService::class.java).putExtra("id", id).putExtra("title", title).putExtra("body", body)
+            )
+            return
+        } catch (e: Exception) {
+            Prefs.log(c, "alarm servisi başlatılamadı (${e.javaClass.simpleName}), bildirimle çalıyor")
+        }
+        showAlarmNotification(c, id, title, body)
+    }
+
+    private fun showAlarmNotification(c: Context, id: String, title: String, body: String) {
         if (!canNotify(c)) { Prefs.log(c, "bildirim izni yok, alarm gösterilemedi"); return }
         val n = Notification.Builder(c, CH_ALARM)
             .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)

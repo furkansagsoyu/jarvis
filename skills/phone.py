@@ -363,12 +363,25 @@ def _do_call(name: str, number: str) -> str:
 
 
 def _ready_now() -> bool:
-    """USB ya da kayıtlı kablosuz bağlantı ŞU AN hazır mı? (bağlanmayı denemez, bekletmez)"""
+    """USB ya da kayıtlı kablosuz bağlantı ŞU AN hazır mı? (bağlanmayı denemez, bekletmez). Ayar via=app ise hep False."""
+    if _via() == "app":
+        return False
     want = os.environ.get("JARVIS_ADB_SERIAL", "")
     return any(st == "device" and (not want or s == want) for s, st in devices())
 
 
+def _via() -> str:
+    try:
+        import phonelink  # noqa: PLC0415
+        v = str(phonelink.setting("via", "auto"))
+    except Exception:  # noqa: BLE001
+        return "auto"
+    return v if v in ("auto", "app", "adb") else "auto"
+
+
 def _app_ready() -> bool:
+    if _via() == "adb":
+        return False
     try:
         import phonelink  # noqa: PLC0415
         return phonelink.configured()
@@ -394,6 +407,9 @@ def phone_call(target: str) -> str:
         return _confirm.request(ask, lambda: _do_call(name, number))
     if _app_ready() and name != "bu numara":          # telefon uygulaması (internet üzerinden); numara dışarı çıkmaz
         return _confirm.request(ask, lambda: _do_call_app(name))
+    if _via() == "app":
+        return "Telefon uygulaması kurulu değil ya da eşleşmemiş (python phone_check.py --app-pair)." if name != "bu numara" else \
+            "Numarayla aramayı yalnızca ADB bağlıyken yapabilirim. Ayarı değiştir: python phone_check.py --via auto"
     serial, derr = pick_device()                       # kayıtlı kablosuz adrese bağlanmayı dene
     if serial:
         return _confirm.request(ask, lambda: _do_call(name, number))

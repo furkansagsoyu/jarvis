@@ -29,6 +29,19 @@ SCOPE = "https://www.googleapis.com/auth/firebase.messaging"
 _token_cache: dict = {"value": "", "exp": 0.0}
 
 
+def setting(name: str, default=None):
+    """data/phone.json içindeki kullanıcı ayarları: via (auto|app|adb), alerts (bool), detail (generic|full)."""
+    cfg = _store.load("phone.json", {})
+    return cfg.get(name, default) if isinstance(cfg, dict) else default
+
+
+def set_setting(name: str, value) -> None:
+    cfg = _store.load("phone.json", {})
+    cfg = cfg if isinstance(cfg, dict) else {}
+    cfg[name] = value
+    _store.save("phone.json", cfg)
+
+
 def config() -> dict:
     cfg = _store.load(CFG_FILE, {})
     return cfg if isinstance(cfg, dict) else {}
@@ -77,8 +90,20 @@ def _post(url: str, headers: dict, body: dict, timeout: int = 10) -> tuple[int, 
         return 0, str(exc)
 
 
+DEADLINE = 12.0   # sn; ses döngüsü Firebase'i sonsuz beklemesin (google-auth'un varsayılan zaman aşımı 120 sn)
+
+
 def send(cmd: str, ttl: int = 60, **fields) -> tuple[bool, str]:
     """(başarılı mı, Türkçe açıklama). Başarı = Google mesajı kabul etti; telefonun yürüttüğünü GARANTİ ETMEZ."""
+    import threading  # noqa: PLC0415
+    box: list = []
+    t = threading.Thread(target=lambda: box.append(_send(cmd, ttl, **fields)), daemon=True)
+    t.start()
+    t.join(DEADLINE)
+    return box[0] if box else (False, "Firebase zamanında yanıt vermedi.")
+
+
+def _send(cmd: str, ttl: int = 60, **fields) -> tuple[bool, str]:
     if not configured():
         return False, "Telefon uygulaması kurulu değil (python phone_check.py --app-pair)."
     cfg = config()
@@ -139,6 +164,6 @@ def pair(adb: str, serial: str, run) -> str:
     time.sleep(1.5)
     if "PAIRED_OK" not in run(sh + ["logcat", "-d", "-s", "JarvisPhone:I"], 10)[1]:
         return "Telefon gizli anahtarı kabul etmedi. Uygulama güncel mi?"
-    _store.save(CFG_FILE, {"project_id": project_id, "token": token, "secret": key})
+    _store.save(CFG_FILE, {"project_id": project_id, "token": token, "secret": key})   # ayarlar (phone.json) ayrı dosyada, korunur
     _token_cache.update(value="", exp=0.0)
     return "Eşleşti. Dene: python phone_check.py --app-test"

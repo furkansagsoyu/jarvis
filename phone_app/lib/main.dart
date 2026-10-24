@@ -120,23 +120,23 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
               trailing: FilledButton.tonal(onPressed: () => _call('openAutostart'), child: const Text('Aç')),
             ),
             const Divider(),
-            Row(
+            Wrap(
+              spacing: 12,
+              runSpacing: 8,
               children: [
-                Expanded(child: OutlinedButton.icon(onPressed: () => _call('testAlarm'), icon: const Icon(Icons.alarm), label: const Text('Alarmı dene'))),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: token.isEmpty
-                        ? null
-                        : () async {
-                            await Clipboard.setData(ClipboardData(text: token));
-                            if (context.mounted) {
-                              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Belirteç kopyalandı')));
-                            }
-                          },
-                    icon: const Icon(Icons.copy),
-                    label: const Text('Belirteci kopyala'),
-                  ),
+                OutlinedButton.icon(onPressed: () => _call('testAlarm'), icon: const Icon(Icons.alarm), label: const Text('Alarmı dene')),
+                OutlinedButton.icon(onPressed: () => _call('stopAlarm'), icon: const Icon(Icons.alarm_off), label: const Text('Alarmı sustur')),
+                OutlinedButton.icon(
+                  onPressed: token.isEmpty
+                      ? null
+                      : () async {
+                          await Clipboard.setData(ClipboardData(text: token));
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Belirteç kopyalandı')));
+                          }
+                        },
+                  icon: const Icon(Icons.copy),
+                  label: const Text('Belirteci kopyala'),
                 ),
               ],
             ),

@@ -62,7 +62,8 @@ Telefonu USB ile bağla (Geliştirici seçenekleri → USB hata ayıklama açık
 USB/ADB olmadan, internet üzerinden: bilgisayar Firebase (FCM) ile telefondaki küçük uygulamaya imzalı komut yollar. Uygulama (`phone_app/`, Flutter + Kotlin) komutu doğrular ve yürütür.
 
 - "**Anılinho'yu ara**" (onaydan sonra), "**aramayı kapat**", "**telefonu yarın saat 14'te çaldır, toplantı**" (alarmı telefon kurar; bilgisayar kapansa da çalar).
-- ADB bağlıysa arama ADB ile yapılır (durumu doğrular); değilse uygulama kullanılır.
+- ADB bağlıysa arama ADB ile yapılır (durumu doğrular); değilse uygulama kullanılır. Uygulamayı denemek için `python phone_check.py --via app` (geri: `--via auto`).
+- **Hatırlatıcılar ve takvim:** uygulama eşleşmişse "20 dakika sonra hatırlat" ve takvime eklenen etkinlikler (10 dk önce) telefonda da alarm olarak kurulur; bilgisayar kapansa da çalar, silinince/iptal edilince telefondaki alarm da silinir. Kapatmak: `--alerts off`. Varsayılan `--detail generic`: Firebase'e metin gitmez, telefonda yalnızca "Hatırlatıcı zamanı" yazar; `--detail full` başlığı da gönderir.
 - Gizlilik: mesajda numara yok, yalnızca kişi adı gider; numarayı telefon kendi rehberinden bulur. Mesajlar HMAC imzalı, 2 dakikadan eski ya da tekrar eden mesaj reddedilir. Gizli anahtar ADB ile telefona yazılır, ağdan geçmez.
 - Kurulum: `phone_app/KURULUM.md`. Eşleştirme: `python phone_check.py --app-pair`, deneme: `--app-test`.
 

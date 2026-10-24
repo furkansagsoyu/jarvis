@@ -9,6 +9,11 @@ Telefon uygulaması (internet üzerinden, kablosuz ve uzaktan):
     python phone_check.py --app-pair     # BİR KEZ: uygulamayla eşleşir (telefon USB/kablosuz ADB ile bağlıyken)
     python phone_check.py --app-test     # telefona deneme bildirimi gönderir
 
+Ayarlar:
+    python phone_check.py --via auto|app|adb     # arama yolu: auto = ADB bağlıysa ADB, değilse uygulama; app = hep uygulama (denemek için)
+    python phone_check.py --alerts on|off        # hatırlatıcı ve takvim etkinliklerini telefona da gönder
+    python phone_check.py --detail generic|full  # generic: Firebase'e metin gitmez (telefonda "Hatırlatıcı zamanı"); full: başlık da gider
+
 Kablosuz (kabloyu çıkarabilmek için):
     python phone_check.py --wifi                       # USB takılıyken BİR KEZ: telefonu Wi-Fi'dan ADB'ye açar, adresi kaydeder
     python phone_check.py --pair 192.168.1.23:37000 123456   # alternatif: Kablosuz hata ayıklama > "Eşleştirme koduyla eşleştir"
@@ -27,6 +32,16 @@ def step(ok, text):
 
 def main():
     args = sys.argv[1:]
+    for flag, choices in (("--via", ("auto", "app", "adb")), ("--detail", ("generic", "full")), ("--alerts", ("on", "off"))):
+        if flag in args:
+            import phonelink  # noqa: PLC0415
+            v = args[args.index(flag) + 1] if len(args) > args.index(flag) + 1 else ""
+            if v not in choices:
+                print(f"{flag} değeri: {' | '.join(choices)}")
+                return 1
+            phonelink.set_setting(flag[2:], (v == "on") if flag == "--alerts" else v)
+            print(f"{flag[2:]} = {v}")
+            return 0
     if "--app-pair" in args or "--app-test" in args:
         import phonelink  # noqa: PLC0415
         if "--app-pair" in args:

@@ -12,7 +12,7 @@ import subprocess
 import threading
 import time
 
-from . import _confirm, _store
+from . import _confirm, _phonenotify, _store
 from ._trdate import capitalize, lower, parse_when
 
 FILE = "agenda.json"
@@ -111,6 +111,9 @@ def add_event(title: str = "", date: str = "", time_: str = "", duration: int = 
               "duration": int(duration or 0), "remind": int(remind), "notified": False}
         d["events"].append(ev)
         _save(d)
+    if at:   # telefon uygulaması eşleşmişse etkinlik için telefonda da alarm kur (hatırlatma süresinden önce)
+        alarm = start - dt.timedelta(minutes=int(remind))
+        _phonenotify.schedule(f"ev{ev['id']}", alarm if alarm > now else start, title, f"{_time_text(at)}")
     text = f"Tamam, {_day_text(day)} " + (f"saat {_time_text(at)} " if at else "") + f"{title} takvime eklendi."
     if clash:
         text += f" Dikkat, aynı saate yakın {clash[0]['title']} etkinliği var."
@@ -173,6 +176,7 @@ def cancel_event(query: str = "") -> str:
             dd = _load()
             dd["events"] = [e for e in dd["events"] if e["id"] != ev["id"]]
             _save(dd)
+        _phonenotify.cancel(f"ev{ev['id']}")
         return f"{ev['title']} etkinliğini sildim."
     return _confirm.request(f"{_day_text(_ev_start(ev).date())} {ev['title']} etkinliği silinecek.", run)
 
@@ -348,7 +352,8 @@ def cancel_event_id(event_id: int) -> bool:
             return False
         d["events"] = keep
         _save(d)
-        return True
+    _phonenotify.cancel(f"ev{event_id}")
+    return True
 
 
 # ------------------------------------------------------------------ uyarı iş parçacığı
