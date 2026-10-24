@@ -50,8 +50,10 @@ def open_fallback(url: str, parent: int | None) -> None:
             return
     webbrowser.open(url)
 
-WIN_LOCK = os.environ.get("JARVIS_WINDOW_LOCK", "/tmp/jarvis-window.lock")
-JARVIS_LOCK = "/tmp/jarvis.lock"
+from skills import _store  # noqa: E402
+
+WIN_LOCK = os.environ.get("JARVIS_WINDOW_LOCK", str(_store.runtime_path("jarvis-window.lock")))
+JARVIS_LOCK = str(_store.runtime_path("jarvis.lock"))
 ICON = Path(__file__).resolve().parent.parent / "assets" / "jarvis-256.png"
 _pending_show = False  # SIGUSR1 geldi: pencere öne getirilsin
 

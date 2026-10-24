@@ -45,7 +45,18 @@ def set_retention(days: int) -> int:
     return days
 
 
-def _read() -> list[dict]:
+_cache: dict = {"sig": None, "items": []}  # dosya değişmediyse yeniden ayrıştırma yok (pano 1,5 sn'de bir okur)
+
+
+def _sig():
+    try:
+        st = _p().stat()
+        return (st.st_mtime_ns, st.st_size)
+    except OSError:
+        return None
+
+
+def _parse() -> list[dict]:
     out = []
     try:
         with _p().open(encoding="utf-8") as f:
@@ -59,10 +70,23 @@ def _read() -> list[dict]:
     return out
 
 
+def _read() -> list[dict]:
+    """Satırların kopyası (çağıranlar listeyi değiştirebilir). 30 günlük günlük ~3 MB: her yoklamada ayrıştırmak
+    ~45 ms'lik GIL tutan iş demekti; (mtime, boyut) değişmedikçe önbellekten döner."""
+    with _lock:
+        sig = _sig()
+        if sig is not None and _cache["sig"] == sig:
+            return list(_cache["items"])
+        items = _parse()
+        _cache["sig"], _cache["items"] = sig, items
+        return list(items)
+
+
 def _write(items: list[dict]) -> None:
     tmp = _p().with_suffix(".tmp")
     tmp.write_text("".join(json.dumps(i, ensure_ascii=False) + "\n" for i in items), encoding="utf-8")
     tmp.replace(_p())
+    _cache["sig"], _cache["items"] = _sig(), list(items)
 
 
 def append(who: str, text: str) -> None:
@@ -74,8 +98,12 @@ def append(who: str, text: str) -> None:
         _seq += 1
         now = time.time()
         item = {"id": int(now * 1000) * 100 + _seq % 100, "ts": now, "who": who, "text": text}
+        fresh = _cache["sig"] is not None and _cache["sig"] == _sig()  # önbellek dosyayla aynıysa artımlı güncellenir
         with _p().open("a", encoding="utf-8") as f:
             f.write(json.dumps(item, ensure_ascii=False) + "\n")
+        if fresh:
+            _cache["items"].append(item)
+            _cache["sig"] = _sig()
     prune()
 
 

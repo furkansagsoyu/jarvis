@@ -101,6 +101,11 @@ class _Worker:
 
     def _run(self, ready: threading.Event):
         try:
+            import memguard  # noqa: PLC0415
+
+            low = memguard.need("tarayıcıyı açmak", 1.0)
+            if low:
+                raise MemoryError(low)
             from playwright.sync_api import sync_playwright  # noqa: PLC0415
 
             pw = sync_playwright().start()

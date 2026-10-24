@@ -21,7 +21,9 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
-LOCK = "/tmp/jarvis.lock"
+from skills import _store  # noqa: E402
+
+LOCK = str(_store.runtime_path("jarvis.lock"))
 LOG_MAX = 5 * 1024 * 1024
 
 

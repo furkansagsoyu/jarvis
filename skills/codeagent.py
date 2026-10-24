@@ -223,12 +223,51 @@ def reset_sandbox_cache() -> None:
 
 
 def _limits(is_python: bool):
+    """Yedek yol (prlimit yoksa): çocuk süreçte kaynak sınırı. preexec_fn çok iş parçacıklı süreçte ince bir mekanizmadır."""
     def apply():
         resource.setrlimit(resource.RLIMIT_CPU, (RUN_TIMEOUT + 5, RUN_TIMEOUT + 5))
         resource.setrlimit(resource.RLIMIT_FSIZE, (20_000_000, 20_000_000))
         if is_python:
             resource.setrlimit(resource.RLIMIT_AS, (3 << 30, 3 << 30))
     return apply
+
+
+MEM_LIMIT = os.environ.get("JARVIS_CODE_MEM", "3G")  # sandbox içindeki tüm süreçlerin toplam bellek tavanı (cgroup)
+_memwrap_cache: list[str] | None = None
+
+
+def _mem_wrap() -> list[str]:
+    """systemd-run --user --scope -p MemoryMax=…: kaçak bir süreç (node, java, döngüde büyüyen liste) tüm RAM'i yiyip
+    sistemi dondurmasın (swap yok). Çalışmıyorsa [] döner; bir kez denenir, sonuç önbelleğe alınır."""
+    global _memwrap_cache
+    if _memwrap_cache is not None:
+        return _memwrap_cache
+    wrap: list[str] = []
+    exe = shutil.which("systemd-run")
+    if exe:
+        cand = [exe, "--user", "--scope", "--quiet", "-p", f"MemoryMax={MEM_LIMIT}", "-p", "MemorySwapMax=0", "--"]
+        try:
+            if subprocess.run([*cand, "/usr/bin/true"], capture_output=True, timeout=10).returncode == 0:
+                wrap = cand
+        except (OSError, subprocess.SubprocessError):
+            pass
+    _memwrap_cache = wrap
+    return wrap
+
+
+def build_cmd(argv: list[str], root: Path, mode: str):
+    """(komut, preexec). Katmanlar dıştan içe: bellek tavanı (cgroup) → kaynak sınırı (prlimit) → bwrap → komut."""
+    py = argv[0] == sys.executable
+    inner = bwrap_args(root, argv, shutil.which("bwrap") or "bwrap") if mode == "bwrap" else argv
+    prefix: list[str] = list(_mem_wrap()) if mode == "bwrap" else []  # kopya: önbellek listesi büyümesin
+    ch = shutil.which("choom")
+    if ch and mode == "bwrap":  # bellek bitince çekirdek önce bu süreçleri öldürsün (Ollama/masaüstü değil)
+        prefix += [ch, "-n", "1000", "--"]
+    pl = shutil.which("prlimit")
+    if pl:
+        prefix += [pl, f"--cpu={RUN_TIMEOUT + 5}", "--fsize=20000000"] + ([f"--as={3 << 30}"] if py else []) + ["--"]
+        return prefix + inner, None
+    return prefix + inner, _limits(py)
 
 
 def _argv(command: str) -> list[str] | str:
@@ -260,10 +299,10 @@ def _trim(out: str) -> str:
 
 def _run(argv: list[str], root: Path, mode: str) -> str:
     env = {"PATH": "/usr/bin:/bin", "LANG": "C.UTF-8", "HOME": "/tmp", "PYTHONDONTWRITEBYTECODE": "1"}  # anahtar/oturum değişkeni YOK
-    cmd = bwrap_args(root, argv, shutil.which("bwrap") or "bwrap") if mode == "bwrap" else argv
+    cmd, pre = build_cmd(argv, root, mode)
     try:
         p = subprocess.Popen(cmd, cwd=str(root), env=env, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                             start_new_session=True, preexec_fn=_limits(argv[0] == sys.executable))
+                             start_new_session=True, **({"preexec_fn": pre} if pre else {}))
     except OSError as exc:
         return f"Hata: başlatılamadı ({exc})."
     try:
@@ -286,6 +325,11 @@ def code_run(command: str) -> str:
     argv = _argv(str(command))
     if isinstance(argv, str):
         return argv
+    import memguard  # noqa: PLC0415
+
+    low = memguard.need("kod çalıştırmak", 1.0)
+    if low:
+        return "Hata: " + low
     mode, why = sandbox_mode()
     root = _project.resolve()
     if mode is None:

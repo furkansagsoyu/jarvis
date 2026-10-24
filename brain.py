@@ -44,9 +44,24 @@ FALLBACKS = [m.strip() for m in os.environ.get("JARVIS_FALLBACK_MODELS", "qwen3:
 PRIMARY_RETRY_S = 300  # yedeğe düştükten sonra birincil model bu kadar saniye denenmez
 SUMMARY_MAX = 700  # özet bu kadar karakteri geçmez (prompt şişmesin, araç seçimi bozulmasın)
 SESSION_FILE = "session.json"
+
+
+def keep_alive():
+    """Modelin boşta bellekte (VRAM/RAM) kalma süresi. JARVIS_KEEP_ALIVE=5m ile kısaltılır (RAM sıkışıksa); sayı = saniye."""
+    v = os.environ.get("JARVIS_KEEP_ALIVE", "30m").strip()
+    return int(v) if v.lstrip("-").isdigit() else v
+
+
+def model_options(temperature: float) -> dict:
+    """JARVIS_NUM_CTX verilirse bağlam uzunluğu sabitlenir (KV önbelleği belleği buna göre büyür); yoksa Ollama varsayılanı."""
+    o = {"temperature": temperature}
+    n = os.environ.get("JARVIS_NUM_CTX", "").strip()
+    if n.isdigit() and 512 <= int(n) <= 131072:
+        o["num_ctx"] = int(n)
+    return o
 SESSION_TTL = 12 * 3600  # bundan eski konuşma geçmişi yüklenmez
 # Uzaktan (Telegram) gelen komutlarda çalıştırılmayan araçlar: içerik makine dışına, üçüncü taraf sunucuya çıkar.
-REMOTE_BLOCKED = {"phone_ring", "phone_call", "phone_hangup", "phone_answer", "phone_status", "contact_add", "contacts_sync", "code_list", "code_read", "code_write", "code_run", "read_file", "recall", "look_at_screen", "look_at_camera", "browser_open", "browser_read", "browser_click",
+REMOTE_BLOCKED = {"move_file", "trash_file", "undo_last_action", "phone_ring", "phone_call", "phone_hangup", "phone_answer", "phone_status", "contact_add", "contacts_sync", "code_list", "code_read", "code_write", "code_run", "read_file", "recall", "look_at_screen", "look_at_camera", "browser_open", "browser_read", "browser_click",
                   "browser_type", "browser_back", "browser_close", "mouse_move", "mouse_click", "scroll",
                   "keyboard_type", "press_key"}
 
@@ -187,7 +202,7 @@ class Brain:
         last_exc: Exception | None = None
         for model in self._candidates():
             kw = dict(model=model, messages=messages, tools=schemas or None, stream=stream,
-                      options={"temperature": temperature}, keep_alive="30m", **self._think_kw)
+                      options=model_options(temperature), keep_alive=keep_alive(), **self._think_kw)
             try:
                 try:
                     result = ollama.chat(**kw)

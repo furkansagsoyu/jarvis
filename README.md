@@ -77,6 +77,11 @@ Telefon tarayıcısında (ana ekrana eklenebilir) çalışan sayfa: **yazışma*
 - Yönetim: `python remote_setup.py --new-token` (anahtarı yenile), `--revoke` (kapat), `--status`.
 - Telefondan çalışan hızlı komutlar: günün özeti, bugün, görevler, hava, pil, sistem, evet/vazgeç, sustur, mikrofon, odak.
 
+## Bellek ve güvenlik denetimi
+
+- **RAM:** `RAM.md` (rehber, senaryo tablosu, swap/earlyoom/Ollama ayarları) ve `python ram_report.py [--watch SN]` (kendi makinende ölçüm). Jarvis düşük bellekte uyarır, ağır işi (tarayıcı, kod çalıştırma) bellek yoksa başlatmaz, kaçak sandbox süreçleri önce öldürülür. Ayarlar: `JARVIS_MEM_LOW/CRIT`, `JARVIS_CODE_MEM`, `JARVIS_KEEP_ALIVE`, `JARVIS_NUM_CTX`.
+- **Güvenlik sertleştirmesi (v2zc):** `data/` ve içindeki dosyalar yalnızca sahibine açık (0700/0600); kilit/pid dosyaları kullanıcıya özel klasörde (`$XDG_RUNTIME_DIR`); uzaktan (Telegram/telefon) dosya taşıma/silme/geri alma kapalı; kod ajanı kaynak sınırları `prlimit` ile (iş parçacıklı süreçte `preexec_fn` yok). `test_security.py` kodda `eval/exec/os.system/shell=True/pickle` ve kapalı TLS doğrulaması bulunmadığını da her seferinde doğrular.
+
 ## Neler yapabiliyor
 
 | Alan | Örnek cümle |
@@ -192,6 +197,7 @@ skills/          beceriler: her dosya kendini tanımlar ve otomatik yüklenir
   desktop_input.py  fare/klavye (xdotool)
   phone.py       telefon araması (ADB ya da uygulama), alarm, yerel rehber
 phonelink.py     telefon uygulamasına imzalı FCM komutu; eşleştirme
+memguard.py      bellek koruması (düzey, ağır iş kontrolü, uyarı); ram_report.py ölçüm aracı
 remote.py        mobil sayfa erişimi: ayrı anahtar, Host denetimi, kilitleme, Tailscale yardımcıları (remote_setup.py)
 phone_app/       Jarvis Telefon uygulaması (Flutter + Kotlin; Firebase Messaging)
   agenda.py      takvim ve görevler (yerel, Türkçe tarih ayrıştırıcı: _trdate.py)

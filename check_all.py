@@ -505,6 +505,20 @@ def logic_tests() -> None:
         assert r.returncode == 0, "\n".join(l for l in r.stdout.splitlines() if l.startswith("HATA"))[:400] or r.stderr[-300:]
         return f"{r.stdout.count('OK   ')} OK"
 
+    @check("Güvenlik sertleştirme: data/ izinleri, özel kilit yolu, uzaktan kapalı araçlar, kod ajanı katmanları, tehlikeli çağrı taraması (test_security)")
+    def _():
+        r = subprocess.run([sys.executable, str(HERE / "test_security.py")], capture_output=True, text=True, cwd=str(HERE),
+                           env={**os.environ, "PYTHONPATH": str(HERE)}, timeout=60)
+        assert r.returncode == 0, "\n".join(l for l in r.stdout.splitlines() if l.startswith("HATA"))[:400] or r.stderr[-300:]
+        return f"{r.stdout.count('OK   ')} OK"
+
+    @check("Bellek koruması + RAM raporu: düzeyler, Monitor (spam yok), ağır işi reddetme, ollama ps, senaryo tablosu (test_ram)")
+    def _():
+        r = subprocess.run([sys.executable, str(HERE / "test_ram.py")], capture_output=True, text=True, cwd=str(HERE),
+                           env={**os.environ, "PYTHONPATH": str(HERE)}, timeout=60)
+        assert r.returncode == 0, "\n".join(l for l in r.stdout.splitlines() if l.startswith("HATA"))[:400] or r.stderr[-300:]
+        return f"{r.stdout.count('OK   ')} OK"
+
     @check("Web arama: arka uç sırası, sessiz kip, Tavily, Groq yerleşik arama (test_web)")
     def _():
         r = subprocess.run([sys.executable, str(HERE / "test_web.py")], capture_output=True, text=True,

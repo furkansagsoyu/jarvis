@@ -362,6 +362,7 @@ function render(s) {
   chats.forEach((c) => c.el.isConnected && c.update(s));
 }
 async function poll() {
+  if (document.hidden) return;  // pencere tepsiye indi/küçüldü: boşuna yoklama ve çizim yok
   try { render(await api("/api/state")); offline = 0; }
   catch (e) { if (++offline > 2) { const b = $("#sysBadge"); b.className = "bad"; fill(b, h("i"), "BAĞLANTI YOK"); } }
 }
@@ -428,4 +429,5 @@ function orbDraw() {
 }
 function frame() { waves(); orbDraw(); requestAnimationFrame(frame); }
 
+document.addEventListener("visibilitychange", () => { if (!document.hidden) poll(); });
 wire(); buildNav(); buildQuick(); showView(); orbInit(); tick(); setInterval(tick, 1000); poll(); setInterval(poll, 1500); frame();

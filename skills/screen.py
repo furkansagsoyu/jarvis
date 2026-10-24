@@ -54,12 +54,14 @@ def capture() -> bytes:
 def _ask_model(png: bytes, question: str, template: str = PROMPT) -> str:
     import ollama  # noqa: PLC0415
 
+    from brain import keep_alive as _keep_alive  # noqa: PLC0415
+
     model = os.environ.get("JARVIS_VISION_MODEL", "gemma4:e4b")
     resp = ollama.chat(
         model=model,
         messages=[{"role": "user", "content": template.format(q=question), "images": [png]}],
         options={"temperature": 0.2},
-        keep_alive="30m",
+        keep_alive=_keep_alive(),
         think=False,
     )
     msg = resp["message"] if isinstance(resp, dict) else resp.message

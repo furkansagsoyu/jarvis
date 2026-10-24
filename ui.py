@@ -51,7 +51,9 @@ def ascii_title(text: str) -> str:
     return text.translate(_TR)
 
 
-PIDFILE = "/tmp/jarvis_ui.pid"
+from skills import _store  # noqa: E402
+
+PIDFILE = str(_store.runtime_path("jarvis_ui.pid"))
 
 
 def claim_single_instance() -> None:

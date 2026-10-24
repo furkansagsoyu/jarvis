@@ -22,6 +22,7 @@ import threading  # noqa: E402
 import time  # noqa: E402
 from pathlib import Path  # noqa: E402
 
+import memguard  # noqa: E402
 import ui_state  # noqa: E402
 from brain import Brain  # noqa: E402
 from skills import agenda, battery, briefing, reminders  # noqa: E402
@@ -41,7 +42,9 @@ def single_instance():
     """Aynı anda iki Jarvis mikrofonu kapışmasın (otomatik başlatma + elle başlatma)."""
     import fcntl  # noqa: PLC0415
 
-    lock = open("/tmp/jarvis.lock", "w")  # noqa: SIM115  (süreç boyunca açık kalmalı)
+    from skills import _store  # noqa: PLC0415
+
+    lock = open(_store.runtime_path("jarvis.lock"), "w")  # noqa: SIM115  (süreç boyunca açık kalmalı)
     try:
         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
     except OSError:
@@ -235,6 +238,7 @@ def main():
     reminders.set_notifier(notify)  # süre dolunca arka plan iş parçacığından sesli söyler
     agenda.Monitor(notify).start()  # etkinliğe 10 dk kala sesli uyarır
     battery.Monitor(notify).start()  # pil yüzde 20 ve 10'un altına düşünce bir kez uyarır
+    memguard.Monitor(notify).start()  # bellek azalınca bir kez, en çok kullananları sayarak uyarır
     def stop_watcher():  # arayüzdeki "Sustur" düğmesi
         while True:
             time.sleep(0.25)
