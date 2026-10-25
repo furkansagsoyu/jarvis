@@ -38,7 +38,7 @@ Bu belgedeki her teknik iddia kod tabanından doğrulanmıştır; yine de deği�
 
 | Katman | Dosya(lar) | Not |
 |---|---|---|
-| Giriş noktası | `main.py` | Bayraklar: `--wake --text --ui --dash --island --telegram --morning --fresh --mic --speaker --tts --tts-device --wake-threshold --stt-prompt --list-speakers`. Otomatik başlatma: `~/.config/autostart/jarvis.desktop` → `main.py --wake --ui --island --morning --telegram` (menü başlatıcısı `app.py`: `--wake --dash --island --morning`). |
+| Giriş noktası | `main.py` | Bayraklar: `--wake --text --ui --dash --island --telegram --morning --fresh --mic --speaker --tts --tts-device --wake-threshold --stt-prompt --list-speakers`. Otomatik başlatma: `~/.config/autostart/jarvis.desktop` → `main.py --wake --island --morning --telegram` (eski durum penceresi `--ui` 2026-10-26 kullanıcı isteğiyle çıkarıldı; menü başlatıcısı `app.py`: `--wake --dash --island --morning`). |
 | Beyin | `brain.py` | `MODEL="gemma4:e4b"`, yedek `qwen3:8b` (`JARVIS_FALLBACK_MODELS`). **`think=False` her çağrıda gönderilir.** `MAX_HISTORY=16`, `MAX_TOOL_ROUNDS=3`. |
 | Hızlı yol | `brain.py: _fast_route`, `_browser_route` | Regex (`WORD_*`) ile kural tabanlı yönlendirme. Sık/kalıbı belli işler modele hiç sorulmaz. |
 | Yetenekler | `skills/*.py` | Yeni dosya = yeni yetenek (aşağıda 4). |

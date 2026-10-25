@@ -9,6 +9,7 @@ Gerçek veri yoksa sahte değer ÜRETİLMEZ; arayüz 'Yakında' / '—' gösteri
 from __future__ import annotations
 
 import os
+import re
 import shutil
 import socket
 import threading
@@ -253,8 +254,10 @@ def _ajanlar(ctx):
             ready = all(t in brain.tools for t in role.tools[:1])
             busy = snap["state"] in ("running", "confirm") and snap["active_role"] == key
             where = "yalnızca yerel" if role.private else "bulut destekli (temiz veride), yoksa yerel"
+            about = role.about[:1].upper() + role.about[1:]
+            detail = about if where in about else f"{about}; {where}"   # "yalnızca yerel" iki kez yazılmasın
             rows.append({"name": role.title, "status": ("Çalışıyor" if busy else "Hazır") if ready else "Kapalı",
-                         "detail": (snap["active_do"][:50] if busy else f"{role.about}; {where}")})
+                         "detail": (snap["active_do"][:50] if busy else detail)})
     except Exception:  # noqa: BLE001
         pass
     rows += [
@@ -279,6 +282,37 @@ def _akis(ctx):
     return [{"time": time.strftime("%H:%M:%S", time.localtime(i["ts"])), "level": i["level"], "text": i["text"]} for i in items[:8]]
 
 
+TOOL_LABELS = {  # pano 'Araçlar ve Beceriler': iç araç adı -> kullanıcıya gösterilen Türkçe ad
+    "agenda_add": "Takvime etkinlik ekle", "agenda_cancel": "Etkinliği iptal et", "agenda_list": "Takvimi göster",
+    "browser_back": "Tarayıcıda geri git", "browser_click": "Sayfada tıkla", "browser_close": "Tarayıcıyı kapat",
+    "browser_open": "Siteyi aç", "browser_play": "Şarkı/video oynat", "browser_read": "Sayfayı oku",
+    "browser_type": "Sayfaya yaz", "cancel_reminders": "Hatırlatıcıları iptal et", "change_brightness": "Parlaklığı değiştir",
+    "change_volume": "Sesi değiştir", "code_list": "Kod dosyalarını listele", "code_read": "Kod dosyasını oku",
+    "code_run": "Kodu çalıştır", "code_write": "Kod dosyası yaz", "contact_add": "Rehbere kişi ekle",
+    "contacts_sync": "Rehberi telefondan al", "find_files": "Dosya bul", "forget": "Bilgiyi unut",
+    "get_battery": "Pil durumu", "get_date": "Bugünün tarihi", "get_system_status": "Sistem durumu",
+    "get_time": "Saat", "get_volume": "Ses düzeyi", "get_weather": "Hava durumu",
+    "keyboard_type": "Klavyeyle yaz", "list_abilities": "Yeteneklerimi say", "list_reminders": "Hatırlatıcıları listele",
+    "look_at_camera": "Kameraya bak", "look_at_screen": "Ekrana bak", "mcp_call": "MCP aracını çalıştır",
+    "mcp_list": "MCP araçlarını listele", "morning_brief": "Günaydın özeti", "mouse_click": "Fareyle tıkla",
+    "mouse_move": "Fareyi hareket ettir", "move_file": "Dosyayı taşı", "open_app": "Uygulama aç",
+    "phone_answer": "Aramayı cevapla", "phone_call": "Telefonla ara", "phone_hangup": "Aramayı kapat",
+    "phone_ring": "Telefonu çaldır", "phone_status": "Telefon durumu", "press_key": "Tuşa bas",
+    "read_file": "Dosyayı oku", "recall": "Hatırla (hafızadan getir)", "remember": "Not al (hafızaya kaydet)",
+    "scroll": "Sayfayı kaydır", "set_brightness": "Parlaklığı ayarla", "set_reminder": "Hatırlatıcı kur",
+    "set_volume": "Sesi ayarla", "system_health": "Sistem bakım raporu", "task_add": "Görev ekle",
+    "task_delete": "Görevi sil", "task_done": "Görevi bitir", "task_list": "Görevleri listele",
+    "trash_file": "Dosyayı çöpe at", "undo_last_action": "Son işlemi geri al", "web_search": "İnternette ara",
+}
+
+
+def first_sentence(text: str) -> str:
+    """Model için yazılmış açıklamanın yalnızca ilk cümlesi ('... denince kullanılır' gibi model yönergeleri gösterilmez)."""
+    t = " ".join((text or "").split())
+    m = re.match(r"(.+?[.!?])(?:\s|$)", t)
+    return (m.group(1) if m else t)[:160]
+
+
 @provider("araclar")
 def _araclar(ctx):
     brain = ctx.brain
@@ -290,7 +324,8 @@ def _araclar(ctx):
             desc = entry[0]["function"]["description"]
         except (TypeError, KeyError, IndexError):
             desc = ""
-        out.append({"name": name, "category": cats.get(name, "Diğer"), "desc": desc.strip(), "uses": stats.get(name, 0)})
+        out.append({"name": name, "label": TOOL_LABELS.get(name) or name.replace("_", " ").capitalize(), "category": cats.get(name, "Diğer"),
+                    "desc": first_sentence(desc), "uses": stats.get(name, 0)})
     out.sort(key=lambda x: (x["category"], x["name"]))
     return out
 

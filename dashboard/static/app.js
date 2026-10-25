@@ -83,11 +83,14 @@ function chatBox(extra = "") {
   chats.push(me); return me;
 }
 
+/* Türkçe sayı biçimi: yüzde işareti önde (%12), ondalık virgül (4,6) */
+const pctTR = (v) => "%" + Math.round(Number(v) || 0);
+const decTR = (v, n = 1) => (Number(v) || 0).toFixed(n).replace(".", ",");
 /* ---------------- sekmeler ---------------- */
 const NAV = [
-  ["merkez", "Komut Merkezi", "grid"], ["yazisma", "Yazışma", "chat"], ["cekirdek", "AI Çekirdeği", "cpu"], ["ajanlar", "Ajanlar", "bot"],
+  ["merkez", "Komut Merkezi", "grid"], ["yazisma", "Yazışma", "chat"], ["cekirdek", "Yapay Zekâ Çekirdeği", "cpu"], ["ajanlar", "Ajanlar", "bot"],
   ["gorevler", "Görevler", "list"], ["takvim", "Takvim", "cal"], ["hafiza", "Hafıza", "db"],
-  ["konusmalar", "Konuşmalar", "hist"], ["bilgi", "Bilgi Tabanı", "book"], ["araclar", "Araçlar ve Beceriler", "tool"], ["akislar", "İş Akışları", "flow"], ["ayarlar", "Ayarlar", "gear"],
+  ["konusmalar", "Konuşmalar", "hist"], ["araclar", "Araçlar ve Beceriler", "tool"], ["ayarlar", "Ayarlar", "gear"],
 ];
 const row = (icon, title, sub, cls = "") => h("li", { class: cls }, SVG(icon), h("div", {}, h("b", {}, title), sub ? h("small", {}, sub) : null));
 function listUl(items, empty) {
@@ -115,8 +118,6 @@ VIEWS.cekirdek = simple("YAPAY ZEKÂ ÇEKİRDEĞİ", (s) => s.model && [
   ...cloudRows(s)]);
 VIEWS.ajanlar = simple("AJANLAR", (s) => (s.ajanlar || []).map((a) => ["bot", a.name, a.status + " — " + a.detail]));
 VIEWS.hafiza = simple("HAFIZA", (s) => ((s.hafiza || {}).last || []).map((t) => ["db", t, ""]), "Kayıtlı bilgi yok.");
-VIEWS.bilgi = simple("BİLGİ TABANI — YAKINDA", () => [], "Bu bölüm henüz yok; ileride eklenecek.");
-VIEWS.akislar = simple("İŞ AKIŞLARI — YAKINDA", () => [], "Bu bölüm henüz yok; ileride eklenecek.");
 
 /* --- Görevler --- */
 function agendaCall(o, done) { return api("/api/agenda", o).then((r) => { toast(r.msg, r.ok); if (r.ok && done) done(); poll(); }).catch(() => toast("Bağlantı hatası", false)); }
@@ -221,12 +222,13 @@ VIEWS.araclar = {
   },
   update(s, body, key) {
     const all = s.araclar || [], q = body._f.value.trim().toLocaleLowerCase("tr");
-    const items = all.filter((a) => !q || (a.name + " " + a.desc + " " + a.category).toLocaleLowerCase("tr").includes(q));
+    const items = all.filter((a) => !q || (a.label + " " + a.name + " " + a.desc + " " + a.category).toLocaleLowerCase("tr").includes(q));
     if (!changed(key, [items, q])) return;
     body._t.textContent = items.length + " / " + all.length + " yetenek · bu oturumda " + all.reduce((n, a) => n + a.uses, 0) + " kez çalıştı";
     const cats = {}; items.forEach((a) => (cats[a.category] = cats[a.category] || []).push(a));
     fill(body._c, Object.keys(cats).length ? Object.keys(cats).sort().map((c) => h("div", { class: "daygrp" }, h("h5", {}, c, " ", h("span", { class: "muted" }, cats[c].length)),
-      h("ul", { class: "rows tools", style: "height:auto" }, cats[c].map((a) => h("li", {}, SVG("tool"), h("div", {}, h("b", {}, h("code", {}, a.name)), h("small", { class: "wrapsm" }, a.desc || "—")),
+      h("ul", { class: "rows tools", style: "height:auto" }, cats[c].map((a) => h("li", {}, SVG("tool"), h("div", {}, h("b", {}, a.label || a.name), h("small", { class: "wrapsm" }, a.desc || "—"),
+          h("small", { class: "iname" }, h("code", {}, a.name))),
         h("span", { class: "use" }, a.uses ? a.uses + "×" : "")))))) : h("div", { class: "empty" }, "Eşleşen yetenek yok."));
   },
 };
@@ -258,7 +260,7 @@ function markTheme(body) { body.querySelectorAll(".tcard").forEach((b) => b.clas
 let view = "merkez", builtView = null;
 function setQuery(q) { convQuery = q; $("#say").value = q; if (view !== "konusmalar") { view = "konusmalar"; showView(); } else if ($("#v-other")._body && $("#v-other")._body._load) $("#v-other")._body._load(true); }
 function buildNav() {
-  fill($("#nav"), NAV.map(([id, label, ic]) => h("button", { "data-v": id, class: /bilgi|akislar/.test(id) ? "soon" : "", onclick: () => { view = id; showView(); } }, SVG(ic), label, h("span", { class: "bd", id: "bd-" + id, hidden: "" }))));
+  fill($("#nav"), NAV.map(([id, label, ic]) => h("button", { "data-v": id, onclick: () => { view = id; showView(); } }, SVG(ic), label, h("span", { class: "bd", id: "bd-" + id, hidden: "" }))));
 }
 function showView() {
   document.querySelectorAll("#nav button").forEach((b) => b.classList.toggle("on", b.dataset.v === view));
@@ -326,9 +328,9 @@ const PANELS = {
       const el = h("div", { class: "g" + (p > 90 ? " crit" : p > 75 ? " hot" : "") });
       el.innerHTML = '<svg viewBox="0 0 72 72"><circle class="bg" cx="36" cy="36" r="30"/><circle class="fg" cx="36" cy="36" r="30" stroke-dasharray="' + C + '" stroke-dashoffset="' + (C * (1 - p / 100)) + '"/></svg>';
       el.appendChild(h("div", {}, h("small", {}, lbl), h("b", {}, txt))); return el; };
-    fill($("#gauges"), g("CPU", s.cpu, s.cpu + "%"), g("RAM", 100 * s.ram.used / s.ram.total, Math.round(100 * s.ram.used / s.ram.total) + "%"), g("Disk", 100 * s.disk.used / s.disk.total, Math.round(100 * s.disk.used / s.disk.total) + "%"));
+    fill($("#gauges"), g("CPU", s.cpu, pctTR(s.cpu)), g("RAM", 100 * s.ram.used / s.ram.total, pctTR(100 * s.ram.used / s.ram.total)), g("Disk", 100 * s.disk.used / s.disk.total, pctTR(100 * s.disk.used / s.disk.total)));
     const x = []; if (s.cpu_temp) x.push(h("span", {}, "CPU ", h("b", {}, Math.round(s.cpu_temp) + "°C")));
-    if (s.gpu) x.push(h("span", {}, "GPU ", h("b", {}, s.gpu.util + "% · " + (s.gpu.used / 1024).toFixed(1) + "/" + Math.round(s.gpu.total / 1024) + " GB · " + s.gpu.temp + "°C")));
+    if (s.gpu) x.push(h("span", {}, "GPU ", h("b", {}, pctTR(s.gpu.util) + " · " + decTR(s.gpu.used / 1024) + "/" + Math.round(s.gpu.total / 1024) + " GB · " + s.gpu.temp + "°C")));
     fill($("#sysExtra"), x);
   },
   hafiza(m) {

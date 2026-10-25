@@ -279,5 +279,22 @@ _t.sleep(0.5)
 _fast = state.build_state(types.SimpleNamespace(brain=None))
 check("ağ gelince sıcaklık arka planda dolar", _fast["alt"]["temp"] == "20°C", str(_fast["alt"]))
 
+# ---- arayüz gözden geçirmesi (2026-10-26)
+import brain as _B  # noqa: E402
+from pathlib import Path as _P  # noqa: E402
+
+_b = _B.Brain(tools=None)
+check("her aracın Türkçe adı var (Araçlar ve Beceriler)", not [n for n in _b.tools if n not in state.TOOL_LABELS], str([n for n in _b.tools if n not in state.TOOL_LABELS]))
+check("açıklamanın yalnızca ilk cümlesi gösterilir (model yönergesi gizlenir)",
+      state.first_sentence("Bilgisayarın durumunu söyler. 'CPU kaç' denince kullanılır.") == "Bilgisayarın durumunu söyler.")
+_rows = state._araclar(types.SimpleNamespace(brain=_b))
+check("araç satırı: Türkçe ad + iç ad + kısa açıklama", all(r["label"] and r["name"] for r in _rows) and not any("denince" in r["desc"] for r in _rows))
+_ag = {r["name"]: r["detail"] for r in state._ajanlar(types.SimpleNamespace(brain=_b))}
+check("ajan açıklamasında 'yalnızca yerel' iki kez yazmaz, büyük harfle başlar",
+      _ag["Dosya Ajanı"].count("yalnızca yerel") == 1 and _ag["Bakım Ajanı"].count("yalnızca yerel") == 1 and _ag["Araştırma Ajanı"][0].isupper())
+_js = (_P(server.__file__).parent / "static" / "app.js").read_text(encoding="utf-8")
+check("menü: 'yakında' sayfaları yok, ad 'Yapay Zekâ Çekirdeği'", "Bilgi Tabanı" not in _js and "İş Akışları" not in _js and "AI Çekirdeği" not in _js and '"Yapay Zekâ Çekirdeği"' in _js)
+check("Türkçe sayı biçimi: yüzde önde, ondalık virgül", 'const pctTR = (v) => "%"' in _js and '+ "%")' not in _js)
+
 print("TÜMÜ TAMAM" if not bad else f"{bad} HATA")
 sys.exit(1 if bad else 0)

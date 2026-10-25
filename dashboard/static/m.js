@@ -250,9 +250,9 @@
     const alt = s.alt || {};
     $("#st-temp").textContent = alt.temp ? alt.temp : "—";
     const on = $("#st-online"); on.textContent = alt.online ? "internet var" : "internet yok"; on.className = "tag " + (alt.online ? "ok" : "bad");
-    if (sys.cpu != null) g.appendChild(gauge("İşlemci", sys.cpu + "%" + (sys.cpu_temp ? " · " + Math.round(sys.cpu_temp) + "°C" : ""), sys.cpu));
-    if (sys.ram) g.appendChild(gauge("Bellek", sys.ram.used + " / " + sys.ram.total + " GB", sys.ram.used / sys.ram.total * 100));
-    if (sys.gpu) g.appendChild(gauge("Ekran kartı", sys.gpu.util + "% · " + (sys.gpu.used / 1024).toFixed(1) + "/" + Math.round(sys.gpu.total / 1024) + " GB · " + sys.gpu.temp + "°C", sys.gpu.used / sys.gpu.total * 100));
+    if (sys.cpu != null) g.appendChild(gauge("İşlemci", "%" + Math.round(sys.cpu) + (sys.cpu_temp ? " · " + Math.round(sys.cpu_temp) + "°C" : ""), sys.cpu));
+    if (sys.ram) g.appendChild(gauge("Bellek", String(sys.ram.used).replace(".", ",") + " / " + String(sys.ram.total).replace(".", ",") + " GB", sys.ram.used / sys.ram.total * 100));
+    if (sys.gpu) g.appendChild(gauge("Ekran kartı", "%" + sys.gpu.util + " · " + (sys.gpu.used / 1024).toFixed(1).replace(".", ",") + "/" + Math.round(sys.gpu.total / 1024) + " GB · " + sys.gpu.temp + "°C", sys.gpu.used / sys.gpu.total * 100));
     if (sys.disk) g.appendChild(gauge("Disk", sys.disk.used + " / " + sys.disk.total + " GB", sys.disk.used / sys.disk.total * 100));
     $("#b-mute").setAttribute("aria-pressed", d.muted ? "true" : "false");
     $("#b-focus").setAttribute("aria-pressed", d.focus ? "true" : "false");
