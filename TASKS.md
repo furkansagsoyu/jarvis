@@ -10,12 +10,12 @@ Durum: `[ ]` bekliyor · `[~]` sürüyor · `[x]` bitti (tarih + commit kısaltm
 ## 1. Ajan serisi (team.py rolleri)
 - [x] **Denetçi ajanı** (55ad3a3)
 - [x] **Mimar ajanı** (352b96b)
-- [ ] **Sistem bakım ajanı:** `memguard`/`ram_report`/Ollama/log/disk sağlığı özeti ve öneriler; kendi başına değişiklik yapmaz, riskli adım onay kapılı. (Yapıldıysa işaretle.)
-- [ ] [YAZILIM] **Gerçek model denemesi:** `python check_all.py --model` ile Denetçi + Mimar (+ Sistem bakım) rollerini gerçek modelle dene; JSON protokolüne uymuyorsa düzelt. (Kendin çalıştır, kullanıcıdan test isteme.)
+- [x] **Sistem bakım ajanı** (cfd6130): `skills/maintenance.py`, "sistem bakımı yap"; kendi başına değişiklik yok, güvenli düzeltmeler onay kapılı.
+- [x] [YAZILIM] **Gerçek model denemesi** (51aee19, 07633a1): `--model` araç seçimi 102/102; ekip rolleri gerçek gemma4:e4b ile 9+ tur ölçüldü. Bulunan: code_run sarmalayıcısı bus'a ulaşamıyordu, yanlış parametre adı, JSON yazım hataları (geçersiz %20 → %1,1), tekrar/yeniden yazma döngüleri — hepsi düzeltildi. Bakım ajanı model kullanmaz (kural tabanlı). Bulut yolu denenmedi (anahtar geçici klasöre bağlanamadı).
 
 ## 2. Hafıza ve entegrasyon
-- [ ] **SQLite FTS5 hafıza** (yapıldıysa işaretle)
-- [x] **MCP istemcisi** (e7d947d): `mcp-server-time` ile çalıştı. Sunucu ayrı venv'de; kullanıcının `data/mcp.json`'una ekleme talimatını README'ye yaz.
+- [x] **SQLite FTS5 hafıza** (3b74312): `data/memory.db`, Türkçe arama + bm25; eski `memory.json` göçte `.bak` olarak kalır.
+- [x] **MCP istemcisi** (6cc4ecc, e7d947d): `mcp-server-time` ile çalıştı. Sunucu ayrı venv'de; `data/mcp.json` ekleme talimatı README "MCP araçları" bölümünde (kurulum komutu + hazır örnek).
 
 ## 3. YENİ — Güvenlik ve temizlik (Windows'tan ÖNCE; ölü kodu taşımayalım)
 - [ ] [YAZILIM] **Güvenlik taraması:** `test_security.py`'ye ek olarak elle gözden geçir: komut enjeksiyonu, yol kaçışı, sır sızıntısı (log'lar, hata mesajları, `git ls-files` ile takip edilen dosyalar), public repo riskleri, MCP istemcisi ve uzaktan (Telegram/telefon web) yüzeyi, onay kapısının atlanabileceği yollar. Bulguları şiddetine göre listele, açıkları düzelt, her biri için test ekle.
@@ -29,7 +29,7 @@ Maskot **"Çekirdek"** (kullanıcı seçti). Hazır varlıklar: `assets/cekirdek
 - [ ] [YAZILIM] **Maskot entegrasyonu:** SVG'yi **satır içi (inline)** göm (`<img>` içinde durum değişmez); kök `svg` öğesinin `data-state` değeri `idle | listening | thinking | speaking | alert | error` olur. Durum eşlemesi: bekleme → idle; wake word/mikrofon açık → listening; model/araç çalışıyor → thinking; TTS konuşuyor → speaking; onay bekleyen işlem/uyarı → alert; hata → error. Kaynak: `ui_state.py`/`status.json`. Pano ve (varsa) Qt ada/durum penceresinde göster; `prefers-reduced-motion` desteği SVG'de var, bozma. Mantığı test et (durum → data-state eşlemesi).
 - [ ] [HW] Maskotun pano ve adada akıcı/okunur olduğunu kullanıcı dener (boyut, animasyon hızı, CPU yükü).
 - [ ] [YAZILIM→HW] **Ayarlar sekmesinde "Ada" bölümü:** tema (mevcut temalar: cyan, amber, yeşil, mor, açık ile uyumlu; maskot rengi de temayı izlesin), **her zaman üstte** aç/kapa, **maskotu göster/gizle**, ada konumu (üst orta/sol/sağ), **boyut**, **adayı kapat** (sadece adayı kapatır, Jarvis'i değil; geri açmak için tepsi menüsünde seçenek). Değerler `settings.json`'da kalır, yeniden başlatınca korunur, testleri yaz. Ada görsel davranışı [HW].
-- [ ] **Qt "ada" yer paylaşımı** (yapılmadıysa): üst kenarda küçük bildirim/onay çubuğu; bekleyen `_confirm` için **Evet/Hayır** butonları, maskot + durum. coucou'dan yalnızca fikir al.
+- [x] **Qt "ada" yer paylaşımı** (d92f190, HW doğrulandı 54a84bd; otomatik başlatmada 7372d2a): Evet/Hayır + durum. Maskot henüz yok → yukarıdaki maskot entegrasyonu görevinde.
 
 ## 6. Platform ve özellik
 - [ ] [YAZILIM] **Windows taşıma (1. aşama):** `platform_compat.py`; ses (`pycaw`), fare/klavye (`pyautogui`), ekran (`mss`), `psutil` bellek; `kur.bat`/`install.ps1`; donanım algılayıp hafif profil; Windows'ta kod ajanı kapalı; README Windows bölümü. Linux'u bozma. **Bölüm 3-5 bittikten sonra başla.**
@@ -46,3 +46,4 @@ Maskot **"Çekirdek"** (kullanıcı seçti). Hazır varlıklar: `assets/cekirdek
 
 ## Bitenler
 - 55ad3a3 Denetçi ajanı · 352b96b Mimar ajanı · e7d947d MCP istemcisi (gerçek `mcp-server-time` ile çalıştı, JSON sonuçlar sesli cümleye çevriliyor)
+- 51aee19 / 07633a1 gerçek model düzeltmeleri · cfd6130 Sistem bakım ajanı · d92f190 Qt ada (+ 7372d2a otomatik başlatma) · 3b74312 FTS5 hafıza
