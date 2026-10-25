@@ -16,8 +16,10 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import os
 import sys
+import time
 import urllib.request
 from urllib.parse import parse_qs, urlparse
 
@@ -27,28 +29,66 @@ COLORS = {"starting": "#9aa0a6", "listening": "#34a853", "recording": "#00c853",
           "stopped": "#5f6368", "confirm": "#ff6d00"}
 MAX_Q = 160
 WIDE, NARROW = 580, 210
-MASCOT_PX = 30
+MASCOT_PX = 34
+FRAME_MS = 66            # maskot kare süresi (~15 kare/sn; küçük çizim, CPU yükü düşük)
+REDUCED = os.environ.get("JARVIS_REDUCED_MOTION") == "1"   # hareket azaltma: yalnızca durağan kare
 # Çekirdek maskotunun renkleri (assets/cekirdek.svg ile aynı): (çizgi, göz/ağız, gövde)
 MASCOT_COLORS = {"alert": ("#f59e0b", "#fcd34d", "#33240a"), "error": ("#f43f5e", "#fda4af", "#33111b")}
 MASCOT_DEFAULT = ("#22d3ee", "#67e8f9", "#0e2a35")
 
 
-def mascot_svg(state: str) -> bytes:
-    """Adada kullanılan DURAĞAN maskot: assets/cekirdek.svg'nin geometrisi, duruma göre renk ve yüz. Qt'nin SVG çizicisi
-    CSS animasyonu ve değişken desteklemediği için animasyonlu sürüm yalnızca panoda (tarayıcıda) kullanılır."""
+def _wave(t: float, period: float) -> float:
+    """0..1..0 arası yumuşak dalga (CSS ease-in-out 0%,100% -> 50% kare çiftine yakın)."""
+    return (1 - math.cos(2 * math.pi * (t % period) / period)) / 2
+
+
+def mascot_svg(state: str, t: float = 0.0, since: float = 0.0) -> bytes:
+    """Adadaki maskotun t anındaki karesi: assets/cekirdek.svg'nin geometrisi ve @keyframes'i (süreler/değerler aynı).
+    Qt'nin SVG çizicisi CSS animasyonu çalıştırmadığı için animasyon burada kare kare hesaplanır (run_qt ~15 kare/sn çizer).
+    t: saniye (saat); since: bu duruma geçilen an (hata titremesi yalnızca girişte). t=0 -> durağan ilk kare."""
     line, face, body = MASCOT_COLORS.get(state, MASCOT_DEFAULT)
-    parts = [f'<circle r="100" fill="{line}" fill-opacity="{.35 if state in ("speaking", "alert") else .18}"/>']
-    if state == "listening":
-        parts.append(f'<circle r="80" fill="none" stroke="{line}" stroke-width="5" stroke-opacity=".7"/>')
-    parts.append(f'<circle r="60" fill="{body}" stroke="{line}" stroke-width="7"/>')
-    parts.append(f'<circle r="44" fill="none" stroke="{line}" stroke-width="3" stroke-dasharray="6 8" opacity=".7"/>')
-    eye_h, eye_y = (13, -7) if state == "thinking" else (26, -14)
-    parts += [f'<rect x="{x}" y="{eye_y}" width="14" height="{eye_h}" rx="7" fill="{face}"/>' for x in (-28, 14)]
-    if state == "thinking":
-        parts += [f'<circle cx="{x}" cy="30" r="4" fill="{face}"/>' for x in (-12, 0, 12)]
+    # hale: nefes (4 sn; konuşurken 1,2 sn) ölçek .92-1.05, saydamlık .7-1; uyarıda yanıp sönme (1 sn) .5-1
+    if state == "alert":
+        hs, ho = 1.0, .5 + .5 * _wave(t, 1.0)
     else:
-        mouth = "M-14 34 Q0 22 14 34" if state == "error" else "M-16 24 Q0 42 16 24" if state == "speaking" else "M-14 26 Q0 36 14 26"
-        parts.append(f'<path d="{mouth}" fill="none" stroke="{face}" stroke-width="{7 if state == "speaking" else 5}" stroke-linecap="round"/>')
+        w = _wave(t, 1.2 if state == "speaking" else 4.0)
+        hs, ho = .92 + .13 * w, .7 + .3 * w
+    parts = [f'<circle r="100" fill="{line}" fill-opacity="{.32 * ho:.3f}" transform="scale({hs:.3f})"/>']
+    if state == "listening":   # dinleme dalgaları: 1,6 sn, ölçek .6->1,7, saydamlık .8->0, ikinci dalga .8 sn geride
+        for off in (0.0, 0.8):
+            k = ((t - off) % 1.6) / 1.6
+            parts.append(f'<circle r="62" fill="none" stroke="{line}" stroke-width="4" stroke-opacity="{.8 * (1 - k):.3f}" '
+                         f'transform="scale({.6 + 1.1 * k:.3f})"/>')
+    dx = 5 * math.sin(2 * math.pi * (t - since) / .4) if state == "error" and 0 <= t - since < .8 else 0.0   # titreme .4 sn x2
+    parts.append(f'<g transform="translate({dx:.2f} 0)">')
+    parts.append(f'<circle r="60" fill="{body}" stroke="{line}" stroke-width="7"/>')
+    spin = {"thinking": 2.5, "alert": 6.0}.get(state, 24.0)
+    ang = 0.0 if state == "error" else (t % spin) / spin * 360
+    dash = "2 14" if state == "error" else "6 8"
+    parts.append(f'<circle r="44" fill="none" stroke="{line}" stroke-width="3" stroke-dasharray="{dash}" '
+                 f'opacity="{1 if state == "thinking" else .7}" transform="rotate({ang:.1f})"/>')
+    if state == "thinking":
+        eye_sy = .5
+    elif state == "listening":
+        eye_sy = 1.15
+    else:   # göz kırpma: 5 sn döngünün %92-100'ünde, %95'te en kapalı (.1)
+        k = (t % 5.0) / 5.0
+        eye_sy = 1.0 if k < .92 else 1 - .9 * (1 - abs(k - .95) / .03) if abs(k - .95) < .03 else 1.0
+    for x in (-28, 14):
+        cy = -1   # göz merkezi (y=-14, yükseklik 26)
+        parts.append(f'<rect x="{x}" y="-14" width="14" height="26" rx="7" fill="{face}" '
+                     f'transform="translate(0 {cy}) scale(1 {eye_sy:.3f}) translate(0 {-cy})"/>')
+    if state == "thinking":   # üç nokta: 1,2 sn, %40'ta tam görünür, .2 sn arayla
+        for i, x in enumerate((-12, 0, 12)):
+            k = ((t - .2 * i) % 1.2) / 1.2
+            op = .2 + .8 * max(0.0, 1 - abs(k - .4) / .4) if k <= .8 else .2
+            parts.append(f'<circle cx="{x}" cy="30" r="4" fill="{face}" fill-opacity="{op:.3f}"/>')
+    else:
+        mouth = "M-14 34 Q0 22 14 34" if state == "error" else "M-14 26 Q0 36 14 26"
+        sy = .3 + 1.3 * _wave(t, .35) if state == "speaking" else 1.0   # konuşma: .35 sn, dikey .3-1,6 (y=28 çevresinde)
+        parts.append(f'<path d="{mouth}" fill="none" stroke="{face}" stroke-width="{7 if state == "speaking" else 5}" '
+                     f'stroke-linecap="round" transform="translate(0 28) scale(1 {sy:.3f}) translate(0 -28)"/>')
+    parts.append("</g>")
     return ('<svg xmlns="http://www.w3.org/2000/svg" viewBox="-110 -110 220 220">' + "".join(parts) + "</svg>").encode("utf-8")
 
 
@@ -185,8 +225,8 @@ def run_qt(client: Client, parent: int | None) -> int:
         cur["last"], cur["qid"] = v, v["qid"]
         dot.setStyleSheet(f"color:{v['color']};font-size:15px;")
         if face is not None and v.get("mascot") != cur.get("mascot"):
-            cur["mascot"] = v.get("mascot")
-            face.load(mascot_svg(v.get("mascot", "idle")))
+            cur["mascot"], cur["since"] = v.get("mascot"), time.monotonic()
+            face.load(mascot_svg(cur["mascot"] or "idle", cur["since"], cur["since"]))
         title.setText(v["title"])
         title.setVisible(bool(v["title"]))
         body.setText(v["text"])
@@ -225,10 +265,19 @@ def run_qt(client: Client, parent: int | None) -> int:
     timer = QtCore.QTimer()
     timer.timeout.connect(tick)
     timer.start(POLL_MS)
+
+    def frame():  # maskot animasyonu: durum yoklamasından bağımsız, ~15 kare/sn
+        if face is not None and cur.get("mascot") and win.isVisible():
+            face.load(mascot_svg(cur["mascot"], time.monotonic(), cur.get("since", 0.0)))
+
+    anim = QtCore.QTimer()
+    anim.timeout.connect(frame)
+    if face is not None and not REDUCED:
+        anim.start(FRAME_MS)
     render(view(client.snapshot()))
     win.show()
     (app.exec if hasattr(app, "exec") else app.exec_)()
-    del timer
+    del timer, anim
     return 0
 
 

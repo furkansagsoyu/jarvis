@@ -97,9 +97,40 @@ for s in STATES:
         ok = False
 check("adadaki durağan maskot her durumda geçerli SVG; alert/error kendi rengiyle",
       ok and b"#f59e0b" in island.mascot_svg("alert") and b"#f43f5e" in island.mascot_svg("error") and b"#22d3ee" in island.mascot_svg("idle"))
+# ada animasyonu: kareler zamanla değişir, değerler cekirdek.svg @keyframes ile aynı
+F = island.mascot_svg
+frames = {st: {F(st, t / 15) for t in range(0, 75)} for st in STATES}   # 5 sn, 15 kare/sn
+check("adada her durum hareketli (5 sn'de birden çok farklı kare)", all(len(v) > 3 for v in frames.values()), str({k: len(v) for k, v in frames.items()}))
+
+
+def num(svg: bytes, pat: str) -> list[float]:
+    return [float(x) for x in re.findall(pat, svg.decode())]
+
+
+eyes = lambda t: num(F("idle", t), r'<rect[^>]*scale\(1 ([\d.]+)\)')  # noqa: E731
+check("göz kırpma: 5 sn döngünün %95'inde kapalı (.1), başka anda açık (1)", eyes(4.75) == [0.1, 0.1] and eyes(1.0) == [1.0, 1.0])
+check("dinlerken gözler büyük (1,15), dalga ölçeği .6->1,7", eyes(0) and num(F("listening", 0.0), r'<rect[^>]*scale\(1 ([\d.]+)\)') == [1.15, 1.15]
+      and num(F("listening", 0.0), r'stroke-width="4"[^>]*scale\(([\d.]+)\)')[0] == 0.6 and num(F("listening", 1.59), r'stroke-width="4"[^>]*scale\(([\d.]+)\)')[0] > 1.65)
+mouth = [num(F("speaking", t / 100), r'<path[^>]*scale\(1 ([\d.]+)\)')[0] for t in range(0, 35)]
+check("konuşma: ağız .35 sn'de .3 -> 1,6 -> .3", min(mouth) == 0.3 and max(mouth) > 1.55)
+check("düşünürken halka hızlı döner (2,5 sn), boştayken yavaş (24 sn)",
+      num(F("thinking", 1.25), r'rotate\(([\d.]+)\)')[0] == 180.0 and num(F("idle", 12.0), r'rotate\(([\d.]+)\)')[0] == 180.0)
+shake = lambda t: num(F("error", t, 0.0), r'<g transform="translate\((-?[\d.]+) 0\)')[0]  # noqa: E731
+check("hata: yalnızca girişte .8 sn titrer, sonra durur", abs(shake(0.1)) > 4 and shake(2.0) == 0.0)
+ok = True
+for st in STATES:
+    for t in range(0, 30):
+        try:
+            ET.fromstring(F(st, t / 7, 0.0))
+        except ET.ParseError:
+            ok = False
+check("tüm animasyon kareleri geçerli SVG", ok)
+check("hareket azaltma: JARVIS_REDUCED_MOTION=1 iken kare zamanlayıcısı başlamaz",
+      "if face is not None and not REDUCED:" in (HERE / "island.py").read_text(encoding="utf-8") and 'JARVIS_REDUCED_MOTION' in (HERE / "island.py").read_text(encoding="utf-8"))
+
 try:
     from qtpy.QtSvg import QSvgRenderer
-    check("Qt SVG çizicisi durağan maskotu yükler", all(QSvgRenderer(island.mascot_svg(s)).isValid() for s in STATES))
+    check("Qt SVG çizicisi maskot karelerini yükler", all(QSvgRenderer(island.mascot_svg(s, t / 3, 0.0)).isValid() for s in STATES for t in range(9)))
 except Exception:  # noqa: BLE001
     print("ATLA QtSvg yok")
 
