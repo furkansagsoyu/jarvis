@@ -218,6 +218,32 @@ check("JSON ayrıştırma: ham satır sonu, sondaki açıklama, fazla virgül",
 check("speakable: dosya adındaki alt çizgi kalır, vurgu işaretleri gider",
       T.speakable("Çalıştır: `pytest tests/test_main.py` ve __kalın__ _eğik_ **yıldız**") == "Çalıştır: pytest tests/test_main.py ve kalın eğik yıldız.")
 raw_re = r'{"tool": "code_write", "args": {"path": "m.py", "content": "x = re.compile(r\"\d+\\s\")\nprint(1)"}}'
+# gerçek yerel model (gemma4:e4b) cevaplarından ölçülen bozuk JSON kalıpları (2026-10-25, done_reason=stop: kesilme DEĞİL)
+P = T.parse_json
+check("onarım: değer sınırlayıcısı kaçışlı (\\\"...\\\")",
+      P('{"tool": "code_run", "args": {"command": "python main.py", "stdin": \\"add Alışveriş yap\\nlist\\nquit\\n\\"}}')
+      == {"tool": "code_run", "args": {"command": "python main.py", "stdin": "add Alışveriş yap\nlist\nquit\n"}})
+check("onarım: fazladan kapanış köşeli parantezi (\"]]}})",
+      P('{"final": {"gecti": false, "bulgular": ["todo_manager.py: ID artışı garanti değil."]]}}') == {"final": {"gecti": False, "bulgular": ["todo_manager.py: ID artışı garanti değil."]}})
+check("onarım: dizge içinde kaçışsız tırnak",
+      P('{"final": {"gecti": false, "bulgular": ["test çıktısı ile gelen "Hata: ID 99 bulunamadı." mesajı, beklenmedik."]}}')
+      == {"final": {"gecti": False, "bulgular": ['test çıktısı ile gelen "Hata: ID 99 bulunamadı." mesajı, beklenmedik.']}})
+check("onarım: koddaki kaçışsız tırnak ve virgül dizgeyi kapatmaz",
+      P('{"tool": "code_write", "args": {"path": "a.py", "content": "print("a", b)\\n"}}') == {"tool": "code_write", "args": {"path": "a.py", "content": 'print("a", b)\n'}})
+check("onarım: kesilmiş cevap kapatılır", P('{"final": {"gecti": false, "bulgular": ["eksik test') == {"final": {"gecti": False, "bulgular": ["eksik test"]}})
+check("onarım: kapanış tırnağı da kaçışlı + ardından ikinci nesne -> ilk nesne alınır",
+      P('{"tool": "code_write", "args": {"path": "a.py", "content": "print(\\"x\\")\\n\\"}}\n{"tool": "code_run", "args": {"command": "python a.py"}}')
+      == {"tool": "code_write", "args": {"path": "a.py", "content": 'print("x")\n'}})
+check("onarım: nesneden sonra başıboş karakterler ('\"})}', '\"}\")}')",
+      P('{"tool": "code_write", "args": {"path": "a.py", "content": "x = 1\\n"})}') == {"tool": "code_write", "args": {"path": "a.py", "content": "x = 1\n"}}
+      and P('{"tool": "code_write", "args": {"path": "a.py", "content": "x = 1\\n"}")}') == {"tool": "code_write", "args": {"path": "a.py", "content": "x = 1\n"}})
+check("onarım: '\"})' ile biten nesneden sonra ikinci çağrı -> ilk nesne kapatılır",
+      P('{"tool": "code_write", "args": {"path": "a.py", "content": "main()"})\n{"tool": "code_run", "args": {"command": "python a.py"}}')
+      == {"tool": "code_write", "args": {"path": "a.py", "content": "main()"}})
+check("onarım: son '}' unutulmuşsa eklenir", P('{"tool": "code_write", "args": {"path": "a.py", "content": "x = 1\\n"}') == {"tool": "code_write", "args": {"path": "a.py", "content": "x = 1\n"}})
+check("dizge ortasında kesilmiş code_write REDDEDİLİR (yarım dosya yazılmaz; done=length)",
+      P('{"tool": "code_write", "args": {"path": "t.py", "content": "import unittest\\n\\t\\t\\t\\t') is None)
+check("onarım: geçerli JSON'a dokunulmaz (iç tırnak kaçışlı kalır)", P('{"final": "a \\"b\\" c", "x": [1, {"y": "}"}]}') == {"final": 'a "b" c', "x": [1, {"y": "}"}]})
 check("JSON ayrıştırma: koddaki geçersiz kaçış (\\d) onarılır, geçerli \\\\s ve \\n bozulmaz",
       T.parse_json(raw_re) == {"tool": "code_write", "args": {"path": "m.py", "content": 'x = re.compile(r"\\d+\\s")\nprint(1)'}})
 
@@ -365,6 +391,22 @@ check("araç kılavuzunda gerçek parametre adları yazar", "code_write: " in re
 check("takma ad, şemadaki gerçek adı ezmez", T.Team._fit_args({"path": "a.py", "file": "b.py", "content": "x"}, {"properties": {"path": {}, "content": {}}, "required": ["path"]})
       == ({"path": "a.py", "content": "x"}, []))
 
+b, plan, out = kod_run("tekrar denemesi yaz", [
+    J({"tool": "code_write", "args": {"path": "main.py", "content": "print(1)\n"}}),
+    J({"tool": "code_read", "args": {"path": "main.py"}}), J({"tool": "code_read", "args": {"path": "main.py"}}),
+    J({"tool": "code_write", "args": {"path": "main.py", "content": "print(2)\n"}}),
+    J({"tool": "code_read", "args": {"path": "main.py"}}), J({"final": "tamam"})])
+reqs = [json.dumps(c["messages"], ensure_ascii=False) for c in cloud_log if "Kod Ajanısın" in c["messages"][0]["content"]]
+check("aynı çağrı tekrarlanmaz (ajana söylenir); code_write'tan sonra yeniden okumak serbest",
+      "code_read çağrısını aynı argümanlarla zaten yaptın" in reqs[3] and reqs[-1].count("aynı argümanlarla zaten yaptın") == 1 and "print(2)" in reqs[-1])
+
+b, plan, out = kod_run("yeniden yazma denemesi", [J({"tool": "code_write", "args": {"path": "main.py", "content": f"print({i})\n"}}) for i in range(4)]
+                       + [J({"tool": "code_run", "args": {"command": "python main.py"}}), J({"tool": "code_write", "args": {"path": "main.py", "content": "print(9)\n"}}),
+                          J({"final": "tamam"})])
+reqs = [json.dumps(c["messages"], ensure_ascii=False) for c in cloud_log if "Kod Ajanısın" in c["messages"][0]["content"]]
+check("aynı dosya çalıştırılmadan 2'den fazla yazılmaz; code_run'dan sonra yine yazılabilir",
+      "çalıştırmadan 2 kez yazdın" in reqs[3] and (Path(WS) / "yeniden-yazma-denemesi" / "main.py").read_text() == "print(9)\n")
+
 # ---------------------------------------------------------------- Denetçi
 V = T.review_verdict
 check("hüküm: bulgu yok + çalıştırdı -> geçti", V({"gecti": True, "bulgular": []}, True)[0] == "geçti")
@@ -374,6 +416,8 @@ check("hüküm: bulgu varsa 'geçti' dese de kaldı, bulgular numaralı okunur",
 check("hüküm: düz metin 'GEÇTİ' / 'KALDI: ...' anlaşılır, belirsiz metin doğrulanamadı",
       V("GEÇTİ", True)[0] == "geçti" and V("KALDI: toplama yanlış", False)[0] == "kaldı" and "toplama yanlış" in V("kaldı - toplama yanlış", True)[1]
       and V("bilmiyorum", True)[0] == "doğrulanamadı")
+check("hüküm: mimar planındaki eksik dosya kendiliğinden bulgu (denetçi geçti dese de kaldı)",
+      V({"gecti": True, "bulgular": []}, True, ["tests/test_b.py"]) == ("kaldı", "Denetim kaldı. Düzeltilmesi gerekenler: 1) tests/test_b.py: mimarın planında var ama yazılmamış."))
 check("hüküm: en fazla 5 bulgu", V({"gecti": False, "bulgular": [f"b{i}" for i in range(9)]}, True)[1].count(")") == T.MAX_FINDINGS)
 
 b, plan, out = kod_run("çarpım programı yaz", [
@@ -421,6 +465,18 @@ say(b, "kod: bozuk deneme yaz")
 out = say(b, "başla")
 check("kod ajanı başarısızsa denetçi modele hiç sorulmaz", not any("Denetçisin" in c["messages"][0]["content"] for c in cloud_log) and b.team.state == "idle")
 
+for last, want in ((J({"final": {"gecti": False, "bulgular": ["main.py: SyntaxError"]}}), ("done", "kaldı")),
+                   (J({"tool": "code_list", "args": {}}), ("failed", "doğrulanamadı"))):
+    b = fresh()
+    cfg["kod_script"] = [J({"tool": "code_write", "args": {"path": "main.py", "content": "print(1)\n"}}), J({"final": "yazdım"})]
+    cfg["review_script"] = [J({"tool": "code_run", "args": {"command": f"python main.py {i}"}}) for i in range(T.ROLES["denetci"].max_rounds)] + [last]
+    say(b, "kod: sınır denemesi yaz")
+    say(b, "başla")
+    log = json.loads(_store.path("team_runs.jsonl").read_text().splitlines()[-1])
+    dreq = json.dumps([c["messages"] for c in cloud_log if "Denetçisin" in c["messages"][0]["content"]][-1], ensure_ascii=False)
+    check(f"denetçi tur sınırında son kez yalnızca hüküm istenir -> {want[0]}/{want[1]}",
+          "Araç hakkın bitti" in dreq and log["tasks"][1]["status"] == want[0] and log["tasks"][1].get("verdict", "") == want[1], str(log["tasks"][1]))
+
 check("planlayıcı: kodsuz plandaki denetçi atılır, kodlu planda kod görevine bağlanır",
       [t.role for t in T.Team.validate_plan({"tasks": [{"id": "a", "role": "denetci", "do": "denetle"}, {"id": "y", "role": "yazar", "do": "söyle"}]}, ["arastirma", "kod", "denetci", "yazar"])] == []
       and [(t.role, t.after) for t in T.Team.validate_plan({"tasks": [{"id": "k", "role": "kod", "do": "yaz"}, {"id": "d", "role": "denetci", "do": "denetle"},
@@ -459,6 +515,18 @@ check("tek 'evet' ile parçalar sırayla aynı proje klasöründe yazılır", (p
 check("her kod ajanı mimarın tasarımını ve arayüzleri görür", kreqs and all("Mimarın tasarımı" in r and "def ekle(ad, tutar)" in r for r in kreqs))
 check("ikinci parça birinci parçanın sonucunu görür", any("depo.py yazıldı" in r and "main.py yaz:" in r for r in kreqs))
 check("sonda denetçi ve yazar çalışır", any("Denetçisin" in c["messages"][0]["content"] for c in cloud_log) and "Sonuç hazır" in out)
+
+b = fresh()
+cfg["arch"] = ARCH
+cfg["kod_script"] = [J({"tool": "code_write", "args": {"path": "depo.py", "content": "V = []\n"}}), J({"final": "depo.py yazıldı"}),
+                     J({"tool": "code_write", "args": {"path": "main.py", "content": "print(1)\n"}}), J({"tool": "code_run", "args": {"command": "python main.py"}}), J({"final": "bitti"})]
+cfg["review_script"] = [J({"tool": "code_run", "args": {"command": "python main.py"}}), J({"final": {"gecti": True, "bulgular": []}})]
+say(b, "proje: harcama takipçisi yaz")
+say(b, "evet")
+log = json.loads(_store.path("team_runs.jsonl").read_text().splitlines()[-1])
+w = json.dumps([c["messages"] for c in cloud_log if "Yazar ajansın" in c["messages"][0]["content"]], ensure_ascii=False)
+check("proje: tests/test_depo.py yazılmadı -> denetçi 'geçti' dese de hüküm kaldı, yazara eksik dosya gider",
+      log["tasks"][2].get("verdict") == "kaldı" and "tests/test_depo.py: mimarın planında var ama yazılmamış" in w, str(log["tasks"]))
 
 b = fresh()
 cfg["arch"] = None

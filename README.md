@@ -47,6 +47,7 @@ python router_check.py            # anahtar ve gizlilik kapısı denemesi
 - Yalnızca `python`, `python3`, `pytest`, `node` çalıştırılabilir (kabuk yok). Kutuyu denemek için: `python code_check.py`.
 - **Büyük istekler için Mimar:** "**proje: harcamalarımı takip eden komut satırı uygulaması yaz**" dersin. Mimar isteği kod ajanının sınırlarına uyan en fazla 4 parçaya böler (parça başı en fazla 2 dosya, dosya başı ≈120 satır, dosya arayüzleriyle); plan sesli okunur, tek "evet" ile parçalar sırayla aynı proje klasöründe yazılır, her kod ajanı mimarın tasarımını görür; sonda Denetçi tüm projeyi çalıştırır. Mimarın verdiği yollar kodda doğrulanır (kaçış/mutlak yol atılır, aynı dosya iki parçaya verilmez).
 - Denetçi dosya yazamaz (yalnızca `code_list/code_read/code_run`). Hükmü kod belirler: bulgu varsa "geçti" sayılmaz, programı kendisi hiç çalıştırmadıysa "geçti" kabul edilmez (doğrulanamadı). İstemezsen: "**kod: denetimsiz, …**". Hüküm `data/team_runs.jsonl` özetine de yazılır.
+- Yerel modelin bozuk JSON'u (kaçışsız tırnak, eksik/fazla parantez, tek cevapta birden çok çağrı) kodda onarılır; dizge ortasında kesilmiş bir `code_write` yarım dosya yazmasın diye reddedilir. Aynı araç çağrısı tekrarlanmaz, bir dosya çalıştırılmadan en fazla 2 kez yazılır.
 - Ücretsiz bulutun küçük girdi sınırı nedeniyle uzun döngülerde eski adımlar kısa özete çevrilir; ajan dosyanın güncel halini `code_read` ile görür.
 
 ## Telefon araması (Android, ADB)

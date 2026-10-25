@@ -42,6 +42,7 @@ MAX_FAILS = 3
 MAX_WAIT = 75      # bulut limiti dolduysa en fazla bu kadar sn beklenir (yalnızca 'patient' roller)
 MAX_WAITS = 4      # bir görevde en fazla bu kadar bekleme
 PLAN_TTL = 120
+MAX_REWRITES = 2   # bir dosya code_run olmadan en fazla bu kadar yazılır
 MAX_FINDINGS = 5   # denetçinin bildirebileceği en fazla bulgu (sesli okunur)
 NO_REVIEW = re.compile(r"\s*\bdenet(?:çi|im)siz\b\s*,?", re.I)
 OBS_MAX = 2000
@@ -143,6 +144,9 @@ class Task:
     seed_n: int = 0              # messages içindeki başlangıç (tohum) mesaj sayısı; sonrası adım günlüğü
     ran: bool = False            # bu görevde code_run gerçekten bir program çalıştırdı (denetçi hükmü için)
     verdict: str = ""            # denetçi: geçti | kaldı | doğrulanamadı
+    last_call: bool = False      # denetçi tur sınırında: son bir kez yalnızca hüküm istendi
+    seen: set[str] = field(default_factory=set)
+    writes: dict[str, int] = field(default_factory=dict)  # son code_run'dan beri dosya başına code_write sayısı   # son code_write'tan beri yapılan çağrılar (aynısı tekrarlanmaz)
 
 
 def _feed(level: str, text: str) -> None:
@@ -175,9 +179,10 @@ _FENCE = re.compile(r"```(?:json)?|```", re.I)
 _VERDICT = re.compile(r"^\W*(?P<v>ge[çc]t[iİIı]|kal[dD][ıIiİ])\b\W*(?P<rest>.*)$", re.I | re.S)
 
 
-def review_verdict(final, ran: bool) -> tuple[str, str]:
+def review_verdict(final, ran: bool, missing: list[str] | tuple = ()) -> tuple[str, str]:
     """Denetçinin final'ini normalleştirir -> (hüküm, sesli metin). Hüküm: geçti | kaldı | doğrulanamadı.
-    Kural kodda: bulgu varsa 'geçti' sayılmaz; denetçi programı hiç çalıştırmadıysa 'geçti' diyemez."""
+    Kural kodda: bulgu varsa 'geçti' sayılmaz; denetçi programı hiç çalıştırmadıysa 'geçti' diyemez; mimarın planında olup
+    yazılmamış dosya (missing) kendiliğinden bulgudur (ölçüldü: bir parça düştü, denetçi yine 'geçti' dedi)."""
     passed, found = None, []
     if isinstance(final, dict):
         v = next((final[k] for k in ("gecti", "geçti", "passed") if k in final), None)
@@ -193,7 +198,8 @@ def review_verdict(final, ran: bool) -> tuple[str, str]:
             passed = m.group("v")[0].lower() == "g"
             if not passed and m.group("rest").strip():
                 found = [m.group("rest")]
-    found = [" ".join(str(f).split())[:200] for f in found if str(f).strip()][:MAX_FINDINGS]
+    found = [f"{m}: mimarın planında var ama yazılmamış" for m in missing] + [" ".join(str(f).split())[:200] for f in found if str(f).strip()]
+    found = found[:MAX_FINDINGS]
     if found:
         passed = False
     if passed is None:
@@ -252,9 +258,100 @@ def _fix_escapes(text: str) -> str:
     return _BAD_ESC.sub(lambda m: m.group(0) if m.group(1) is not None else "\\\\" + m.group(2), text)
 
 
+_CLOSERS = {"}": "{", "]": "["}
+_BARE = set(" \t\r\n{}[]:,-+.0123456789eEtrufalsn")   # dizge dışında JSON'da geçerli karakterler (true/false/null harfleri dahil)
+
+
+def _repair(text: str, loose: bool = False) -> tuple[str, bool]:
+    """Son çare JSON onarımı; (onarılmış metin, kesik_mi). Yerel modelde (gemma4:e4b, 2026-10-25) ölçülen hatalar:
+    1) dizge içinde kaçışsız tırnak: '["... "Hata: ID 99" mesajı ..."]' -> iç tırnaklar kaçışlanır. Bir '"' dizgeyi yalnızca
+       ardından (boşluktan sonra) ':' '}' ']' ya da ',' + '"'/'{'/'[' geliyorsa kapatır; print("a", b) içindeki tırnak kapatmaz.
+    2) değer sınırlayıcısı kaçışlı: '"stdin": \\"a\\nb\\"}' -> '"stdin": "a\\nb"}'. loose=True ise normal açılmış dizgenin
+       kaçışlı kapanışı da ('...\\n\\"}}') kapanış sayılır (koddaki '\\"}' ile karışabileceği için yalnızca ayrı bir adayda).
+    3) parantez dengesizliği (değerden sonra virgülsüz gelen yeni '{' ilk nesneyi bitirir): eşleşmeyen kapatıcı atılır ('"]]}}'); dizge dışındaki başıboş karakterler ('"})}', '"}")}') atılır.
+    4) eksik kapatıcılar sona eklenir (model son '}'yi unutabiliyor, done=stop). Cevap bir dizgenin ORTASINDA bittiyse (gerçek
+       kesilme: done=length) tırnak da eklenir ve kesik_mi=True döner; çağıran karar verir."""
+    out: list[str] = []
+    stack: list[str] = []
+    in_str = esc_open = False
+    i, n = 0, len(text)
+
+    def closes(j: int) -> bool:
+        while j < n and text[j] in " \t\r\n":
+            j += 1
+        if j >= n or text[j] in ":}]":
+            return True
+        if text[j] == ",":
+            j += 1
+            while j < n and text[j] in " \t\r\n":
+                j += 1
+            return j >= n or text[j] in '"{[' or text[j:j + 2] == '\\"'
+        return False
+
+    def last() -> str:
+        for c in reversed(out):
+            if c not in " \t\r\n":
+                return c[-1]
+        return ""
+
+    while i < n:
+        ch = text[i]
+        if in_str:
+            if ch == "\\" and i + 1 < n:
+                if text[i + 1] == '"' and (esc_open and closes(i + 2) or loose and text[i + 2:].lstrip()[:1] in ("}", "]")):  # kaçışlı kapanış
+                    out.append('"')
+                    in_str = esc_open = False
+                    i += 2
+                    continue
+                out.append(text[i:i + 2])
+                i += 2
+                continue
+            if ch == '"':
+                if closes(i + 1):
+                    out.append('"')
+                    in_str = esc_open = False
+                else:
+                    out.append('\\"')
+                i += 1
+                continue
+            out.append(ch)
+            i += 1
+            continue
+        if ch == "\\" and text[i + 1:i + 2] == '"':     # dizge dışında \" : kaçışlı sınırlayıcı
+            out.append('"')
+            in_str = esc_open = True
+            i += 2
+            continue
+        if ch == '"':
+            if last() in '}]"':                            # değer bittikten sonra gelen tırnak: başıboş
+                i += 1
+                continue
+            in_str = True
+        elif ch in "{[":
+            if stack and last() in '}]"':                  # değerden sonra virgülsüz yeni nesne: ilk nesne bitmiş, kapatılır
+                break                                      # ('main()"})\n{"tool": ...': bir '}' unutulmuş, ikinci çağrı başlıyor)
+            stack.append(ch)
+        elif ch in "}]":
+            if not stack or stack[-1] != _CLOSERS[ch]:
+                i += 1                                     # eşleşmeyen kapatıcı atılır
+                continue
+            stack.pop()
+        elif ch not in _BARE:                              # başıboş karakter ( ')' gibi )
+            i += 1
+            continue
+        out.append(ch)
+        i += 1
+    cut = in_str
+    if in_str:
+        out.append('"')
+    out.extend("}" if c == "{" else "]" for c in reversed(stack))
+    return "".join(out), cut
+
+
 def parse_json(raw: str) -> dict | None:
     """Modelin cevabından ilk JSON nesnesini çıkarır. Hoşgörülü: dizge içinde ham satır sonu/sekme, nesneden sonra gelen
-    açıklama ve sondaki fazla virgül kabul edilir. Dizi ya da düz metin için None."""
+    açıklama ya da ikinci nesne, sondaki fazla virgül ve _repair'in onardığı hatalar kabul edilir. Dizge ortasında kesilmiş bir
+    cevap yalnızca 'final' ise onarılır: kesik bir code_write yarım dosya yazardı. Dizi ya da düz metin için None."""
     raw = _FENCE.sub("", _THINK.sub("", raw or "")).strip()
     a = raw.find("{")
     if a < 0:
@@ -263,17 +360,19 @@ def parse_json(raw: str) -> dict | None:
     try:
         d, _ = dec.raw_decode(raw, a)       # nesneden sonra metin olabilir ("... } Umarım yardımcı olur")
     except ValueError:
-        b = raw.rfind("}")
-        if b <= a:
-            return None
-        body = raw[a:b + 1]
+        text = raw[a:]
+        cands = [(text, False), (_fix_escapes(text), False)]
+        for base in (text, _fix_escapes(text)):
+            cands += [_repair(base), _repair(base, loose=True)]
         d = None
-        for cand in (body, _fix_escapes(body)):   # önce olduğu gibi, sonra geçersiz kaçışlar onarılmış
+        for cand, cut in cands:
             try:
-                d = json.loads(re.sub(r",\s*([}\]])", r"\1", cand), strict=False)  # sondaki fazla virgül
-                break
+                got, _ = dec.raw_decode(re.sub(r",\s*([}\]])", r"\1", cand))  # sondaki fazla virgül
             except ValueError:
                 continue
+            if isinstance(got, dict) and (not cut or "final" in got):
+                d = got
+                break
         if d is None:
             return None
     return d if isinstance(d, dict) else None
@@ -300,6 +399,7 @@ class Team:
         self.plan_expires = 0.0
         self.t0 = 0.0
         self.summary = ""
+        self.design_files: list[str] = []   # Mimar'ın planındaki dosyalar (denetçi hükmünde kodla denetlenir)
         self.design = ""              # Mimar'ın tasarımı (proje kipi): kod ajanlarına ve denetçiye veri olarak gider
         self.max_calls = MAX_CALLS
         self.project = None           # Kod Ajanı'nın bu görevdeki proje klasörü (workspace/<ad>)
@@ -426,6 +526,7 @@ class Team:
         summary, parts = arch
         lines = [f"Özet: {summary}"] + [f"- {', '.join(p['dosyalar'])}: {p['is']}" + (f" | arayüz: {p['arayuz']}" if p["arayuz"] else "") for p in parts]
         self.design, self.summary, self.max_calls = "\n".join(lines)[:DESIGN_MAX], summary, MAX_CALLS_PROJECT
+        self.design_files = [f for p in parts for f in p["dosyalar"]]
         tasks = [Task(f"t{i}", "kod", f"{', '.join(p['dosyalar'])} yaz: {p['is']}", [f"t{i - 1}"] if i > 1 else []) for i, p in enumerate(parts, 1)]
         kod_ids = [t.id for t in tasks]
         if review:
@@ -573,6 +674,8 @@ class Team:
 
     def _finish_task(self, t: Task, status: str, result: str) -> None:
         t.status, t.result = status, (result or "").strip()[:RESULT_MAX]
+        if t.role == "denetci" and status == "failed" and not t.verdict:
+            t.verdict = "doğrulanamadı"   # tur sınırı / model hatası: hüküm yok
         print(f"[ekip] {t.id} {ROLES[t.role].title}: {status} ({t.model}) -> {t.result[:120]}", flush=True)
         _feed("BİLGİ" if status == "done" else "UYARI", f"Ekip: {ROLES[t.role].title} {'bitirdi' if status == 'done' else 'tamamlayamadı'}")
 
@@ -609,6 +712,12 @@ class Team:
                     self._finish_task(t, "done" if text else "failed", text)
                     break
                 if t.rounds >= role.max_rounds or self.calls >= self.max_calls:
+                    if t.role == "denetci" and not t.last_call and self.calls < self.max_calls:
+                        t.last_call = True   # ölçüldü: denetçi hatayı bulup araç çağırmayı sürdürüyor, hükümsüz düşüyordu
+                        t.rounds -= 1        # yalnızca hüküm için tek ek tur
+                        t.messages.append({"role": "user", "content": "Araç hakkın bitti. Şimdi YALNIZCA hükmünü yaz: "
+                                           '{"final": {"gecti": true ya da false, "bulgular": [...]}}. Gördüğün hataları bulgulara yaz.'})
+                        continue
                     self._finish_task(t, "failed", "(süre/araç sınırına ulaşıldı) " + next((m["content"][:300] for m in reversed(t.messages) if m["content"].startswith("Araç sonucu")), ""))
                     break
                 t.rounds += 1
@@ -629,8 +738,12 @@ class Team:
                     continue
                 t.bad_json = 0  # sayaç ARDIŞIK geçersiz yanıtları sayar
                 t.messages.append({"role": "assistant", "content": json.dumps(d, ensure_ascii=False)[:600], "public": not t.private, "private": t.private})
+                if t.last_call and "final" not in d:
+                    self._finish_task(t, "failed", "(denetçi araç hakkı bittiği halde hüküm vermedi)")
+                    break
                 if "final" in d and t.role == "denetci":
-                    t.verdict, text = review_verdict(d["final"], t.ran)
+                    missing = [f for f in self.design_files if self.project is not None and not (self.project / f).is_file()]
+                    t.verdict, text = review_verdict(d["final"], t.ran, missing)
                     self._finish_task(t, "failed" if t.verdict == "doğrulanamadı" else "done", text)
                     break
                 if "final" in d:
@@ -657,6 +770,21 @@ class Team:
                     t.messages.append({"role": "user", "content": f"{name} için eksik parametre: {', '.join(missing)}. "
                                        f"Parametre adları: {', '.join(schema.get('properties') or {})}."})
                     continue
+                wpath = str(args.get("path", "")) if name == "code_write" else ""
+                if wpath and t.writes.get(wpath, 0) >= MAX_REWRITES:  # ölçüldü: yerel model main.py'yi çalıştırmadan 14 kez yazdı
+                    t.messages.append({"role": "user", "content": f"{wpath} dosyasını çalıştırmadan {MAX_REWRITES} kez yazdın. Önce code_run ile "
+                                       "çalıştır ya da test et; hata görürsen düzelt. İş bittiyse final yaz."})
+                    continue
+                key = json.dumps([name, args], sort_keys=True, ensure_ascii=False)
+                if key in t.seen:  # yerel modelde ölçüldü: denetçi aynı iki dosyayı okuyup tur sınırına takılıyordu
+                    t.messages.append({"role": "user", "content": f"{name} çağrısını aynı argümanlarla zaten yaptın, sonucu yukarıda. "
+                                       "Tekrarlama: başka bir adım at (örn. code_run ile çalıştır) ya da final yaz."})
+                    continue
+                t.seen = set() if name == "code_write" else t.seen | {key}  # dosya değiştiyse yeniden okumak/çalıştırmak anlamlı
+                if wpath:
+                    t.writes[wpath] = t.writes.get(wpath, 0) + 1
+                elif name == "code_run":
+                    t.writes.clear()
                 result = self._exec(t, name, args)
                 print(f"\n[ekip] {t.id} {name}({args}) -> {' ⏎ '.join(result[:300].splitlines())}", flush=True)
                 if confirm.has_pending():
