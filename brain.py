@@ -61,7 +61,7 @@ def model_options(temperature: float) -> dict:
     return o
 SESSION_TTL = 12 * 3600  # bundan eski konuşma geçmişi yüklenmez
 # Uzaktan (Telegram) gelen komutlarda çalıştırılmayan araçlar: içerik makine dışına, üçüncü taraf sunucuya çıkar.
-REMOTE_BLOCKED = {"move_file", "trash_file", "undo_last_action", "phone_ring", "phone_call", "phone_hangup", "phone_answer", "phone_status", "contact_add", "contacts_sync", "code_list", "code_read", "code_write", "code_run", "read_file", "recall", "look_at_screen", "look_at_camera", "browser_open", "browser_read", "browser_click",
+REMOTE_BLOCKED = {"move_file", "trash_file", "undo_last_action", "phone_ring", "phone_call", "phone_hangup", "phone_answer", "phone_status", "contact_add", "contacts_sync", "code_list", "code_read", "code_write", "code_run", "read_file", "recall", "look_at_screen", "look_at_camera", "browser_open", "browser_play", "browser_read", "browser_click",
                   "browser_type", "browser_back", "browser_close", "mouse_move", "mouse_click", "scroll",
                   "keyboard_type", "press_key"}
 
@@ -85,7 +85,7 @@ ACTION_CLAIM = re.compile(
     r"açıldı|kapatıldı|ayarlandı|yapıldı|kısıldı|kısıldı|artırıldı|azaltıldı|arandı|başlatıldı|çalıştırıldı|"
     r"iptal edildi|iptal ettim|sonlandırıldı|sonlandırdım|kapattım|bitirdim|durduruldu|durdurdum)\b|"
     r"\baraç|"
-    r"\b(open_app|set_volume|change_volume|get_time|get_date|web_search|list_abilities|remember|recall|forget|set_reminder|list_reminders|cancel_reminders|get_weather|get_battery|morning_brief|look_at_screen|look_at_camera|browser_open|browser_read|browser_click|browser_type|browser_back|browser_close|mouse_move|mouse_click|keyboard_type|press_key|get_system_status|find_files|read_file|move_file|trash_file|undo_last_action)\b",
+    r"\b(open_app|set_volume|change_volume|get_time|get_date|web_search|list_abilities|remember|recall|forget|set_reminder|list_reminders|cancel_reminders|get_weather|get_battery|morning_brief|look_at_screen|look_at_camera|browser_open|browser_play|browser_read|browser_click|browser_type|browser_back|browser_close|mouse_move|mouse_click|keyboard_type|press_key|get_system_status|find_files|read_file|move_file|trash_file|undo_last_action)\b",
     re.IGNORECASE,
 )
 # Saat/tarih gibi anlık bilgilerde modele karar bırakılmaz (gemma tarihi uydurdu: "25 Mayıs 2024").
@@ -379,6 +379,9 @@ class Brain:
             return []
         active = _browser.is_active()
         t = text.strip().strip(".!?")
+        q = _browser.parse_play(t)
+        if q:
+            return [("browser_play", {"query": q})]
         if active and BR_CLOSE.search(t):
             return [("browser_close", {})]
         if active and BR_BACK.search(t):

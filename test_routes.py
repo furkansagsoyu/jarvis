@@ -61,11 +61,15 @@ BROWSER_CLOSED = [
     ("github.com'a git", "browser_open"), ("wikipedia.org sitesini aç", "browser_open"),
     ("YouTube sitesine git", "browser_open"), ("Google Chrome'u aç", None), ("rapor.pdf dosyasını aç", None),
     ("Giriş butonuna bas", None), ("sayfayı oku", None), ("tarayıcıyı kapat", None),
+    ("Tarayıcıdan bana \"Böyle Kahpedir Dünya\" adlı şarkıyı ara ve oynat", "browser_play"),
+    ("Gripin Böyle Kahpedir Dünya şarkısını çal", "browser_play"), ("youtube'dan sezen aksu gidiyorum şarkısını aç", "browser_play"),
+    ("tarayıcıdan sezen aksu şarkısı aç ve kapatma", "browser_play"), ("müziğin sesini aç", None), ("şarkıyı kapat", None),
 ]
 BROWSER_OPEN = [
     ("sayfayı oku", "browser_read"), ("bu sayfada ne yazıyor", "browser_read"), ("geri git", "browser_back"),
     ("tarayıcıyı kapat", "browser_close"), ("Giriş butonuna bas", "browser_click"), ("Ara'ya tıkla", "browser_click"),
     ("arama kutusuna jarvis yaz ve ara", "browser_type"), ("youtube'a git", "browser_open"),
+    ("Tarayıcıdan bana \"Böyle Kahpedir Dünya\" adlı şarkıyı ara ve oynat", "browser_play"),
 ]
 
 

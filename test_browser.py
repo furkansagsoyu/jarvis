@@ -45,6 +45,16 @@ def run(site_dir: str | None = None, real: bool = True) -> bool:
     ok &= check("liste: sondaki benzer ad", not browser.is_allowed("https://evilgithub.com"))
     ok &= check("takma ad", browser.normalize("youtube") == "https://youtube.com")
     ok &= check("banka açılmaz", "açmıyorum" in browser.browser_open("ziraatbank.com.tr"))
+    for text, want in [
+        ('Tarayıcıdan bana "Böyle Kahpedir Dünya" adlı şarkıyı ara ve oynat', "Böyle Kahpedir Dünya"),
+        ("Gripin Böyle Kahpedir Dünya şarkısını çal", "Gripin Böyle Kahpedir Dünya"),
+        ("youtube'dan sezen aksu gidiyorum şarkısını aç", "sezen aksu gidiyorum"),
+        ("tarayıcıdan bir derdim var şarkısını ara ve oynat ve şarkıyı kapatma", "bir derdim var"),
+        ("müziğin sesini aç", None), ("şarkıyı kapat", None), ("tarayıcıyı aç", None), ("toplantı videosunu aç", None),
+        ("müzik çal", None), ("bana bir şarkı aç", None), ("dosyayı aç", None),
+    ]:
+        ok &= check(f"oynat ayrıştırma: {text[:40]!r} -> {want!r}", browser.parse_play(text) == want)
+    ok &= check("oynat: ad yoksa sorar", "Ne çalayım" in browser.browser_play(""))
     browser.ALLOW_LOCAL = True
     if not real:
         return bool(ok)
@@ -58,7 +68,19 @@ def run(site_dir: str | None = None, real: bool = True) -> bool:
         site_dir = tempfile.mkdtemp()
         for n, c in SITE.items():
             (Path(site_dir) / n).write_text(c, encoding="utf-8")
-    handler = lambda *a, **k: http.server.SimpleHTTPRequestHandler(*a, directory=site_dir, **k)  # noqa: E731
+    (Path(site_dir) / "results.html").write_text(
+        '<html><head><meta charset="utf-8"><title>Sonuçlar</title></head><body>'
+        '<a id="video-title" href="/watch?v=abc" title="Test Şarkısı (resmi)">Test Şarkısı</a></body></html>', encoding="utf-8")
+    (Path(site_dir) / "watch.html").write_text(
+        '<html><head><meta charset="utf-8"><title>Test Şarkısı</title></head><body><video id=v muted></video></body></html>',
+        encoding="utf-8")
+
+    class _H(http.server.SimpleHTTPRequestHandler):
+        def translate_path(self, path):  # /results?x -> results.html (sahte YouTube)
+            p = path.split("?")[0]
+            return super().translate_path(p + ".html" if p in ("/results", "/watch") else path)
+
+    handler = lambda *a, **k: _H(*a, directory=site_dir, **k)  # noqa: E731
     srv = http.server.ThreadingHTTPServer(("127.0.0.1", 0), handler)
     threading.Thread(target=srv.serve_forever, daemon=True).start()
     base = f"http://127.0.0.1:{srv.server_address[1]}"
@@ -88,6 +110,15 @@ def run(site_dir: str | None = None, real: bool = True) -> bool:
         browser.ALLOW_LOCAL = False
         ok &= check("yasak yönlendirme boş sayfaya", "yasak" in browser.browser_click("Giriş") or True)
         browser.ALLOW_LOCAL = True
+        old = browser.PLAY_BASE
+        browser.PLAY_BASE = base
+        try:
+            confirm.cancel()  # önceki testten kalan onay olmasın
+            r = browser.browser_play("test şarkısı")
+            ok &= check("oynat: ilk videoyu bulup açar", "Test Şarkısı" in r and not confirm.has_pending())
+            ok &= check("oynat: tarayıcı kapanmaz", browser.is_active())
+        finally:
+            browser.PLAY_BASE = old
         ok &= check("kapat", "kapattım" in browser.browser_close() and not browser.is_active())
     finally:
         browser.browser_close()

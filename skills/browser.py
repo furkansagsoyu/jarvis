@@ -14,7 +14,7 @@ import os
 import queue
 import re
 import threading
-from urllib.parse import urlparse
+from urllib.parse import quote_plus, urlparse
 
 from . import _confirm, _store
 
@@ -33,6 +33,35 @@ SECRET_FIELD = re.compile(r"pass|parola|şifre|sifre|card|kart|cvv|cvc|iban|otp|
 MAX_READ = 3000
 HEADLESS = os.environ.get("JARVIS_BROWSER_HEADLESS") == "1"
 ALLOW_LOCAL = os.environ.get("JARVIS_BROWSER_ALLOW_LOCAL") == "1"  # yalnızca testler için
+PLAY_BASE = "https://www.youtube.com"  # browser_play burada arar (testte yerel siteyle değiştirilir)
+
+# "şarkıyı ara ve oynat" cümlesinden arama sözcüğünü çıkarır (saf kural; model devreye girmez)
+PLAY_NOUN = re.compile(r"şarkı|müzik|parça|klip|klib|video|türkü|albüm|podcast|fragman|youtube", re.I)
+PLAY_VERB = re.compile(r"\b(?:oynat\w*|çal(?:sana|ar\s*mısın|abilir\s*misin)?|dinle(?:t\w*|yelim|yeyim)?|"
+                       r"aç(?:sana|ar\s*mısın)?|başlat\w*)\b", re.I)
+PLAY_NOT = re.compile(r"\bses\w*|desibel|\bkıs\b|yükselt|alçalt|toplantı|görüşme|kamera|ekran|dosya|\bpdf\b|uygulama", re.I)
+PLAY_QUOTED = re.compile(r"[\"“”«](.{2,80}?)[\"“”»]")
+PLAY_FILL = re.compile(
+    r"^(?:tarayıcı\w*|youtube(?:['’]\w*)?\w*|bana|şu|şunu|bunu|şarkı\w*|müzik\w*|video\w*|klip\w*|klib\w*|parça\w*|"
+    r"türkü\w*|albüm\w*|ara|arayıp|ve|ile|lütfen|adlı|isimli|ismindeki|olan|oynat\w*|çal\w*|dinle\w*|dinlet\w*|aç\w*|"
+    r"başlat\w*|kapat\w*|da|de|dan|den|sana|mısın|misin)$", re.I)
+
+
+def parse_play(text: str) -> str | None:
+    """'"X" adlı şarkıyı ara ve oynat' -> 'X'. Müzik/video oynatma isteği değilse ya da aranacak ad yoksa None."""
+    t = (text or "").strip().strip(".!?").strip()
+    if not t or not PLAY_NOUN.search(t) or not PLAY_VERB.search(t) or PLAY_NOT.search(t):
+        return None
+    m = PLAY_QUOTED.search(t)
+    if m:
+        return " ".join(m.group(1).split())
+    words = t.replace(",", " ").split()
+    while words and PLAY_FILL.match(words[0]):
+        words.pop(0)
+    while words and PLAY_FILL.match(words[-1]):
+        words.pop()
+    q = " ".join(words)
+    return q if len(q) >= 2 and q.lower() not in ("bir", "bu", "şu") else None
 
 
 # ------------------------------------------------------------------ site kuralları
@@ -109,7 +138,9 @@ class _Worker:
             from playwright.sync_api import sync_playwright  # noqa: PLC0415
 
             pw = sync_playwright().start()
-            args = ["--no-sandbox"] if os.environ.get("JARVIS_BROWSER_NOSANDBOX") == "1" else []
+            args = ["--autoplay-policy=no-user-gesture-required"]  # "oynat" denince video kendiliğinden başlasın
+            if os.environ.get("JARVIS_BROWSER_NOSANDBOX") == "1":
+                args.append("--no-sandbox")
             ctx = pw.chromium.launch_persistent_context(
                 str(_store.path("browser_profile")), headless=HEADLESS, accept_downloads=False, args=args)
         except Exception as exc:  # noqa: BLE001
@@ -218,6 +249,52 @@ def browser_open(url: str) -> str:
         return _confirm.request(f"{host} izin listende yok.", lambda: _goto(url)).replace(
             "izin listende yok. Onaylıyor musun?", "izin listende yok. Yine de açayım mı?")
     return _goto(url)
+
+
+def _play(q: str, url: str) -> str:
+    def job(ctx):
+        page = _page(ctx)
+        page.goto(url, wait_until="domcontentloaded", timeout=25000)
+        link = page.locator("a#video-title[href^='/watch']").first
+        link.wait_for(timeout=12000)
+        href = link.get_attribute("href") or ""
+        title = (link.get_attribute("title") or link.inner_text() or q).strip()[:80]
+        page.goto(PLAY_BASE + href, wait_until="domcontentloaded", timeout=25000)
+        why = _guard(page)
+        if why:
+            return f"Bu sayfa yönlendirdiği için açılmadı ({why})."
+        playing = False
+        try:
+            page.wait_for_selector("video", timeout=10000)
+            page.evaluate("() => { const v = document.querySelector('video'); if (v) { const p = v.play(); if (p) p.catch(() => {}); } }")
+            page.wait_for_timeout(1500)
+            playing = bool(page.evaluate("() => { const v = document.querySelector('video'); return !!v && !v.paused && v.readyState > 2; }"))
+        except Exception:  # noqa: BLE001
+            playing = False
+        if playing:
+            return f"Çalıyor: {title}."
+        return f"Videoyu açtım: {title}. Kendiliğinden başlamadıysa sayfadaki oynat düğmesine bas."
+    try:
+        return _call(job)
+    except Exception as exc:  # noqa: BLE001
+        if "Timeout" in type(exc).__name__:
+            return f"'{q}' için bir video bulamadım ya da sayfa açılmadı."
+        raise
+
+
+def browser_play(query: str = "") -> str:
+    """YouTube'da arar, ilk videoyu açar ve oynatır. Tarayıcıyı KAPATMAZ (müzik çalmaya devam etsin)."""
+    q = " ".join((query or "").split())[:120]
+    if len(q) < 2:
+        return "Ne çalayım? Şarkı ya da videonun adını söyle."
+    url = f"{PLAY_BASE}/results?search_query={quote_plus(q)}"
+    why = is_blocked(url)
+    if why:
+        return f"Bu siteyi güvenlik nedeniyle açmıyorum ({why})."
+    if not is_allowed(url):
+        return _confirm.request(f"{urlparse(url).hostname} izin listende yok.", lambda: _play(q, url)).replace(
+            "izin listende yok. Onaylıyor musun?", "izin listende yok. Yine de açayım mı?")
+    return _play(q, url)
 
 
 def browser_read() -> str:
@@ -397,6 +474,9 @@ SKILLS = [
     {"name": "browser_open", "hidden": True, "run": browser_open,
      "description": "Bir web sitesini ayrı tarayıcıda açar. 'github.com'a git', 'YouTube'u aç' denince kullanılır.",
      "parameters": {"type": "object", "properties": {"url": {"type": "string", "description": "Adres veya site adı"}}, "required": ["url"]}},
+    {"name": "browser_play", "hidden": True, "run": browser_play,
+     "description": "YouTube'da şarkı ya da video arar, ilk sonucu açıp oynatır. 'X şarkısını oynat' denince kullanılır.",
+     "parameters": {"type": "object", "properties": {"query": {"type": "string", "description": "Şarkı ya da video adı"}}, "required": ["query"]}},
     {"name": "browser_read", "hidden": True, "run": browser_read,
      "description": "Açık web sayfasının metnini okur. 'Sayfayı oku', 'sayfayı özetle' denince kullanılır."},
     {"name": "browser_click", "hidden": True, "run": browser_click,

@@ -35,6 +35,8 @@ def run() -> bool:
         tool("read_file", ["name"], lambda name="": log.append(("read_file", name)) or "yalnızca veri: dosya içeriği gizli"),
         tool("browser_open", ["url"], lambda url="": log.append(("browser_open", url)) or "Açıldı: Test."),
         tool("browser_click", ["text"], click),
+        tool("browser_play", ["query"], lambda query="": log.append(("browser_play", query)) or "Çalıyor."),
+        tool("browser_close", [], lambda: log.append(("browser_close",)) or "Kapattım."),
         tool("browser_read", [], lambda: log.append(("browser_read",)) or "yalnızca veri: sayfa"),
         tool("get_time", [], lambda: "12"),
     ])
@@ -72,6 +74,15 @@ def run() -> bool:
         ok &= check("özet söylendi, ajan boşa döndü", out.endswith("Görev tamam, sonuç hazır.") and b.agent.state == "idle")
         ok &= check("özet çağrısında araç yok", state["tools_seen"][-1] is None)
         ok &= check("her adımda yalnızca planın tek aracı", state["tools_seen"][:2] == [["web_search"], ["browser_open"]])
+
+        # 2b) kullanıcı istemedikçe tarayıcı kapatılmaz (plan kendi başına browser_close eklese de)
+        state["plan"] = "browser_play | Şarkıyı ara ve oynat\n2. browser_close | Tarayıcıyı kapat"
+        say("ajan: bir şarkıyı aç ve şarkıyı kapatma")
+        ok &= check("'kapatma' denince browser_close plandan atılır", [s_[0] for s_ in b.agent.steps] == ["browser_play"])
+        b.agent.abort()
+        say("ajan: şarkıyı aç, işin bitince tarayıcıyı kapat")
+        ok &= check("'kapat' denince browser_close kalır", [s_[0] for s_ in b.agent.steps] == ["browser_play", "browser_close"])
+        b.agent.abort()
 
         # 3) plan reddi
         log.clear(); state["plan"] = "web_search | ara"

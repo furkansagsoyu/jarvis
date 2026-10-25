@@ -95,6 +95,7 @@ Telefon tarayıcısında (ana ekrana eklenebilir) çalışan sayfa: **yazışma*
 | Hatırlatıcılar, hafıza | "20 dakika sonra beni uyar", "şunu hatırla…" (yeniden başlatınca da durur) |
 | Web | "Ankara'nın nüfusunu araştır" (sonuçları okur ve özetler) |
 | Tarayıcı kontrolü | "github.com'a git", "sayfayı oku", "arama kutusuna jarvis yaz ve ara" |
+| Şarkı/video oynatma | "Böyle Kahpedir Dünya şarkısını oynat", "youtube'dan sezen aksu şarkısı aç" (YouTube'da arar, ilk sonucu çalar, tarayıcıyı kapatmaz) |
 | Ekran ve kamera görüşü | "Ekranda ne var?", "Kameraya bak", "Elimde ne var?" (yerel görsel model) |
 | Fare ve klavye | "Fareyi sağa götür", "tıkla", "klavyeden merhaba yaz", "Enter'a bas" |
 | Ajan modu | "Ajan modu: Wikipedia'da Ankara'yı araştır ve özetle" (planı okur, onay ister) |

@@ -19,14 +19,15 @@ import time
 
 from skills import _confirm as confirm
 
-ALLOWED = ("web_search", "find_files", "read_file", "browser_open", "browser_read", "browser_click", "browser_type",
+ALLOWED = ("web_search", "find_files", "read_file", "browser_open", "browser_play", "browser_read", "browser_click", "browser_type",
            "browser_back", "browser_close")
-NETWORK = {"web_search", "browser_open", "browser_click", "browser_type"}
+NETWORK = {"web_search", "browser_open", "browser_play", "browser_click", "browser_type"}
 HELP = {
     "web_search": "internette arama yapar (query)",
     "find_files": "bilgisayarda dosya arar (query)",
     "read_file": "bir dosyayı okur (name)",
     "browser_open": "bir siteyi tarayıcıda açar (url)",
+    "browser_play": "YouTube'da şarkı/video arar, ilk sonucu açıp oynatır (query); oynatma için en iyi araç",
     "browser_read": "açık sayfanın metnini okur",
     "browser_click": "açık sayfada bir düğmeye/bağlantıya tıklar (text)",
     "browser_type": "açık sayfadaki bir alana yazar (field, text, submit)",
@@ -38,6 +39,7 @@ MAX_STEPS = 8
 MAX_FAILS = 3
 PLAN_TTL = 120
 OBS_MAX = 2000
+CLOSE_WANTED = re.compile(r"kapat(?!ma)", re.I)  # "kapat" evet; "kapatma/kapatmadan" hayır
 STEP_RE = re.compile(r"^\W*(?:\d+\s*[.)\-:]\s*)?(?:ADIM\s*\d*\s*[:\-]?\s*)?`?([a-z_]+)`?\s*[|:\-–]+\s*(.+?)\s*$", re.I)
 
 
@@ -97,7 +99,8 @@ class Agent:
         manual = "\n".join(f"- {n}: {HELP[n]}" for n in tools)
         prompt = (f"Kullanıcının görevi: {goal}\n\nKullanabileceğin araçlar:\n{manual}\n\n"
                   f"Görevi en fazla {MAX_STEPS} adımda yapacak bir plan yaz. Her satır tam olarak şu biçimde olsun: "
-                  "araç_adı | adımın amacı (kısa Türkçe cümle). Başka hiçbir şey yazma. Gerek yoksa az adım yaz.")
+                  "araç_adı | adımın amacı (kısa Türkçe cümle). Başka hiçbir şey yazma. Gerek yoksa az adım yaz. "
+                  "Şarkı/video oynatmak için tek adım browser_play yeter. Kullanıcı istemedikçe tarayıcıyı kapatma.")
         try:
             msg = _get(self.brain._chat([{"role": "user", "content": prompt}], None, False, 0.2), "message")
             raw = _get(msg, "content", "") or ""
@@ -108,6 +111,8 @@ class Agent:
             m = STEP_RE.match(line)
             if m and m.group(1).lower() in tools:
                 steps.append((m.group(1).lower(), m.group(2).strip().rstrip(".")))
+        if not CLOSE_WANTED.search(goal):
+            steps = [st for st in steps if st[0] != "browser_close"]  # kullanıcı istemedikçe tarayıcıyı kapatma
         steps = steps[:MAX_STEPS]
         if not steps:
             return "Bu görev için kullanabileceğim bir plan çıkaramadım."
