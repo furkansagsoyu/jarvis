@@ -84,7 +84,8 @@ def run_remote(brain, text: str, tag: str, timeout: float | None = None) -> str:
 
 
 def start_dashboard(brain, speaker, listener=None, window: bool = True):
-    """Pano sunucusunu (127.0.0.1) başlatır, komut kuyruğunu işleyen iş parçacığını ve pencereyi açar."""
+    """Pano sunucusunu (127.0.0.1) başlatır, komut kuyruğunu işleyen iş parçacığını ve pencereyi açar.
+    (pencere süreci ya da None, pano adresi) döndürür."""
     import queue  # noqa: PLC0415
     from types import SimpleNamespace  # noqa: PLC0415
 
@@ -152,8 +153,16 @@ def start_dashboard(brain, speaker, listener=None, window: bool = True):
     except Exception as exc:  # noqa: BLE001  (telefon erişimi ayarı panoyu açmayı engellemesin)
         print(f"      telefon erişimi okunamadı: {type(exc).__name__}", flush=True)
     if not window or not os.environ.get("DISPLAY"):
-        return None
+        return None, url
     return subprocess.Popen([sys.executable, "-m", "dashboard.window", url, "--parent", str(os.getpid())],
+                            cwd=str(Path(__file__).parent)), url
+
+
+def start_island(url: str):
+    """Üst kenar adası (island.py): ayrı süreç; Jarvis kapanınca kendisi de kapanır."""
+    if not os.environ.get("DISPLAY"):
+        return None
+    return subprocess.Popen([sys.executable, str(Path(__file__).parent / "island.py"), url, "--parent", str(os.getpid())],
                             cwd=str(Path(__file__).parent))
 
 
@@ -182,6 +191,7 @@ def main():
     p.add_argument("--ui", action="store_true", help="durum penceresi ve tepsi simgesi (ui.py) aç")
     p.add_argument("--telegram", action="store_true", help="Telegram köprüsü (önce: python telegram_bot.py --setup)")
     p.add_argument("--dash", action="store_true", help="Komut Merkezi panosunu kendi penceresinde aç (V2)")
+    p.add_argument("--island", action="store_true", help="ekranın üst kenarında durum/onay adası (Evet/Hayır düğmeli; Qt)")
     p.add_argument("--morning", action="store_true", help="sabah (05-12) ilk açılışta günün özetini söyle (günde bir kez)")
     args = p.parse_args()
 
@@ -255,14 +265,16 @@ def main():
                 if speaker.is_busy():
                     speaker.stop()
         threading.Thread(target=enter_to_stop, daemon=True).start()
-    dash_proc = None
+    dash_proc = island_proc = None
     try:
         import remote  # noqa: PLC0415
         phone_on = remote.enabled()
     except Exception:  # noqa: BLE001
         phone_on = False
-    if args.dash or phone_on:  # telefon erişimi açıksa pano sunucusu pencere olmadan da çalışır
-        dash_proc = start_dashboard(brain, speaker, listener, window=args.dash)
+    if args.dash or phone_on or args.island:  # telefon erişimi ya da ada açıksa pano sunucusu pencere olmadan da çalışır
+        dash_proc, dash_url = start_dashboard(brain, speaker, listener, window=args.dash)
+        if args.island:
+            island_proc = start_island(dash_url)
     speaker.say("Hazırım.")
     missed = reminders.restore()  # kapalıyken kurulan hatırlatıcılar geri yüklenir
     if missed:
@@ -331,8 +343,9 @@ def main():
     ui_state.set_state("stopped")
     if ui_proc:
         ui_proc.terminate()
-    if dash_proc:
-        dash_proc.terminate()
+    for proc in (dash_proc, island_proc):
+        if proc:
+            proc.terminate()
 
 
 if __name__ == "__main__":

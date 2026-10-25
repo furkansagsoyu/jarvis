@@ -14,7 +14,7 @@ def check(name, cond):
 
 def run() -> bool:
     ok = True
-    log, state = [], {"cls": "firefox", "title": "Sayfa", "mouse": (500, 400)}
+    log, state = [], {"cls": "firefox", "title": "Sayfa", "mouse": (500, 400), "under": "Sayfa"}
 
     def fake(*a):
         log.append(a)
@@ -25,7 +25,9 @@ def run() -> bool:
         if a[0] == "getdisplaygeometry":
             return "1920 1080"
         if a[0] == "getmouselocation":
-            return f"X={state['mouse'][0]}\nY={state['mouse'][1]}\nSCREEN=0"
+            return f"X={state['mouse'][0]}\nY={state['mouse'][1]}\nSCREEN=0\nWINDOW=777"
+        if a == ("getwindowname", "777"):
+            return state["under"]
         return ""
     real, d._xdo = d._xdo, fake
     try:
@@ -60,6 +62,19 @@ def run() -> bool:
         d.keyboard_type("x")
         state.update(cls="gnome-terminal-server", title="bash")  # onay beklerken pencere terminale döndü
         ok &= check("onay sonrası pencere değişti: yazılmaz", "yazmadım" in confirm.approve())
+        state.update(cls="firefox", title="Sayfa")
+        # Jarvis'in kendi yüzeyleri: ada odak almaz (etkin pencere başka), imlecin altına da bakılır
+        state.update(under="JARVIS Ada"); log.clear()
+        r = d.mouse_click("sol", False)
+        ok &= check("imleç adanın üstünde: tıklama reddedilir (model kendi onayını veremez)",
+                    "Güvenlik" in r and "Jarvis" in r and not confirm.has_pending() and not any(c[0] == "click" for c in log))
+        state.update(under="Sayfa")
+        d.mouse_click("sol", False)
+        state.update(under="JARVIS Ada")  # onay beklerken imleç adaya götürüldü
+        ok &= check("onaydan sonra imleç adaya kaydı: tıklanmaz", "tıklamadım" in confirm.approve() and not any(c[0] == "click" for c in log))
+        state.update(under="Sayfa", cls="jarvis", title="JARVIS Komut Merkezi"); log.clear()
+        r = d.keyboard_type("evet"); r2 = d.mouse_click("sol", False)
+        ok &= check("pano etkin pencere: yazma/tıklama reddi", "Jarvis'in kendi penceresi" in r and "Jarvis'in kendi penceresi" in r2 and not confirm.has_pending())
         state.update(cls="firefox", title="Sayfa")
         for k in ("ctrl+alt+t", "alt+f2", "ctrl+alt+f3", "Ctrl + Alt + Delete"):
             ok &= check(f"yasak kısayol {k}", "kullanmıyorum" in d.press_key(k))

@@ -50,6 +50,15 @@ python router_check.py            # anahtar ve gizlilik kapısı denemesi
 - Yerel modelin bozuk JSON'u (kaçışsız tırnak, eksik/fazla parantez, tek cevapta birden çok çağrı) kodda onarılır; dizge ortasında kesilmiş bir `code_write` yarım dosya yazmasın diye reddedilir. Aynı araç çağrısı tekrarlanmaz, bir dosya çalıştırılmadan en fazla 2 kez yazılır.
 - Ücretsiz bulutun küçük girdi sınırı nedeniyle uzun döngülerde eski adımlar kısa özete çevrilir; ajan dosyanın güncel halini `code_read` ile görür.
 
+## Üst kenar adası
+
+`--island` ile ekranın üst ortasında, her zaman üstte duran küçük bir çubuk açılır (`island.py`, Qt). Boştayken yalnızca durumu gösterir; riskli bir işlem onayı ya da ajan/ekip planı beklerken genişler: soru, kalan süre, **Evet / Hayır**.
+
+- Düğmeler sesli "evet/hayır" ile **aynı yoldan** geçer (pano sunucusu → Brain → onay sınıflandırma); onay kapısı değişmez.
+- Her bekleyen işlemin bir kimliği var: ekrandaki soru değiştiyse eski soruya basılan Evet yeni işlemi onaylamaz.
+- Ada odak almaz (klavyeyle tetiklenemez) ve fare/klavye aracı Jarvis'in kendi pencerelerine (ada, pano) tıklamaz/yazmaz: model kendi onayını veremez.
+- Pano sunucusuna yalnızca 127.0.0.1 üzerinden, oturum anahtarıyla bağlanır. Fikir [coucou](https://github.com/louis-cfm/coucou)'dan (MIT) alındı; kod ve görseller bu projeye özgüdür.
+
 ## Telefon araması (Android, ADB)
 
 Telefonu USB ile bağla (Geliştirici seçenekleri → USB hata ayıklama açık, bilgisayara izin ver). Sonra: "**Annemi ara**", "**0555 123 45 67'yi ara**" (önce "…arayacağım, onaylıyor musun?" der, "evet" dersen arar), "**aramayı kapat**", "**aramayı aç**" (çalanı), "**telefon bağlı mı**".
@@ -93,6 +102,7 @@ Telefon tarayıcısında (ana ekrana eklenebilir) çalışan sayfa: **yazışma*
 | Dosyalar | "rapor.pdf dosyasını oku", "masaüstünde faturaları bul", "onu özetle" |
 | Güvenli dosya işlemi | taşıma ve çöpe atma sesli onayla çalışır, "geri al" ile geri döner |
 | Takvim ve görevler | "Yarın saat 14'te toplantı ekle", "bu hafta takvimimde ne var", "görev ekle: raporu bitir, cuma, yüksek öncelik", "görevlerim neler", "raporu bitir görevi bitti" (etkinliğe 10 dk kala sesli uyarır) |
+| Üst kenar adası | `python main.py --wake --island`: ekranın üst ortasında küçük durum hapı (Dinliyor/Düşünüyor/Konuşuyor); onay ya da plan beklerken soruyu, kalan süreyi ve **Evet/Hayır** düğmelerini gösterir |
 | Komut Merkezi panosu (V2) | `python main.py --dash`: kendi penceresinde canlı pano (sistem, ajanlar, modeller, akış, hızlı komutlar; görev/takvimi elle ekle-sil; gün/saate göre sohbet geçmişi, arama, otomatik silme; yetenek listesi; Yazışma sekmesinde Jarvis ile sohbet) |
 | Masaüstü uygulaması | `python install_app.py`: menüde JARVIS simgesi, terminalsiz başlar; Ayarlar sekmesinde tema (cyan, amber, yeşil, mor, açık) |
 | Hatırlatıcılar, hafıza | "20 dakika sonra beni uyar", "şunu hatırla…" (yeniden başlatınca da durur) |
@@ -163,6 +173,7 @@ playwright install chromium     # tarayıcı kontrolü
 python main.py --wake --ui             # eller serbest: "Hey Jarvis", durum penceresi ve tepsi simgesi
 python main.py                         # Enter ile konuş, Enter ile bitir
 python main.py --wake --dash           # + Komut Merkezi panosu (pip install pywebview)
+python main.py --wake --island         # + üst kenar adası (Evet/Hayır düğmeli durum/onay çubuğu; Qt)
 python main.py --text                  # mikrofon yerine klavyeden yaz (hata ayıklama)
 python main.py --list-speakers         # hoparlörleri listele, --speaker <numara|ad> ile seç
 python main.py --help                  # tüm bayraklar
@@ -193,6 +204,7 @@ Tarayıcı testleri gerçek bir Chromium ile yerel test sitesinde çalışır. F
 
 ```
 main.py            konuşma döngüsü (mikrofon → STT → beyin → TTS)
+island.py          üst kenar adası (durum + Evet/Hayır; Qt, pano sunucusunun /api/island uçları)
 brain.py           model, araç çağırma, kural tabanlı hızlı yol, oturum, bağlam özetleme
 agent.py           ajan modu (planla, onayla, adım adım yürüt)
 team.py            Ekip modu (çoklu ajan: planlayıcı, mimar, uzman ajanlar [araştırma, dosya, kod, bakım], denetçi, yazar)

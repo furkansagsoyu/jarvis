@@ -6,6 +6,8 @@
 /api/agenda  -> POST takvim/görev ekle-sil-bitir (kimlikle)
 /api/conv    -> GET ?q= konuşma günlüğü/arama, POST sil / süre ayarı
 /api/cmd     -> POST {"id": "..."} ya da {"say": "metin"}: Jarvis'e komut gönderir
+/api/island  -> GET üst kenar adası için hafif durum; POST /api/island/answer {"answer": "yes"|"no", "id"}: bekleyen
+                onaya Evet/Hayır (yalnızca gösterilen soru hâlâ bekliyorsa; sesli "evet/hayır" ile aynı yoldan geçer)
 Onay kapıları aynen geçerli: tehlikeli işlemler panodan da 'evet' denmeden yapılmaz.
 
 Telefon (uzak) kapsamı: /m sayfası ve /api/m/* uçları. Yalnızca remote.py'deki ayrı kalıcı anahtarla ve
@@ -135,6 +137,19 @@ class Dashboard:
             ui_state.set_cloud_enabled(not ui_state.cloud_enabled())
         elif val == "talk":
             ui_state.request_listen()
+        return {"ok": True}
+
+    def island_answer(self, answer: str, qid: str) -> dict:
+        """Adadaki Evet/Hayır: kullanıcının sesli cevabıyla AYNI yoldan (submit -> brain.reply_stream -> classify) geçer.
+        Onay kapısı değişmez; yalnızca ekranda gösterilen soru hâlâ bekliyorsa (aynı id) iletilir."""
+        if answer not in ("yes", "no"):
+            return {"ok": False, "error": "bozuk cevap"}
+        cur = st.island_snapshot(self.ctx)
+        if not cur["kind"] or cur["id"] != qid:
+            return {"ok": False, "error": "soru güncel değil"}
+        word = "evet" if answer == "yes" else "hayır"
+        st.feed("KOMUT", f"Adadan: {word}")
+        self.submit(word)
         return {"ok": True}
 
     # ------------------------------------------------------------ takvim/görev düğmeleri (kimlikle, onay kapısı gerekmez:
@@ -383,6 +398,10 @@ class Dashboard:
                         except ValueError:
                             return self._json(400, {"error": "bozuk istek"})
                     return self._json(200, dash.conv_list(q))
+                if path == "/api/island":
+                    if not self._token_ok(self.headers.get("X-Token", "")):
+                        return self._json(403, {"error": "anahtar"})
+                    return self._json(200, st.island_snapshot(dash.ctx))
                 if path == "/api/state":
                     if not self._token_ok(self.headers.get("X-Token", "")):
                         return self._json(403, {"error": "anahtar"})
@@ -454,7 +473,7 @@ class Dashboard:
                     return self._json(200, dash.m_agenda(data))
                 if scope != "local" or not self._token_ok(self.headers.get("X-Token", "")):
                     return self._json(403, {"error": "yasak"})
-                if self.path not in ("/api/cmd", "/api/agenda", "/api/conv"):
+                if self.path not in ("/api/cmd", "/api/agenda", "/api/conv", "/api/island/answer"):
                     return self._json(404, {"error": "yok"})
                 data = self._read_json()
                 if data is None:
@@ -463,6 +482,8 @@ class Dashboard:
                     return self._json(200, dash.agenda_op(data))
                 if self.path == "/api/conv":
                     return self._json(200, dash.conv_op(data))
+                if self.path == "/api/island/answer":
+                    return self._json(200, dash.island_answer(str(data.get("answer", "")), str(data.get("id", ""))))
                 return self._json(200, dash.run_command(str(data.get("id", "")), str(data.get("say", "")), bool(data.get("chat")), str(data.get("theme", ""))))
 
         return H

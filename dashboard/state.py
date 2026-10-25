@@ -154,12 +154,38 @@ def _durum(ctx):
     st = ui_state.read_status()
     try:
         from skills import _confirm  # noqa: PLC0415
-        pending = _confirm.has_pending() or getattr(getattr(ctx.brain, "agent", None), "state", "idle") == "plan"
+        pending = _confirm.has_pending() or any(getattr(getattr(ctx.brain, k, None), "state", "idle") == "plan" for k in ("agent", "team"))
     except Exception:  # noqa: BLE001
         pending = False
     return {"state": st.get("state", "starting"), "label": ui_state.STATES.get(st.get("state"), "—"),
             "muted": ui_state.is_muted(), "focus": ui_state.is_focus(), "chat_voice": ui_state.chat_voice(), "close_to_tray": ui_state.close_to_tray(), "cloud": ui_state.cloud_enabled(), "theme": ui_state.theme(), "pending": pending,
             "turns": st.get("turns", []), "uptime": int(time.time() - START)}
+
+
+def island_snapshot(ctx) -> dict:
+    """Üst kenardaki "ada" için hafif durum: {state, label, kind, question, id, left}.
+    kind: "" | "confirm" (riskli işlem onayı, _confirm) | "plan" (ajan/ekip planı "Başlayayım mı?").
+    id değişince ada eski cevabı geçersiz sayar (sunucu da denetler). Onay VERMEZ; yalnızca görüntü bilgisidir."""
+    st = ui_state.read_status()
+    state = "muted" if ui_state.is_muted() else st.get("state", "starting")
+    out = {"state": state, "label": ui_state.STATES.get(state, "—"), "kind": "", "question": "", "id": "", "left": 0}
+    try:
+        from skills import _confirm  # noqa: PLC0415
+        info = _confirm.pending_info()
+    except Exception:  # noqa: BLE001
+        info = None
+    if info:
+        return {**out, "kind": "confirm", "question": info["text"][:240], "id": f"c{info['id']}", "left": info["left"]}
+    for key in ("team", "agent"):
+        obj = getattr(ctx.brain, key, None)
+        if getattr(obj, "state", "idle") == "plan":
+            exp = float(getattr(obj, "plan_expires", 0) or 0)
+            if exp and exp < time.time():
+                continue
+            last = next((t["text"] for t in reversed(st.get("turns") or []) if t.get("who") == "jarvis"), "")
+            return {**out, "kind": "plan", "question": (last or "Plan onayını bekliyorum.")[:240],
+                    "id": f"p{key}{int(exp * 1000)}", "left": max(0, int(exp - time.time()))}
+    return out
 
 
 @provider("sistem")

@@ -21,6 +21,8 @@ SECRET_CLASSES = ("keepass", "bitwarden", "1password", "enpass", "polkit", "pkex
                   "kwalletmanager", "lastpass")
 SECRET_TITLE = re.compile(r"password|parola|şifre|sifre|passphrase|sudo|authenticat|kimlik doğrula|oturum aç|giriş|login|sign.?in|"
                           r"banka|bank|paypal|ödeme|odeme|payment|checkout|keepass|bitwarden|cvv|iban", re.I)
+# Jarvis'in kendi yüzeyleri (üst kenar adası, pano): model fare/klavye ile kendi onayını veremesin
+JARVIS_TITLE = re.compile(r"^JARVIS (?:Ada|Komut Merkezi)\b")
 BLOCKED_COMBOS = {"ctrl+alt+t", "alt+f2", "ctrl+alt+delete", "ctrl+alt+del", "ctrl+alt+backspace", "super+r", "super+t",
                   "ctrl+alt+l", "alt+sysrq"} | {f"ctrl+alt+f{i}" for i in range(1, 8)}
 # Onaysız basılabilen gezinti tuşları (hiçbir şey çalıştırmaz, yalnızca imleci/sayfayı oynatır)
@@ -75,6 +77,8 @@ def active_window() -> tuple[str, str]:
 def window_block_reason() -> str:
     """Etkin pencere güvenli değilse nedenini, değilse '' döndürür."""
     cls, title = active_window()
+    if JARVIS_TITLE.search(title):
+        return "Jarvis'in kendi penceresi"
     if any(t in cls for t in TERMINAL_CLASSES):
         return "terminal penceresi"
     if any(t in cls for t in SECRET_CLASSES):
@@ -82,6 +86,18 @@ def window_block_reason() -> str:
     if SECRET_TITLE.search(title):
         return "parola, giriş ya da ödeme penceresi"
     return ""
+
+
+def under_mouse_block_reason() -> str:
+    """İmlecin altındaki pencere Jarvis'in kendi yüzeyiyse (ada, pano) nedenini döndürür. Ada odak almaz; etkin pencere
+    denetimi onu görmez, bu yüzden tıklamadan önce imlecin altına da bakılır."""
+    try:
+        out = _xdo("getmouselocation", "--shell")
+        wid = dict(line.split("=", 1) for line in out.splitlines() if "=" in line).get("WINDOW", "")
+        title = _xdo("getwindowname", wid) if wid else ""
+    except InputError:
+        return ""
+    return "Jarvis'in kendi penceresi" if JARVIS_TITLE.search(title) else ""
 
 
 def _window_name() -> str:
@@ -131,14 +147,14 @@ def mouse_move(where: str = "", amount: str = "") -> str:
 
 @_safe
 def mouse_click(button: str = "sol", double: bool = False) -> str:
-    why = window_block_reason()
+    why = window_block_reason() or under_mouse_block_reason()
     if why:
         return f"Güvenlik nedeniyle {why} üzerinde tıklamıyorum."
     b = {"sağ": "3", "orta": "2"}.get((button or "sol").lower(), "1")
     name = {"3": "sağ tuşla ", "2": "orta tuşla "}.get(b, "") + ("çift " if double else "")
 
     def run():
-        why2 = window_block_reason()
+        why2 = window_block_reason() or under_mouse_block_reason()
         if why2:
             return f"Pencere değişmiş ({why2}), tıklamadım."
         _xdo("click", "--repeat", "2" if double else "1", "--delay", "80", b)

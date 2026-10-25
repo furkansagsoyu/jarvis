@@ -17,14 +17,26 @@ NO = re.compile(r"\b(hayır|hayir|vazgeç|vazgeçtim|iptal|yapma|olmaz|dur|istem
 
 _lock = threading.Lock()
 _pending: dict | None = None
+_seq = 0   # her bekleyen işleme artan kimlik: arayüz (ada) eski bir soruya verilen cevabı yeni işleme uygulamasın
 
 
 def request(description: str, run) -> str:
     """Bekleyen işlemi kaydeder; kullanıcıya söylenecek soruyu döndürür."""
-    global _pending
+    global _pending, _seq
     with _lock:
-        _pending = {"run": run, "expires": time.time() + TTL}
+        _seq += 1
+        _pending = {"run": run, "expires": time.time() + TTL, "id": _seq, "text": description}
     return f"{description} Onaylıyor musun?"
+
+
+def pending_info() -> dict | None:
+    """Bekleyen işlemin YALNIZCA görüntü bilgisi: {"id", "text", "left" (sn)}. Onay vermez; onay yine kullanıcının
+    sesli/yazılı cevabıyla (classify) Brain üzerinden gelir."""
+    with _lock:
+        p = _pending
+        if not p or time.time() > p["expires"]:
+            return None
+        return {"id": p["id"], "text": p["text"], "left": max(0, int(p["expires"] - time.time()))}
 
 
 def has_pending() -> bool:
