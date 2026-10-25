@@ -54,7 +54,9 @@ d = app.data_dir()
 d.mkdir(parents=True, exist_ok=True)
 for f in ("launch_args.txt", "telegram.json"):
     (d / f).unlink(missing_ok=True)
-check("varsayılan bayraklar: --wake --dash --morning", app.default_args() == ["--wake", "--dash", "--morning"])
+check("varsayılan bayraklar: --wake --dash --island --morning", app.default_args() == ["--wake", "--dash", "--island", "--morning"])
+import autostart  # noqa: E402
+check("otomatik başlatma adayı da açar (--wake --ui --island --morning)", autostart.flags().split()[:4] == ["--wake", "--ui", "--island", "--morning"])
 (d / "telegram.json").write_text('{"token": "x", "chat_id": 1}', encoding="utf-8")
 check("Telegram kuruluysa --telegram eklenir", app.default_args()[-1] == "--telegram")
 (d / "launch_args.txt").write_text("--text --dash\n", encoding="utf-8")

@@ -22,8 +22,9 @@ DESKTOP = Path.home() / ".config" / "autostart" / "jarvis.desktop"
 
 
 def flags() -> str:
-    """Her zaman: --wake --ui --morning. Telegram kuruluysa (data/telegram.json) --telegram de eklenir."""
-    out = ["--wake", "--ui", "--morning"]
+    """Her zaman: --wake --ui --island --morning (ada: üst kenar durum/onay çubuğu). Telegram kuruluysa (data/telegram.json)
+    --telegram de eklenir."""
+    out = ["--wake", "--ui", "--island", "--morning"]
     try:
         cfg = json.loads((HERE / "data" / "telegram.json").read_text(encoding="utf-8"))
         if cfg.get("token") and cfg.get("chat_id"):

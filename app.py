@@ -49,14 +49,14 @@ def is_running() -> bool:
 
 
 def default_args() -> list[str]:
-    """data/launch_args.txt varsa o; yoksa --wake --dash --morning (+ Telegram kuruluysa --telegram)."""
+    """data/launch_args.txt varsa o; yoksa --wake --dash --island --morning (+ Telegram kuruluysa --telegram)."""
     try:
         txt = (data_dir() / "launch_args.txt").read_text(encoding="utf-8").strip()
         if txt:
             return txt.split()
     except OSError:
         pass
-    out = ["--wake", "--dash", "--morning"]
+    out = ["--wake", "--dash", "--island", "--morning"]
     try:
         cfg = json.loads((data_dir() / "telegram.json").read_text(encoding="utf-8"))
         if cfg.get("token") and cfg.get("chat_id"):
