@@ -134,7 +134,8 @@ _FENCE = re.compile(r"```(?:json)?|```", re.I)
 def speakable(text: str) -> str:
     """Sesli okunacak düz metin: markdown ve madde işaretlerini temizler, satırları cümle olarak birleştirir."""
     out = []
-    for ln in re.sub(r"[*_`#>]+", "", text or "").splitlines():
+    # * ` # > her yerde; alt çizgi yalnızca vurgu olarak (sözcük içindekiler kalır: test_main.py)
+    for ln in re.sub(r"(?<![A-Za-z0-9])_+|_+(?![A-Za-z0-9])", "", re.sub(r"[*`#>]+", "", text or "")).splitlines():
         ln = re.sub(r"^\s*(?:[-•·–—]|\d+[.)])\s*", "", ln).strip()
         if ln:
             out.append(ln if ln[-1] in ".!?…" else ln + ".")
