@@ -120,6 +120,11 @@ def listen_handsfree(listener, wake: WakeWord) -> str:
     except ImportError:
         wake.wait()
     beep()
+    try:
+        import ui_state  # noqa: PLC0415
+        ui_state.set_state("recording")   # uyandı: komut kaydediliyor (maskot 'listening'; bekleme 'idle'dı)
+    except ImportError:
+        pass
     print("🎙  dinliyorum...", flush=True)
     audio = record_utterance(listener.mic)
     t0 = time.perf_counter()

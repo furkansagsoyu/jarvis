@@ -1,51 +1,54 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="-110 -110 220 220" width="220" height="220" data-state="idle" role="img" aria-label="Jarvis çekirdek maskotu">
-<!-- Durum: kök öğedeki data-state = idle | listening | thinking | speaking | alert | error. Satır içi (inline) kullanılmalı; <img> içinde durum değişmez. -->
+<svg xmlns="http://www.w3.org/2000/svg" class="cekirdek" viewBox="-110 -110 220 220" width="220" height="220" data-state="idle" role="img" aria-label="Jarvis çekirdek maskotu">
+<!-- Durum: kök öğedeki data-state = idle | listening | thinking | speaking | alert | error. Satır içi (inline) kullanılmalı; <img> içinde durum değişmez.
+     Sayfaya gömülmeye uygun: tüm kurallar svg.cekirdek kapsamında; CSS değişkenleri ck-, animasyon ve kimlik adları ck- önekli
+     (sayfanın bg değişkeni ve .dots sınıfı gibi adlarla çakışmaz). Tema rengi dışarıdan ck-tema, ck-tema2, ck-tema-bg
+     değişkenleriyle verilebilir; verilmezse camgöbeği. -->
 <style>
-svg{--c:#22d3ee;--c2:#67e8f9;--bg:#0e2a35}
-svg[data-state="alert"]{--c:#f59e0b;--c2:#fcd34d;--bg:#33240a}
-svg[data-state="error"]{--c:#f43f5e;--c2:#fda4af;--bg:#33111b}
-.halo{fill:url(#halo);transform-origin:0 0;animation:breathe 4s ease-in-out infinite}
-.body{fill:var(--bg);stroke:var(--c);stroke-width:5;transition:stroke .3s,fill .3s}
-.ring{fill:none;stroke:var(--c);stroke-width:2;stroke-dasharray:6 8;opacity:.7;transform-origin:0 0;animation:spin 24s linear infinite}
-.pulse{fill:none;stroke:var(--c);stroke-width:2;opacity:0;transform-origin:0 0}
-.eye{fill:var(--c2);transform-origin:center;transform-box:fill-box;animation:blink 5s infinite;transition:fill .3s}
-.mouth{fill:none;stroke:var(--c2);stroke-width:4;stroke-linecap:round}
-.dots{opacity:0}.dots circle{fill:var(--c2)}
-@keyframes breathe{0%,100%{transform:scale(.92);opacity:.7}50%{transform:scale(1.05);opacity:1}}
-@keyframes spin{to{transform:rotate(360deg)}}
-@keyframes blink{0%,92%,100%{transform:scaleY(1)}95%{transform:scaleY(.1)}}
-@keyframes ripple{0%{transform:scale(.6);opacity:.8}100%{transform:scale(1.7);opacity:0}}
-@keyframes talk{0%,100%{transform:scaleY(.3)}50%{transform:scaleY(1.6)}}
-@keyframes dot{0%,80%,100%{opacity:.2}40%{opacity:1}}
-@keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-5px)}75%{transform:translateX(5px)}}
-@keyframes flash{0%,100%{opacity:.5}50%{opacity:1}}
-svg[data-state="listening"] .pulse{animation:ripple 1.6s ease-out infinite}
-svg[data-state="listening"] .pulse.p2{animation-delay:.8s}
-svg[data-state="listening"] .eye{transform:scale(1.15);animation:none}
-svg[data-state="thinking"] .ring{animation-duration:2.5s;opacity:1}
-svg[data-state="thinking"] .eye{animation:none;transform:scaleY(.5)}
-svg[data-state="thinking"] .mouth{opacity:0}
-svg[data-state="thinking"] .dots{opacity:1}
-svg[data-state="thinking"] .dots circle{animation:dot 1.2s infinite}
-svg[data-state="thinking"] .dots circle:nth-child(2){animation-delay:.2s}
-svg[data-state="thinking"] .dots circle:nth-child(3){animation-delay:.4s}
-svg[data-state="speaking"] .mouth{stroke-width:7;transform-origin:0 28px;animation:talk .35s ease-in-out infinite}
-svg[data-state="speaking"] .halo{animation-duration:1.2s}
-svg[data-state="alert"] .halo{animation:flash 1s infinite}
-svg[data-state="alert"] .ring{animation-duration:6s}
-svg[data-state="error"] #m{animation:shake .4s 2}
-svg[data-state="error"] .ring{animation:none;stroke-dasharray:2 14}
-svg[data-state="error"] .mouth{d:path("M-14 34 Q0 22 14 34")}
-@media (prefers-reduced-motion:reduce){*{animation:none!important}}
+svg.cekirdek{--ck-c:var(--ck-tema,#22d3ee);--ck-c2:var(--ck-tema2,#67e8f9);--ck-bg:var(--ck-tema-bg,#0e2a35)}
+svg.cekirdek[data-state="alert"]{--ck-c:#f59e0b;--ck-c2:#fcd34d;--ck-bg:#33240a}
+svg.cekirdek[data-state="error"]{--ck-c:#f43f5e;--ck-c2:#fda4af;--ck-bg:#33111b}
+.cekirdek .ck-halo{fill:url(#ck-halo);transform-origin:0 0;animation:ck-breathe 4s ease-in-out infinite}
+.cekirdek .ck-body{fill:var(--ck-bg);stroke:var(--ck-c);stroke-width:5;transition:stroke .3s,fill .3s}
+.cekirdek .ck-ring{fill:none;stroke:var(--ck-c);stroke-width:2;stroke-dasharray:6 8;opacity:.7;transform-origin:0 0;animation:ck-spin 24s linear infinite}
+.cekirdek .ck-pulse{fill:none;stroke:var(--ck-c);stroke-width:2;opacity:0;transform-origin:0 0}
+.cekirdek .ck-eye{fill:var(--ck-c2);transform-origin:center;transform-box:fill-box;animation:ck-blink 5s infinite;transition:fill .3s}
+.cekirdek .ck-mouth{fill:none;stroke:var(--ck-c2);stroke-width:4;stroke-linecap:round}
+.cekirdek .ck-dots{opacity:0}.cekirdek .ck-dots circle{fill:var(--ck-c2)}
+@keyframes ck-breathe{0%,100%{transform:scale(.92);opacity:.7}50%{transform:scale(1.05);opacity:1}}
+@keyframes ck-spin{to{transform:rotate(360deg)}}
+@keyframes ck-blink{0%,92%,100%{transform:scaleY(1)}95%{transform:scaleY(.1)}}
+@keyframes ck-ripple{0%{transform:scale(.6);opacity:.8}100%{transform:scale(1.7);opacity:0}}
+@keyframes ck-talk{0%,100%{transform:scaleY(.3)}50%{transform:scaleY(1.6)}}
+@keyframes ck-dot{0%,80%,100%{opacity:.2}40%{opacity:1}}
+@keyframes ck-shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-5px)}75%{transform:translateX(5px)}}
+@keyframes ck-flash{0%,100%{opacity:.5}50%{opacity:1}}
+svg.cekirdek[data-state="listening"] .ck-pulse{animation:ck-ripple 1.6s ease-out infinite}
+svg.cekirdek[data-state="listening"] .ck-pulse.ck-p2{animation-delay:.8s}
+svg.cekirdek[data-state="listening"] .ck-eye{transform:scale(1.15);animation:none}
+svg.cekirdek[data-state="thinking"] .ck-ring{animation-duration:2.5s;opacity:1}
+svg.cekirdek[data-state="thinking"] .ck-eye{animation:none;transform:scaleY(.5)}
+svg.cekirdek[data-state="thinking"] .ck-mouth{opacity:0}
+svg.cekirdek[data-state="thinking"] .ck-dots{opacity:1}
+svg.cekirdek[data-state="thinking"] .ck-dots circle{animation:ck-dot 1.2s infinite}
+svg.cekirdek[data-state="thinking"] .ck-dots circle:nth-child(2){animation-delay:.2s}
+svg.cekirdek[data-state="thinking"] .ck-dots circle:nth-child(3){animation-delay:.4s}
+svg.cekirdek[data-state="speaking"] .ck-mouth{stroke-width:7;transform-origin:0 28px;animation:ck-talk .35s ease-in-out infinite}
+svg.cekirdek[data-state="speaking"] .ck-halo{animation-duration:1.2s}
+svg.cekirdek[data-state="alert"] .ck-halo{animation:ck-flash 1s infinite}
+svg.cekirdek[data-state="alert"] .ck-ring{animation-duration:6s}
+svg.cekirdek[data-state="error"] #ck-m{animation:ck-shake .4s 2}
+svg.cekirdek[data-state="error"] .ck-ring{animation:none;stroke-dasharray:2 14}
+svg.cekirdek[data-state="error"] .ck-mouth{d:path("M-14 34 Q0 22 14 34")}
+@media (prefers-reduced-motion:reduce){svg.cekirdek *{animation:none!important}}
 </style>
-<defs><radialGradient id="halo" cx="50%" cy="50%" r="50%"><stop offset="0" style="stop-color:var(--c)" stop-opacity=".55"/><stop offset="1" style="stop-color:var(--c)" stop-opacity="0"/></radialGradient></defs>
-<g id="m">
-<circle class="halo" r="100"/>
-<circle class="pulse" r="62"/><circle class="pulse p2" r="62"/>
-<circle class="body" r="60"/>
-<circle class="ring" r="44"/>
-<rect class="eye" x="-28" y="-14" width="14" height="26" rx="7"/><rect class="eye" x="14" y="-14" width="14" height="26" rx="7"/>
-<path class="mouth" d="M-14 26 Q0 36 14 26"/>
-<g class="dots"><circle cx="-12" cy="30" r="3.5"/><circle cx="0" cy="30" r="3.5"/><circle cx="12" cy="30" r="3.5"/></g>
+<defs><radialGradient id="ck-halo" cx="50%" cy="50%" r="50%"><stop offset="0" style="stop-color:var(--ck-c)" stop-opacity=".55"/><stop offset="1" style="stop-color:var(--ck-c)" stop-opacity="0"/></radialGradient></defs>
+<g id="ck-m">
+<circle class="ck-halo" r="100"/>
+<circle class="ck-pulse" r="62"/><circle class="ck-pulse ck-p2" r="62"/>
+<circle class="ck-body" r="60"/>
+<circle class="ck-ring" r="44"/>
+<rect class="ck-eye" x="-28" y="-14" width="14" height="26" rx="7"/><rect class="ck-eye" x="14" y="-14" width="14" height="26" rx="7"/>
+<path class="ck-mouth" d="M-14 26 Q0 36 14 26"/>
+<g class="ck-dots"><circle cx="-12" cy="30" r="3.5"/><circle cx="0" cy="30" r="3.5"/><circle cx="12" cy="30" r="3.5"/></g>
 </g>
 </svg>

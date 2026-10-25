@@ -519,6 +519,13 @@ def logic_tests() -> None:
         assert r.returncode == 0, "\n".join(l for l in r.stdout.splitlines() if l.startswith("HATA"))[:400] or r.stderr[-300:]
         return f"{r.stdout.count('OK   ')} OK"
 
+    @check("Çekirdek maskotu: durum -> data-state, pano/ada, SVG kapsamı ve sunumu, adadaki durağan sürüm (test_mascot)")
+    def _():
+        r = subprocess.run([sys.executable, str(HERE / "test_mascot.py")], capture_output=True, text=True, cwd=str(HERE),
+                           env={**os.environ, "PYTHONPATH": str(HERE), "JARVIS_DATA": str(TMP / "mascot_test")}, timeout=60)
+        assert r.returncode == 0, "\n".join(l for l in r.stdout.splitlines() if l.startswith("HATA"))[:400] or r.stderr[-300:]
+        return f"{r.stdout.count('OK   ')} OK"
+
     @check("Üst kenar adası: görünüm, onay kimliği, eski soruya cevap reddi, anahtar, uçtan uca Evet, Qt duman testi (test_island)")
     def _():
         r = subprocess.run([sys.executable, str(HERE / "test_island.py")], capture_output=True, text=True, cwd=str(HERE),

@@ -38,6 +38,7 @@ from skills import _store, agenda
 from . import state as st
 
 STATIC = Path(__file__).with_name("static")
+ASSETS = {"cekirdek.svg": Path(__file__).resolve().parent.parent / "assets" / "cekirdek.svg"}  # /static/ altından sunulan proje varlıkları
 MAX_BODY = 2048
 MAX_SAY = 300
 MAX_CHAT = 600
@@ -379,6 +380,9 @@ class Dashboard:
                     return self._send(200, (STATIC / "index.html").read_bytes(), "text/html; charset=utf-8")
                 if path == "/favicon.ico":
                     return self._send(204, b"", "image/x-icon")
+                if path.startswith("/static/") and path[len("/static/"):] in ASSETS:   # maskot: assets/ tek kaynak (kopya yok)
+                    f = ASSETS[path[len("/static/"):]]
+                    return self._send(200, f.read_bytes(), "image/svg+xml; charset=utf-8") if f.is_file() else self._json(404, {"error": "yok"})
                 if path.startswith("/static/"):
                     f = (STATIC / path[len("/static/"):]).resolve()
                     if STATIC.resolve() not in f.parents or not f.is_file():

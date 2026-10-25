@@ -160,7 +160,8 @@ def _durum(ctx):
         pending = False
     return {"state": st.get("state", "starting"), "label": ui_state.STATES.get(st.get("state"), "—"),
             "muted": ui_state.is_muted(), "focus": ui_state.is_focus(), "chat_voice": ui_state.chat_voice(), "close_to_tray": ui_state.close_to_tray(), "cloud": ui_state.cloud_enabled(), "theme": ui_state.theme(), "pending": pending,
-            "turns": st.get("turns", []), "uptime": int(time.time() - START)}
+            "turns": st.get("turns", []), "uptime": int(time.time() - START),
+            "mascot": ui_state.mascot_state("muted" if ui_state.is_muted() else st.get("state", "starting"), pending, st.get("error_ts") or 0)}
 
 
 def island_snapshot(ctx) -> dict:
@@ -169,13 +170,15 @@ def island_snapshot(ctx) -> dict:
     id değişince ada eski cevabı geçersiz sayar (sunucu da denetler). Onay VERMEZ; yalnızca görüntü bilgisidir."""
     st = ui_state.read_status()
     state = "muted" if ui_state.is_muted() else st.get("state", "starting")
-    out = {"state": state, "label": ui_state.STATES.get(state, "—"), "kind": "", "question": "", "id": "", "left": 0}
+    out = {"state": state, "label": ui_state.STATES.get(state, "—"), "kind": "", "question": "", "id": "", "left": 0,
+           "mascot": ui_state.mascot_state(state, False, st.get("error_ts") or 0)}
     try:
         from skills import _confirm  # noqa: PLC0415
         info = _confirm.pending_info()
     except Exception:  # noqa: BLE001
         info = None
     if info:
+        out["mascot"] = ui_state.mascot_state(state, True, st.get("error_ts") or 0)
         return {**out, "kind": "confirm", "question": info["text"][:240], "id": f"c{info['id']}", "left": info["left"]}
     for key in ("team", "agent"):
         obj = getattr(ctx.brain, key, None)
@@ -184,6 +187,7 @@ def island_snapshot(ctx) -> dict:
             if exp and exp < time.time():
                 continue
             last = next((t["text"] for t in reversed(st.get("turns") or []) if t.get("who") == "jarvis"), "")
+            out["mascot"] = ui_state.mascot_state(state, True, st.get("error_ts") or 0)
             return {**out, "kind": "plan", "question": (last or "Plan onayını bekliyorum.")[:240],
                     "id": f"p{key}{int(exp * 1000)}", "left": max(0, int(exp - time.time()))}
     return out

@@ -76,6 +76,9 @@ h3 .live{color:var(--ok);border-color:#127a5b}h3 .live::before{content:"● ";fo
 /* orb */
 #orb{position:absolute;inset:0;width:100%;height:100%}
 .orbtxt{position:absolute;inset:0;display:grid;place-content:center;text-align:center;pointer-events:none}
+.mascot{width:118px;height:118px;margin:0 auto 4px;pointer-events:none}.mascot svg{width:100%;height:100%;display:block}
+/* maskot temayı izler (alert/error kendi rengini korur) */
+.mascot svg.cekirdek{--ck-tema:var(--cy);--ck-tema2:var(--cy2);--ck-tema-bg:var(--orb-bg2)}
 .orbtxt h1{font:700 44px var(--font);letter-spacing:.3em;margin-right:-.3em;color:var(--cy2);text-shadow:0 0 22px rgba(var(--cy-rgb),.7)}
 .orbtxt h2{font:500 11px var(--font);letter-spacing:.5em;margin:4px -.5em 0 0;color:var(--tx2)}.orbtxt small{color:var(--vio);font:600 11px var(--font);margin-top:6px}
 /* ajanlar */

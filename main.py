@@ -128,6 +128,7 @@ def start_dashboard(brain, speaker, listener=None, window: bool = True):
                     speaker.wait()
             except Exception as exc:  # noqa: BLE001  (bir komut hatası kuyruğu öldürmesin)
                 print(f"[pano] komut hatası: {type(exc).__name__}: {exc}", flush=True)
+                ui_state.flag_error()
             finally:
                 ui_state.set_state("listening")
 
@@ -298,6 +299,7 @@ def main():
                 if text:
                     print(f"Sen> {text}")
             else:
+                ui_state.set_state("recording")   # uyanma sözcüğü yok: mikrofon hemen kayıtta
                 text = listener.listen_once()
                 print(f"Sen> {text}")
         except (KeyboardInterrupt, EOFError):
@@ -336,6 +338,8 @@ def main():
             said.append(buffer)
             speaker.say(buffer)
         ui_state.add_turn("jarvis", " ".join(said))
+        if any(s.lstrip().startswith(("Hata:", "Hata ")) for s in said):
+            ui_state.flag_error()   # maskot kısa süre 'error'
         print(f"\n  (ilk cümle TTS'e {first_audio_queued or 0:.2f} sn'de gitti)", flush=True)
         speaker.wait()
         if wake:

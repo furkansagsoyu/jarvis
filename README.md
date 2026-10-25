@@ -122,6 +122,7 @@ Telefon tarayıcısında (ana ekrana eklenebilir) çalışan sayfa: **yazışma*
 | Dosyalar | "rapor.pdf dosyasını oku", "masaüstünde faturaları bul", "onu özetle" |
 | Güvenli dosya işlemi | taşıma ve çöpe atma sesli onayla çalışır, "geri al" ile geri döner |
 | Takvim ve görevler | "Yarın saat 14'te toplantı ekle", "bu hafta takvimimde ne var", "görev ekle: raporu bitir, cuma, yüksek öncelik", "görevlerim neler", "raporu bitir görevi bitti" (etkinliğe 10 dk kala sesli uyarır) |
+| Çekirdek maskotu | Panonun ortasında animasyonlu maskot: bekleme, seni dinliyor (uyandıktan sonra), düşünüyor, konuşuyor, onay bekliyor (amber), hata (kırmızı); tema rengini izler, adada küçük durağan hali |
 | Üst kenar adası | `python main.py --wake --island`: ekranın üst ortasında küçük durum hapı (Dinliyor/Düşünüyor/Konuşuyor); onay ya da plan beklerken soruyu, kalan süreyi ve **Evet/Hayır** düğmelerini gösterir |
 | Komut Merkezi panosu (V2) | `python main.py --dash`: kendi penceresinde canlı pano (sistem, ajanlar, modeller, akış, hızlı komutlar; görev/takvimi elle ekle-sil; gün/saate göre sohbet geçmişi, arama, otomatik silme; yetenek listesi; Yazışma sekmesinde Jarvis ile sohbet) |
 | Masaüstü uygulaması | `python install_app.py`: menüde JARVIS simgesi, terminalsiz başlar; Ayarlar sekmesinde tema (cyan, amber, yeşil, mor, açık) |
@@ -255,6 +256,7 @@ remote.py          mobil sayfa erişimi: ayrı anahtar, Host denetimi, kilitleme
 dashboard/         Komut Merkezi: server.py (yalnızca 127.0.0.1, rastgele anahtar), state.py (panel sağlayıcıları),
                    window.py (Qt penceresi + sistem tepsisi), static/ (app.js = pano, m.html/m.js/m.css = telefon sayfası)
 app.py, install_app.py   masaüstü uygulaması (başlatıcı, simge/.desktop kurulumu), assets/ simgeler
+assets/cekirdek.svg   Çekirdek maskotu (satır içi gömülür, durum kök öğenin data-state'i; pano /static/cekirdek.svg ile sunar), cekirdek_demo.html önizleme
 ui.py, ui_state.py, telegram_bot.py, autostart.py
 check_all.py       tek komutlu test ve ortam kontrolü; test_*.py modül testleri (modelsiz)
 tool_check.py, tool_diag.py   gerçek modelle araç seçimi ölçümü (tool_diag.py: ortak cümle listesi; model_bench.py da kullanır)

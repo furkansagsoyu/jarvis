@@ -90,11 +90,11 @@ Python 3, tip ipuçları (yeni dosyalarda `from __future__ import annotations`),
 
 | Komut | Ne yapar |
 |---|---|
-| `python check_all.py --quick` | Modelsiz mantık testleri (saniyeler). **Son durum: 43 OK, 0 hata.** Her değişiklikten sonra çalıştır. |
+| `python check_all.py --quick` | Modelsiz mantık testleri (saniyeler). **Son durum: 44 OK, 0 hata.** Her değişiklikten sonra çalıştır. |
 | `python check_all.py` | + ortam kontrolü |
 | `python check_all.py --model` | + gerçek model araç seçimi (`tool_check.py`; GPU+Ollama, dakikalar) |
 | `python check_all.py --vision` | + gerçek ekran görüşü |
-| `python test_<ad>.py` | Tek modül (routes, browser, agent, team, code, agenda, maintenance, island, memory, mcp, app, dashboard, desktop, mobile, phone, phonelink, ram, router, security, web, window) |
+| `python test_<ad>.py` | Tek modül (routes, browser, agent, team, code, agenda, maintenance, island, mascot, memory, mcp, app, dashboard, desktop, mobile, phone, phonelink, ram, router, security, web, window) |
 | `python code_check.py` | Kod ajanı bubblewrap kutusu |
 | `python router_check.py` | Anahtar + gizlilik kapısı |
 | `python phone_check.py [--wifi / --via app / --app-pair / --app-test]` | Telefon/ADB/FCM tanılama |
@@ -175,7 +175,7 @@ Kullanıcı Claude Code'u **Claude masaüstü uygulamasından (Code sekmesi)** k
 ```bash
 cd ~/jarvis
 git status && git log --oneline -5 && git tag -l | tail -3
-python check_all.py --quick | tail -3      # 43 OK bekleniyor (conda env freya)
+python check_all.py --quick | tail -3      # 44 OK bekleniyor (conda env freya)
 cat TASKS.md                               # sıradaki görev
 ```
 `.claude/settings.json` (repoda) izin listesini ve `data/**`, `*.env`, `fcm_service_account.json`, `google-services.json` okuma yasağını tanımlar. İlk iş doğrula: `data/` altından bir dosya okumayı dene → reddedilmeli. Reddedilmezse kullanıcıya söyle (uygulama dosyayı okumuyor demektir). Sonra `TASKS.md` bölüm 0'dan başla.

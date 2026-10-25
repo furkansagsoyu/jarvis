@@ -10,7 +10,8 @@ from skills import _store
 
 STATES = {
     "starting": "Başlıyor",
-    "listening": "Dinliyor",
+    "listening": "Dinliyor",          # uyanma sözcüğünü bekliyor (maskot: idle)
+    "recording": "Seni dinliyor",     # uyandı / mikrofon açık, komut kaydediliyor (maskot: listening)
     "thinking": "Düşünüyor",
     "speaking": "Konuşuyor",
     "muted": "Sessizde",
@@ -44,6 +45,28 @@ def add_turn(who: str, text: str) -> None:
     st["turns"] = st["turns"][-MAX_TURNS:]
     st["ts"] = time.time()
     _store.save("status.json", st)
+
+
+ERROR_SHOW = 8.0   # sn: bir hatadan sonra maskot bu kadar 'error' gösterir
+MASCOT = {"recording": "listening", "thinking": "thinking", "speaking": "speaking"}
+
+
+def flag_error() -> None:
+    """Bir komut hata verdi: maskot kısa süre 'error' gösterir (status.json'a zaman damgası)."""
+    st = _status()
+    st["error_ts"] = time.time()
+    _store.save("status.json", st)
+
+
+def mascot_state(state: str, pending: bool = False, error_ts: float = 0.0, now: float | None = None) -> str:
+    """Çekirdek maskotunun data-state değeri: idle | listening | thinking | speaking | alert | error.
+    Öncelik: yeni hata > bekleyen onay/plan > çalışma durumu. Bekleme, sessiz ve kapalı -> idle."""
+    now = time.time() if now is None else now
+    if state == "error" or (error_ts and now - error_ts < ERROR_SHOW):
+        return "error"
+    if pending:
+        return "alert"
+    return MASCOT.get(state, "idle")
 
 
 def read_status() -> dict:

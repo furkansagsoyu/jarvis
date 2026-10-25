@@ -4,7 +4,7 @@ Türkçe konuşan, tamamen yerel/ücretsiz sesli asistan. **Ayrıntılı devir t
 Dil: arayüz metinleri, sesli cevaplar, yorumlar ve kullanıcıyla yazışma **Türkçe**.
 
 ## Komutlar
-- Test (her değişiklikten sonra, modelsiz, saniyeler): `python check_all.py --quick` → hatasız olmalı (son durum 43 OK)
+- Test (her değişiklikten sonra, modelsiz, saniyeler): `python check_all.py --quick` → hatasız olmalı (son durum 44 OK)
 - Tek modül: `python test_<ad>.py` · Gerçek model: `python check_all.py --model` · Bellek: `python ram_report.py --watch SN --label X`
 - Python: conda env `freya` (`/home/furkan/miniconda3/envs/freya/bin/python`)
 

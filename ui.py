@@ -14,7 +14,7 @@ import sys
 
 import ui_state
 
-COLORS = {"starting": "#9aa0a6", "listening": "#34a853", "thinking": "#f9ab00", "speaking": "#4285f4", "muted": "#ea4335", "stopped": "#5f6368"}
+COLORS = {"starting": "#9aa0a6", "listening": "#34a853", "recording": "#00c853", "thinking": "#f9ab00", "speaking": "#4285f4", "muted": "#ea4335", "stopped": "#5f6368"}
 POLL_MS = 400
 
 

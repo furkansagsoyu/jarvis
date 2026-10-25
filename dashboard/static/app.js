@@ -83,6 +83,22 @@ function chatBox(extra = "") {
   chats.push(me); return me;
 }
 
+/* Çekirdek maskotu: SVG satır içi gömülür (img içinde CSS durumu değişmez); durum kök öğenin data-state'i */
+const MASCOT_STATES = ["idle", "listening", "thinking", "speaking", "alert", "error"];
+let mascotSvg = null, mascotWant = "idle";
+function setMascot(st) {
+  mascotWant = MASCOT_STATES.includes(st) ? st : "idle";
+  if (mascotSvg) { if (mascotSvg.dataset.state !== mascotWant) mascotSvg.dataset.state = mascotWant; return; }
+  if (setMascot.loading) return; setMascot.loading = true;
+  fetch("/static/cekirdek.svg").then((r) => r.text()).then((t) => {
+    const box = $("#mascot"); if (!box) return;
+    // HTML olarak eklenmez (XSS kuralı): SVG olarak ayrıştırılır, düğüm içe aktarılır (DOMParser betik çalıştırmaz)
+    const doc = new DOMParser().parseFromString(t, "image/svg+xml"), svg = doc.querySelector("svg.cekirdek");
+    if (!svg || doc.querySelector("parsererror")) return;
+    mascotSvg = document.importNode(svg, true); box.replaceChildren(mascotSvg);
+    if (mascotSvg) { mascotSvg.removeAttribute("width"); mascotSvg.removeAttribute("height"); mascotSvg.dataset.state = mascotWant; }
+  }).catch(() => { setMascot.loading = false; });
+}
 /* Türkçe sayı biçimi: yüzde işareti önde (%12), ondalık virgül (4,6) */
 const pctTR = (v) => "%" + Math.round(Number(v) || 0);
 const decTR = (v, n = 1) => (Number(v) || 0).toFixed(n).replace(".", ",");
@@ -284,6 +300,7 @@ const PANELS = {
     $("#voiceState").textContent = d.label + "…"; $("#talkState").textContent = d.muted ? "Sessizde" : d.state === "listening" ? "Dinliyorum…" : d.label + "…";
     $("#focus").classList.toggle("on", d.focus); $("#pend").hidden = !d.pending;
     $("#bellN").hidden = !d.pending; document.body.dataset.state = d.state; void online;
+    setMascot(d.mascot);
   },
   core(s) {
     const m = s.model || {}, a = s.ajanlar || [], h2 = s.hafiza || {};
