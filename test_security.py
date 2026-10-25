@@ -128,7 +128,7 @@ SKIP = ("test_", "tool_diag", "_check", "phone_app", "__pycache__")
 bad_calls = []
 for f in sorted(HERE.rglob("*.py")):
     s = str(f)
-    if any(k in s for k in SKIP) or f.name in ("check_all.py", "stt_test.py") or "workspace" in f.relative_to(HERE).parts:
+    if any(k in s for k in SKIP) or f.name == "check_all.py" or "workspace" in f.relative_to(HERE).parts:
         continue  # workspace/: kod ajanının ürettiği kod (proje kodu değil)
     for n in ast.walk(ast.parse(f.read_text(encoding="utf-8"))):
         if not isinstance(n, ast.Call):

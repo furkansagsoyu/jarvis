@@ -302,7 +302,7 @@ class FreyaSpeaker(BaseSpeaker):
 class EmaSpeaker(BaseSpeaker):
     """EMA Lightning (pip install ema-lightning): 8,6M parametre, tek Türkçe ses, Apache-2.0.
 
-    Kulak testinde (tts_compare.py) Freya'dan belirgin şekilde iyi çıktı. CPU'da yaklaşık 6 kat gerçek zamanlı;
+    Kulak testinde (tts_compare.py, artık git geçmişinde) Freya'dan belirgin şekilde iyi çıktı. CPU'da yaklaşık 6 kat gerçek zamanlı;
     GPU'da yaklaşık 1 GB VRAM ister (Whisper + Gemma yanında sığmayabilir), bu yüzden varsayılan CPU.
     """
 

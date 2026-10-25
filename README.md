@@ -243,6 +243,7 @@ skills/            beceriler: her dosya kendini tanımlar ve otomatik yüklenir
   phone.py           telefon araması (ADB ya da uygulama), alarm, yerel rehber
   agenda.py          takvim ve görevler (yerel, Türkçe tarih ayrıştırıcı: _trdate.py)
   memory.py          hafıza (data/memory.db, SQLite FTS5; eski memory.json bir kez içeri alınır, .bak olarak kalır)
+  mcp.py             MCP araçları (gizli, her çağrı onaylı)
   maintenance.py     Sistem bakım ajanı (sağlık raporu + onaylı güvenli düzeltmeler)
   screen.py, camera.py, files.py, web.py, reminders.py, hardware.py, volume.py, brightness.py, apps.py, ...
 phonelink.py       telefon uygulamasına imzalı FCM komutu; eşleştirme
@@ -255,7 +256,10 @@ dashboard/         Komut Merkezi: server.py (yalnızca 127.0.0.1, rastgele anaht
                    window.py (Qt penceresi + sistem tepsisi), static/ (app.js = pano, m.html/m.js/m.css = telefon sayfası)
 app.py, install_app.py   masaüstü uygulaması (başlatıcı, simge/.desktop kurulumu), assets/ simgeler
 ui.py, ui_state.py, telegram_bot.py, autostart.py
-check_all.py       tek komutlu test ve ortam kontrolü
+check_all.py       tek komutlu test ve ortam kontrolü; test_*.py modül testleri (modelsiz)
+tool_check.py, tool_diag.py   gerçek modelle araç seçimi ölçümü (tool_diag.py: ortak cümle listesi; model_bench.py da kullanır)
+code_check.py, router_check.py, phone_check.py   kod kutusu, bulut anahtarı/gizlilik kapısı, telefon/ADB/FCM tanılama
+browser_sites.py   tarayıcının izinli site listesi (komut satırı)
 ```
 
 Panoya yeni panel eklemek için `dashboard/state.py` içinde `@provider("ad")` ile veri üreten bir fonksiyon yazın, `static/app.js` içindeki `PANELS` ve `index.html`'e çizimini ekleyin; yeni sayfa için `VIEWS` listesine girin. Pano yalnızca bu bilgisayardan erişilir, tehlikeli işlemler panodan da onay ister.

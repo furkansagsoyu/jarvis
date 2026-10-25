@@ -66,10 +66,10 @@ REMOTE_BLOCKED = {"move_file", "trash_file", "undo_last_action", "phone_ring", "
                   "keyboard_type", "press_key", "system_health", "mcp_list", "mcp_call",
                   "find_files", "forget"}  # dosya adları/yolları Telegram'a gitmesin; hafıza uzaktan onaysız silinmesin
 
-# Ölçümle (tool_diag.py, tool_diag2.py, tool_check.py) doğrulandı: SADECE bu kısa hal 8/8 araç çağırıyor.
+# Ölçümle (tool_diag.py, tool_check.py; kural kural ölçen tool_diag2.py 2026-10'da silindi, git geçmişinde) doğrulandı: SADECE bu kısa hal 8/8 araç çağırıyor.
 # Kural eklemek (sayıları yazıyla yaz, anlık bilgiyi uydurma, yetenek listesi, cümle sınırı...) tek tek
 # zararsız görünse bile birlikte araç çağırmayı bozdu (tool_check 16/24). Bu yüzden prompt'a kural EKLEME;
-# önce tool_diag2.py / tool_check.py ile ölç. Yetenek listesi list_abilities aracından gelir.
+# önce tool_check.py ile ölç. Yetenek listesi list_abilities aracından gelir.
 # Rakamları sese çevirme işi TTS tarafında.
 SYSTEM = (
     "Adın Jarvis. Türkçe konuşan bir sesli bilgisayar asistanısın. "
