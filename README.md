@@ -186,29 +186,33 @@ Tarayıcı testleri gerçek bir Chromium ile yerel test sitesinde çalışır. F
 ## Proje yapısı
 
 ```
+main.py            konuşma döngüsü (mikrofon → STT → beyin → TTS)
+brain.py           model, araç çağırma, kural tabanlı hızlı yol, oturum, bağlam özetleme
+agent.py           ajan modu (planla, onayla, adım adım yürüt)
+team.py            Ekip modu (çoklu ajan: planlayıcı, uzman ajanlar, yazar)
+router.py, privacy.py   Model yönlendirici (ücretsiz bulut, yedek zinciri) ve gizlilik kapısı
+convlog.py         kalıcı konuşma günlüğü (panodaki Konuşmalar; süreli otomatik silme)
+stt.py, tts.py, wake.py   konuşma tanıma, sentez, uyanma sözcüğü
+skills/            beceriler: her dosya kendini tanımlar ve otomatik yüklenir
+  _confirm.py        onay kapısı
+  _store.py          data/ klasörü: güvenli kayıt (0600/0700), çalışma zamanı yolları
+  browser.py         Playwright ile tarayıcı kontrolü
+  desktop_input.py   fare/klavye (xdotool)
+  codeagent.py       Kod ajanı araçları (workspace/, güvenli kutu)
+  phone.py           telefon araması (ADB ya da uygulama), alarm, yerel rehber
+  agenda.py          takvim ve görevler (yerel, Türkçe tarih ayrıştırıcı: _trdate.py)
+  screen.py, camera.py, files.py, web.py, reminders.py, hardware.py, volume.py, brightness.py, apps.py, ...
+phonelink.py       telefon uygulamasına imzalı FCM komutu; eşleştirme
+phone_app/         Jarvis Telefon uygulaması (Flutter + Kotlin; Firebase Messaging)
+memguard.py        bellek koruması (düzey, ağır iş kontrolü, uyarı)
+ram_report.py      bellek ölçüm aracı (senaryo tahmini, --watch); RAM.md rehberi
+model_bench.py     yerel modelleri hız ve bellek açısından karşılaştırır
+remote.py          mobil sayfa erişimi: ayrı anahtar, Host denetimi, kilitleme, Tailscale yardımcıları (remote_setup.py)
+dashboard/         Komut Merkezi: server.py (yalnızca 127.0.0.1, rastgele anahtar), state.py (panel sağlayıcıları),
+                   window.py (Qt penceresi + sistem tepsisi), static/ (app.js = pano, m.html/m.js/m.css = telefon sayfası)
 app.py, install_app.py   masaüstü uygulaması (başlatıcı, simge/.desktop kurulumu), assets/ simgeler
-main.py          konuşma döngüsü
-convlog.py       kalıcı konuşma günlüğü (panodaki Konuşmalar; süreli otomatik silme) (mikrofon → STT → beyin → TTS)
-brain.py         model, araç çağırma, kural tabanlı hızlı yol, oturum, bağlam özetleme
-agent.py         ajan modu (planla, onayla, adım adım yürüt)
-skills/          beceriler: her dosya kendini tanımlar ve otomatik yüklenir
-  _confirm.py    onay kapısı
-  browser.py     Playwright ile tarayıcı kontrolü
-  desktop_input.py  fare/klavye (xdotool)
-  phone.py       telefon araması (ADB ya da uygulama), alarm, yerel rehber
-phonelink.py     telefon uygulamasına imzalı FCM komutu; eşleştirme
-memguard.py      bellek koruması (düzey, ağır iş kontrolü, uyarı); ram_report.py ölçüm aracı
-remote.py        mobil sayfa erişimi: ayrı anahtar, Host denetimi, kilitleme, Tailscale yardımcıları (remote_setup.py)
-phone_app/       Jarvis Telefon uygulaması (Flutter + Kotlin; Firebase Messaging)
-  agenda.py      takvim ve görevler (yerel, Türkçe tarih ayrıştırıcı: _trdate.py)
-  screen.py, camera.py, files.py, web.py, reminders.py, hardware.py, ...
-skills/codeagent.py  Kod ajanı araçları (workspace/, güvenli kutu)
-team.py          Ekip modu (çoklu ajan: planlayıcı, uzman ajanlar, yazar)
-router.py, privacy.py  Model yönlendirici (ücretsiz bulut, yedek zinciri) ve gizlilik kapısı
-dashboard/       Komut Merkezi: server.py (yalnızca 127.0.0.1, rastgele anahtar), state.py (panel sağlayıcıları), window.py (Qt penceresi + sistem tepsisi), static/ (app.js = pano, m.html/m.js/m.css = telefon sayfası)
-stt.py, tts.py, wake.py     konuşma tanıma, sentez, uyanma sözcüğü
-ui.py, telegram_bot.py, autostart.py
-check_all.py     tek komutlu test ve ortam kontrolü
+ui.py, ui_state.py, telegram_bot.py, autostart.py
+check_all.py       tek komutlu test ve ortam kontrolü
 ```
 
 Panoya yeni panel eklemek için `dashboard/state.py` içinde `@provider("ad")` ile veri üreten bir fonksiyon yazın, `static/app.js` içindeki `PANELS` ve `index.html`'e çizimini ekleyin; yeni sayfa için `VIEWS` listesine girin. Pano yalnızca bu bilgisayardan erişilir, tehlikeli işlemler panodan da onay ister.
