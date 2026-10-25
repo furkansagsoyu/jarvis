@@ -63,7 +63,8 @@ SESSION_TTL = 12 * 3600  # bundan eski konuşma geçmişi yüklenmez
 # Uzaktan (Telegram) gelen komutlarda çalıştırılmayan araçlar: içerik makine dışına, üçüncü taraf sunucuya çıkar.
 REMOTE_BLOCKED = {"move_file", "trash_file", "undo_last_action", "phone_ring", "phone_call", "phone_hangup", "phone_answer", "phone_status", "contact_add", "contacts_sync", "code_list", "code_read", "code_write", "code_run", "read_file", "recall", "look_at_screen", "look_at_camera", "browser_open", "browser_play", "browser_read", "browser_click",
                   "browser_type", "browser_back", "browser_close", "mouse_move", "mouse_click", "scroll",
-                  "keyboard_type", "press_key", "system_health", "mcp_list", "mcp_call"}
+                  "keyboard_type", "press_key", "system_health", "mcp_list", "mcp_call",
+                  "find_files", "forget"}  # dosya adları/yolları Telegram'a gitmesin; hafıza uzaktan onaysız silinmesin
 
 # Ölçümle (tool_diag.py, tool_diag2.py, tool_check.py) doğrulandı: SADECE bu kısa hal 8/8 araç çağırıyor.
 # Kural eklemek (sayıları yazıyla yaz, anlık bilgiyi uydurma, yetenek listesi, cümle sınırı...) tek tek
@@ -175,6 +176,7 @@ class Brain:
         self.tool_count = 0            # oturumdan beri çalışan araç sayısı (pano gösterir)
         self.active_model = model      # son cevabı veren model (yedeğe düşüldüyse o)
         self.remote = False            # True iken (Telegram) REMOTE_BLOCKED araçlar reddedilir
+        self._remote_confirm = None    # uzaktan bir turda oluşan bekleyen onayın kimliği (yalnızca o uzaktan cevaplanabilir)
         self.router = None             # ilk bulut sorusunda router.get() ile oluşur (testte sahte verilebilir)
 
     # -- ısınma: modeli belleğe al (ilk cevap gecikmesi azalır)
@@ -517,11 +519,30 @@ class Brain:
         self.active_model = f"{rep.provider}/{rep.model}"
         return rep.text
 
-    def reply_stream(self, user_text: str):
-        """Kullanıcı cümlesine cevabı parça parça (str) üretir.
+    def _remote_block(self) -> str:
+        """Uzaktan (Telegram/telefon) gelen cümle bilgisayarda bekleyen bir onayı ya da ajan/ekip planını cevaplayamaz:
+        uzaktan kapalı bir işlem (çöpe atma, tıklama, MCP...) uzaktan 'evet' ile çalıştırılmasın. Uzaktan başlatılan
+        onay (örn. telefondan görev silme) uzaktan cevaplanabilir. Bekleyen işleme DOKUNULMAZ (bilgisayarda süresi dolar)."""
+        info = confirm.pending_info()
+        local_plan = any(getattr(getattr(self, k, None), "state", "idle") != "idle" for k in ("agent", "team"))
+        if (info and info["id"] != self._remote_confirm) or local_plan:
+            return "Bilgisayarda onay bekleyen bir işlem var. Güvenlik için onu yalnızca bilgisayarın başında cevaplayabilirsin."
+        return ""
 
-        İlk tur akışsız (araç kararı ve güvenlik ağı için); araç çalıştıktan sonraki cevap akışlı.
-        """
+    def reply_stream(self, user_text: str):
+        """Kullanıcı cümlesine cevabı parça parça (str) üretir. Uzaktan kipte önce _remote_block denetlenir."""
+        if self.remote:
+            block = self._remote_block()
+            if block:
+                yield block
+                return
+        yield from self._reply_stream(user_text)
+        if self.remote:  # bu uzaktan turda oluşan onay uzaktan cevaplanabilir
+            info = confirm.pending_info()
+            self._remote_confirm = info["id"] if info else None
+
+    def _reply_stream(self, user_text: str):
+        """Cevap üretimi. İlk tur akışsız (araç kararı ve güvenlik ağı için); araç çalıştıktan sonraki cevap akışlı."""
         if WORD_RESET.search(user_text):
             confirm.cancel()
             self.agent.abort()

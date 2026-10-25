@@ -155,7 +155,8 @@ Bilgisayarı kontrol eden bir yapay zekâ riskli bir şeydir. Bu yüzden güvenl
 - **Ajan modu kısıtlıdır.** Plan yalnızca sizin cümlenizden çıkar, baştan sesli okunur ve onaylanır. Her adımda model yalnızca planın o adımdaki
   tek aracını çağırabilir; en fazla 8 adım; bir dosya okunduktan sonra internete giden adım ayrıca onay ister; aynı araç 3 hata verirse görev durur.
 - **Dosya okuma sınırlıdır.** Yalnızca ev dizininiz; gizli klasörler, `.env` ve anahtar dosyaları engelli. Silme kalıcı değildir (çöp kutusu).
-- **Telegram yalnızca kayıtlı sohbetten** gelen mesajlara cevap verir; dosya okuma, ekran, kamera, tarayıcı ve fare/klavye uzaktan kapalıdır.
+- **Telegram yalnızca kayıtlı sohbetten** gelen mesajlara cevap verir; dosya okuma/arama, hafızadan okuma/silme, ekran, kamera, tarayıcı, fare/klavye, MCP ve sistem bakımı uzaktan kapalıdır.
+- **Uzaktan onay verilemez:** bilgisayarda bekleyen bir onayı ya da ajan/ekip planını Telegram'dan veya telefon sayfasından "evet" diyerek çalıştıramazsın (yalnızca bilgisayarın başında). Uzaktan başlattığın işlemin (örn. telefondan görev silme) onayı uzaktan verilebilir.
 - **Kişisel veri git dışındadır.** Token, hafıza, oturum ve hatırlatıcılar `data/` içinde tutulur; bu klasörün kendi `.gitignore`'u vardır.
 
 > **Uyarı:** Bu yazılım bilgisayarınızda gerçek eylemler yapar. Kendi sorumluluğunuzda kullanın. Önce `python check_all.py` çalıştırın,

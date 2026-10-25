@@ -18,7 +18,7 @@ Durum: `[ ]` bekliyor · `[~]` sürüyor · `[x]` bitti (tarih + commit kısaltm
 - [x] **MCP istemcisi** (6cc4ecc, e7d947d): `mcp-server-time` ile çalıştı. Sunucu ayrı venv'de; `data/mcp.json` ekleme talimatı README "MCP araçları" bölümünde (kurulum komutu + hazır örnek).
 
 ## 3. YENİ — Güvenlik ve temizlik (Windows'tan ÖNCE; ölü kodu taşımayalım)
-- [ ] [YAZILIM] **Güvenlik taraması:** `test_security.py`'ye ek olarak elle gözden geçir: komut enjeksiyonu, yol kaçışı, sır sızıntısı (log'lar, hata mesajları, `git ls-files` ile takip edilen dosyalar), public repo riskleri, MCP istemcisi ve uzaktan (Telegram/telefon web) yüzeyi, onay kapısının atlanabileceği yollar. Bulguları şiddetine göre listele, açıkları düzelt, her biri için test ekle.
+- [x] [YAZILIM] **Güvenlik taraması:** `test_security.py`'ye ek olarak elle gözden geçir: komut enjeksiyonu, yol kaçışı, sır sızıntısı (log'lar, hata mesajları, `git ls-files` ile takip edilen dosyalar), public repo riskleri, MCP istemcisi ve uzaktan (Telegram/telefon web) yüzeyi, onay kapısının atlanabileceği yollar. Bulguları şiddetine göre listele, açıkları düzelt, her biri için test ekle.
 - [ ] [YAZILIM→SOR] **Gereksiz kod/dosya temizliği:** kullanılmayan modül, fonksiyon, bağımlılık, tekrar eden dosya, eski tanılama betikleri (`tool_diag*.py`, `stt_test.py`, `tts_compare.py` vb.) için **önce liste çıkar** (neden gereksiz: kim import ediyor / hangi testte geçiyor). Listeyi kullanıcıya göster. **Yalnızca kullanıcı onayladıklarını sil**; açıkça ölü ve hiçbir yerde referansı olmayanları listede ayrıca işaretle. Silmeden sonra `check_all.py --quick` yeşil kalmalı, README "Proje yapısı" güncellenmeli.
 
 ## 4. YENİ — Arayüz düzeltmeleri
@@ -47,3 +47,8 @@ Maskot **"Çekirdek"** (kullanıcı seçti). Hazır varlıklar: `assets/cekirdek
 ## Bitenler
 - 55ad3a3 Denetçi ajanı · 352b96b Mimar ajanı · e7d947d MCP istemcisi (gerçek `mcp-server-time` ile çalıştı, JSON sonuçlar sesli cümleye çevriliyor)
 - 51aee19 / 07633a1 gerçek model düzeltmeleri · cfd6130 Sistem bakım ajanı · d92f190 Qt ada (+ 7372d2a otomatik başlatma) · 3b74312 FTS5 hafıza
+- 2026-10-26 · Güvenlik taraması (bulgular, şiddete göre):
+  - **YÜKSEK — uzaktan onay atlatma:** bilgisayarda bekleyen onay (çöpe atma, tıklama, MCP, daemon durdurma…) ve ajan/ekip planı Telegram/telefon sayfasından "evet/başla" ile çalıştırılabiliyordu (REMOTE_BLOCKED yalnızca çağırmayı engelliyordu). Düzeltildi: `Brain._remote_block`; yalnızca uzaktan turda oluşan onay uzaktan cevaplanır, yerel işleme dokunulmaz. Test: `test_security.py`.
+  - **ORTA — uzaktan veri sızıntısı/silme:** `find_files` (dosya adları/yolları Telegram'a) ve `forget` (onaysız hafıza silme) uzaktan açıktı → REMOTE_BLOCKED.
+  - **DÜŞÜK — pano anahtarı:** ASCII dışı `X-Token` `hmac.compare_digest` TypeError ile isteği düşürüyordu → bayt karşılaştırması, 403.
+  - **BİLGİ:** izlenen dosyalarda ve tüm git geçmişinde gerçek sır yok (Groq/Telegram/GitHub anahtarı, özel anahtar, gerçek tailnet adı yok); tek kayıt bilinen ve kısıtlanmış Firebase anahtarı (`google-services.json`, eski geçmiş). Test numaraları/alan adları yer tutucu. Tüm alt süreç çağrıları liste biçiminde (kabuk yok); `adb shell`'e giden numara temizleniyor, alarm başlığı süzülüyor; çöpe atma mutlak yol. Log'larda anahtar/URL yazılmıyor (yalnızca hata türü). Pano statik yol kaçışı engelli, yerel uçlar özel başlıkla (CSRF yok), Host denetimi var. MCP: sunucu yalnızca kullanıcının `data/mcp.json`'undan, ortam temiz, her çağrı onaylı.

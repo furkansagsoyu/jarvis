@@ -311,7 +311,8 @@ class Dashboard:
                 return ""
 
             def _token_ok(self, given: str) -> bool:
-                return hmac.compare_digest(given or "", dash.token)
+                # bayt karşılaştırması: ASCII dışı başlık TypeError fırlatıp isteği düşürmesin
+                return hmac.compare_digest((given or "").encode("utf-8", "replace"), dash.token.encode("utf-8"))
 
             def _send(self, code: int, body: bytes, ctype: str = "application/json; charset=utf-8", extra: dict | None = None):
                 self.send_response(code)

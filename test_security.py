@@ -148,5 +148,58 @@ check("TLS doğrulaması kapatılmamış (verify=False / unverified context yok)
 gi = (HERE / ".gitignore").read_text()
 check(".gitignore: data/, Firebase anahtarı, hizmet hesabı dosyaları", "data/" in gi and "google-services.json" in gi)
 
+# ---------------------------------------------------------------- uzaktan kip onay kapısını atlayamaz (güvenlik taraması 2026-10)
+from skills import _confirm as confirm  # noqa: E402
+
+ran = []
+
+
+def _tool(name, fn):
+    return name, ({"type": "function", "function": {"name": name, "description": name, "parameters": {"type": "object", "properties": {}}}}, fn)
+
+
+rb = B.Brain(tools=dict([_tool("trash_file", lambda: confirm.request("rapor.txt çöpe atılacak.", lambda: ran.append("yerel") or "atıldı")),
+                         _tool("task_delete", lambda: confirm.request("Görev silinecek.", lambda: ran.append("uzak") or "silindi"))]))
+confirm.cancel()
+rb._call_tool("trash_file", {})                        # bilgisayarda (yerel) oluşan bekleyen işlem
+rb.remote = True
+out = " ".join(rb.reply_stream("evet"))
+check("uzaktan 'evet' bilgisayarda bekleyen onayı ÇALIŞTIRMAZ; işlem bekler", not ran and confirm.has_pending() and "bilgisayarın başında" in out, out)
+out = " ".join(rb.reply_stream("hayır"))
+check("uzaktan 'hayır' da yerel onaya dokunmaz", confirm.has_pending() and "bilgisayarın başında" in out)
+rb.remote = False
+check("bilgisayarda 'evet' yerel onayı çalıştırır", "atıldı" in " ".join(rb.reply_stream("evet")) and ran == ["yerel"])
+rb.remote = True
+rb._fast_route = lambda t: [("task_delete", {})] if "sil" in t else []   # uzaktan başlatılan onay (telefondan görev silme)
+q = " ".join(rb.reply_stream("görevi sil"))
+check("uzaktan başlatılan onay uzaktan cevaplanabilir", q.endswith("Onaylıyor musun?") and "silindi" in " ".join(rb.reply_stream("evet")) and ran == ["yerel", "uzak"])
+rb.remote = False
+rb.team.state = "plan"
+rb.team.plan_expires = __import__("time").time() + 100
+rb.remote = True
+out = " ".join(rb.reply_stream("başla"))
+check("bilgisayarda bekleyen ekip planı uzaktan başlatılamaz", rb.team.state == "plan" and "bilgisayarın başında" in out, out)
+rb.remote = False
+rb.team.abort()
+confirm.cancel()
+check("dosya adları (find_files) ve hafıza silme (forget) uzaktan kapalı", {"find_files", "forget"} <= B.REMOTE_BLOCKED)
+
+# pano anahtarı: ASCII dışı başlık isteği düşürmez, 403 döner
+import http.client  # noqa: E402
+
+from dashboard import server as dserver  # noqa: E402
+
+dd = dserver.Dashboard(types.SimpleNamespace(brain=rb), lambda t, silent=False: None, port=8995)
+dd.start()
+c = http.client.HTTPConnection("127.0.0.1", dd.port, timeout=5)
+c.putrequest("GET", "/api/state")
+c.putheader("Host", f"127.0.0.1:{dd.port}")
+c.putheader("X-Token", "ğüşı".encode("utf-8"))
+c.endheaders()
+r = c.getresponse()
+check("ASCII dışı anahtar başlığı: çökme yok, 403", r.status == 403, str(r.status))
+c.close()
+dd.stop()
+
 print("TÜMÜ TAMAM" if not bad else f"{bad} HATA")
 sys.exit(1 if bad else 0)
