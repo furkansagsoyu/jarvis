@@ -234,6 +234,13 @@ def _limits(is_python: bool):
 
 MEM_LIMIT = os.environ.get("JARVIS_CODE_MEM", "3G")  # sandbox içindeki tüm süreçlerin toplam bellek tavanı (cgroup)
 _memwrap_cache: list[str] | None = None
+BASE_ENV = {"PATH": "/usr/bin:/bin", "LANG": "C.UTF-8", "HOME": "/tmp", "PYTHONDONTWRITEBYTECODE": "1"}  # anahtar/oturum değişkeni YOK
+
+
+def _wrap_env() -> dict[str, str]:
+    """systemd-run --user oturum yöneticisine ulaşmak için XDG_RUNTIME_DIR/DBUS adresini ister; temiz ortamda 'Failed to connect to
+    bus' ile her çalıştırma çıkış kodu 1 verir. Bu değişkenler yalnızca dış sarmalayıcıya gider: bwrap --clearenv programa geçirmez."""
+    return {**BASE_ENV, **{k: os.environ[k] for k in ("XDG_RUNTIME_DIR", "DBUS_SESSION_BUS_ADDRESS") if os.environ.get(k)}}
 
 
 def _mem_wrap() -> list[str]:
@@ -247,7 +254,7 @@ def _mem_wrap() -> list[str]:
     if exe:
         cand = [exe, "--user", "--scope", "--quiet", "-p", f"MemoryMax={MEM_LIMIT}", "-p", "MemorySwapMax=0", "--"]
         try:
-            if subprocess.run([*cand, "/usr/bin/true"], capture_output=True, timeout=10).returncode == 0:
+            if subprocess.run([*cand, "/usr/bin/true"], capture_output=True, timeout=10, env=_wrap_env()).returncode == 0:  # gerçek çalıştırmayla AYNI ortam
                 wrap = cand
         except (OSError, subprocess.SubprocessError):
             pass
@@ -301,8 +308,8 @@ MAX_STDIN = 2000   # programa verilebilen girdi (karakter)
 
 
 def _run(argv: list[str], root: Path, mode: str, stdin_text: str = "") -> str:
-    env = {"PATH": "/usr/bin:/bin", "LANG": "C.UTF-8", "HOME": "/tmp", "PYTHONDONTWRITEBYTECODE": "1"}  # anahtar/oturum değişkeni YOK
     cmd, pre = build_cmd(argv, root, mode)
+    env = _wrap_env() if mode == "bwrap" and cmd[0].endswith("systemd-run") else dict(BASE_ENV)
     try:
         p = subprocess.Popen(cmd, cwd=str(root), env=env, stdin=subprocess.PIPE if stdin_text else subprocess.DEVNULL,
                              stdout=subprocess.PIPE, stderr=subprocess.STDOUT,

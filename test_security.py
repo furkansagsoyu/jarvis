@@ -110,6 +110,18 @@ codeagent.shutil.which = lambda n: None
 check("systemd-run yoksa bellek sarmalayıcı boş, çökmez", codeagent._mem_wrap() == [])
 codeagent.shutil.which = real_which
 codeagent._memwrap_cache = None
+# systemd-run --user temiz ortamda bus'a ulaşamaz ("Failed to connect to bus" -> her çalıştırma çıkış kodu 1); bus değişkenleri
+# yalnızca dış sarmalayıcıya gider, başka hiçbir oturum/anahtar değişkeni gitmez (bwrap --clearenv programa hiçbirini geçirmez)
+_old = {k: os.environ.get(k) for k in ("XDG_RUNTIME_DIR", "DBUS_SESSION_BUS_ADDRESS", "GROQ_API_KEY")}
+os.environ.update(XDG_RUNTIME_DIR="/run/user/1000", DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/1000/bus", GROQ_API_KEY="gizli")
+we = codeagent._wrap_env()
+check("sarmalayıcı ortamı: temel + bus değişkenleri, anahtar yok", set(we) == set(codeagent.BASE_ENV) | {"XDG_RUNTIME_DIR", "DBUS_SESSION_BUS_ADDRESS"})
+check("bwrap komutu ortamı temizler (--clearenv)", "--clearenv" in codeagent.bwrap_args(Path("/tmp/ws"), ["python", "a.py"]))
+for k, v in _old.items():
+    if v is None:
+        os.environ.pop(k, None)
+    else:
+        os.environ[k] = v
 
 # ---------------------------------------------------------------- tehlikeli çağrılar koda geri sızmasın
 SKIP = ("test_", "tool_diag", "_check", "phone_app", "__pycache__")

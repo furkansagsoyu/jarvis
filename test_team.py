@@ -97,7 +97,8 @@ def mk_tools():
         tool("read_file", ["name"], lambda name="": tool_log.append(("read_file", name)) or f"not: {SECRET}"),
         tool("find_files", ["query"], lambda query="": "notlar.txt"),
         tool("browser_open", ["url"], lambda url="": confirm.request(f"{url} açılacak.", lambda: "Açıldı.")),
-        *[tool(sk["name"], list(sk["parameters"]["properties"]), sk["run"]) for sk in CODE_SKILLS],
+        *[(sk["name"], ({"type": "function", "function": {"name": sk["name"], "description": sk["description"], "parameters": sk["parameters"]}}, sk["run"]))
+          for sk in CODE_SKILLS],  # gerçek şema (zorunlu parametreler dahil)
     ])
 
 
@@ -351,6 +352,18 @@ cfg["kod_script"] = [J({"final": "yerelde yazdım"})]
 say(b, "kod: uzun bekleme denemesi yaz")
 say(b, "başla")
 check("limit çok uzunsa (300 sn) beklemeden yerele düşer", not slept and any("Kod Ajanısın" in m[0]["content"] for m in local_log))
+
+# gerçek model denemesinde görülen: gemma4 code_write'a "path" yerine "file" verdi -> ad düzeltilir; eksik zorunlu ad aracı çağırmaz
+b, plan, out = kod_run("takma ad denemesi yaz", [
+    J({"tool": "code_write", "args": {"content": "print(1)\n"}}),
+    J({"tool": "code_write", "args": {"file": "main.py", "code": "print(9)\n"}}),
+    J({"final": "yazdım"})])
+reqs = [json.dumps(c["messages"], ensure_ascii=False) for c in cloud_log if "Kod Ajanısın" in c["messages"][0]["content"]]
+check("yanlış parametre adı (file/code) şemadaki ada çevrilir, dosya yazılır", (Path(WS) / "takma-ad-denemesi-yaz" / "main.py").read_text() == "print(9)\n")
+check("eksik zorunlu parametre: araç çağrılmaz, ajana doğru adlar söylenir", "code_write için eksik parametre: path" in reqs[1])
+check("araç kılavuzunda gerçek parametre adları yazar", "code_write: " in reqs[0] and "(parametreler: path, content)" in reqs[0])
+check("takma ad, şemadaki gerçek adı ezmez", T.Team._fit_args({"path": "a.py", "file": "b.py", "content": "x"}, {"properties": {"path": {}, "content": {}}, "required": ["path"]})
+      == ({"path": "a.py", "content": "x"}, []))
 
 # ---------------------------------------------------------------- Denetçi
 V = T.review_verdict

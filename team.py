@@ -45,6 +45,11 @@ PLAN_TTL = 120
 MAX_FINDINGS = 5   # denetçinin bildirebileceği en fazla bulgu (sesli okunur)
 NO_REVIEW = re.compile(r"\s*\bdenet(?:çi|im)siz\b\s*,?", re.I)
 OBS_MAX = 2000
+# Modelin sık kullandığı yanlış parametre adları -> şemadaki ad (yalnızca hedef şemada varsa ve kaynak şemada YOKSA uygulanır).
+# Gerçek model denemesinde gemma4 code_write'a "path" yerine "file" verdi; ad atılınca araç üç kez hata verip görev düştü.
+ARG_ALIASES = {"file": "path", "filename": "path", "file_path": "path", "filepath": "path", "file_name": "path",
+               "code": "content", "text": "content", "source": "content", "body": "content",
+               "cmd": "command", "input": "stdin", "q": "query", "search": "query", "line": "start_line", "start": "start_line"}
 RESULT_MAX = 1500
 
 PRIVATE_TOOLS = {"read_file", "find_files"}      # kişisel veri okuyan araçlar: sonuç buluta gitmez
@@ -98,6 +103,10 @@ ROLES: dict[str, Role] = {r.key: r for r in (
          "Çalıştırıp görmediğin bir şeye geçti deme.",
          ("code_run", "code_read", "code_list"), cloud=True, max_rounds=8, obs_max=3000,
          say=(("code_run", "Denetçi kodu kendisi çalıştırıp doğruluyor."),), patient=True, view_budget=7000),
+    Role("bakim", "Bakım Ajanı", "bilgisayarın bellek, disk, ekran kartı, model ve günlük sağlığını raporlar (yalnızca yerel, kendi başına değişiklik yapmaz)",
+         "Sen Bakım Ajanısın. system_health ile bilgisayarın sağlık raporunu al ve hedefle ilgili kısmını kısaca aktar. "
+         "Kendi başına hiçbir değişiklik yapamazsın; rapordaki öneriler kullanıcının onayına bağlıdır.",
+         ("system_health",), cloud=False, private=True, max_rounds=2),
     Role("mimar", "Mimar", "büyük bir yazılım isteğini kod ajanının sınırlarına uyan küçük dosyalara ve parçalara böler",
          "Sen Mimarsın. Kullanıcının yazılım isteğini, küçük bir kod ajanının sırayla yazabileceği parçalara bölersin. "
          "Kod ajanının sınırları: yalnızca Python standart kütüphanesi (internet ve pip yok), her dosya en fazla ~120 satır, "
@@ -476,7 +485,7 @@ class Team:
         role = ROLES[t.role]
         sys_text = role.prompt + f"\nBugünün tarihi: {time.strftime('%Y-%m-%d')}. Bir yıldan eski bilgiyi güncel gibi sunma; tarihini belirt."
         if role.tools:
-            manual = "\n".join(f"- {n}: {HELP.get(n, n)}" for n in role.tools if n in self.brain.tools)
+            manual = "\n".join(self._tool_line(n) for n in role.tools if n in self.brain.tools)
             sys_text += f"\n\nKullanabileceğin araçlar (yalnızca bunlar):\n{manual}\n\n{PROTOCOL}"
         proj = ""
         if self.project and t.role in ("kod", "denetci"):  # ajana GERÇEK yolu gösterme: 'workspace/...' önekini yollara eklerdi
@@ -498,6 +507,23 @@ class Team:
             msgs.append({"role": "user", "content": head + "\n".join(lines),
                          "public": not t.private, "private": t.private})
         return msgs
+
+    def _tool_line(self, name: str) -> str:
+        """Araç kılavuzu satırı: açıklama + şemadaki GERÇEK parametre adları (model adı tahmin etmesin)."""
+        fn = self.brain.tools[name][0]["function"]
+        props = list((fn.get("parameters") or {}).get("properties") or {})
+        return f"- {name}: {HELP.get(name) or fn.get('description', name)}" + (f" (parametreler: {', '.join(props)})" if props else "")
+
+    @staticmethod
+    def _fit_args(args: dict, schema: dict) -> tuple[dict, list[str]]:
+        """Argümanları şemaya uydurur: bilinen yanlış adlar düzeltilir, bilinmeyenler atılır. (argümanlar, eksik zorunlular)."""
+        props = schema.get("properties") or {}
+        out = {}
+        for k, v in args.items():
+            k2 = k if k in props else ARG_ALIASES.get(k, "")
+            if k2 in props and k2 not in out and (k2 == k or k2 not in args):
+                out[k2] = v
+        return out, [r for r in schema.get("required") or [] if r not in out]
 
     def _call(self, name: str, args: dict) -> str:
         """Araç çağrısı; arama başarısız olursa kullanıcının tarayıcısı AÇILMAZ (ajan sessiz çalışır, hata dürüstçe döner)."""
@@ -625,8 +651,12 @@ class Team:
                     if name == tool_name and (t.id, tool_name) not in self.said:
                         self.said.add((t.id, tool_name))
                         yield line
-                props = (self.brain.tools[name][0]["function"]["parameters"].get("properties") or {})
-                args = {k: v for k, v in (d.get("args") or {}).items() if k in props} if isinstance(d.get("args"), dict) else {}
+                schema = self.brain.tools[name][0]["function"].get("parameters") or {}
+                args, missing = self._fit_args(d["args"] if isinstance(d.get("args"), dict) else {}, schema)
+                if missing:  # araç hiç çağrılmaz; ajana doğru adlar söylenir (araç hatası sayılmaz)
+                    t.messages.append({"role": "user", "content": f"{name} için eksik parametre: {', '.join(missing)}. "
+                                       f"Parametre adları: {', '.join(schema.get('properties') or {})}."})
+                    continue
                 result = self._exec(t, name, args)
                 print(f"\n[ekip] {t.id} {name}({args}) -> {' ⏎ '.join(result[:300].splitlines())}", flush=True)
                 if confirm.has_pending():
