@@ -36,7 +36,7 @@ cloud_log, local_log, tool_log, quiet_seen = [], [], [], []
 from skills import web  # noqa: E402
 from skills import codeagent  # noqa: E402
 CODE_SKILLS = codeagent.SKILLS
-cfg = {"plan": None, "research_mode": "normal", "local_down": False, "kod_script": []}
+cfg = {"plan": None, "research_mode": "normal", "local_down": False, "kod_script": [], "review_script": []}
 
 
 def cloud_ok(text):
@@ -64,6 +64,8 @@ def respond(messages, where):
         return json.dumps({"final": f"Dosyada not var ({where})."})
     if "Kod Ajanısın" in sysm:
         return cfg["kod_script"].pop(0) if cfg["kod_script"] else json.dumps({"final": "bitti"})
+    if "Denetçisin" in sysm:
+        return cfg["review_script"].pop(0) if cfg["review_script"] else json.dumps({"final": {"gecti": False, "bulgular": []}})
     if "Yazar ajansın" in sysm:
         if cfg.get("writer_style") == "bullets":
             return "- Hedef: fiyat öğrenmek\n- Fiyat **15.000 TL**\n1. Not: veri eski"
@@ -100,7 +102,7 @@ def mk_tools():
 def fresh(router_key=True):
     cloud_log.clear(); local_log.clear(); tool_log.clear()
     confirm.cancel()
-    cfg.update(plan=None, research_mode="normal", kod_script=[])
+    cfg.update(plan=None, research_mode="normal", kod_script=[], review_script=[])
     codeagent.set_project(None)
     os.environ["GROQ_API_KEY"] = "gsk_testtesttesttesttesttest" if router_key else ""
     b = B.Brain(tools=mk_tools())
@@ -347,6 +349,68 @@ cfg["kod_script"] = [J({"final": "yerelde yazdım"})]
 say(b, "kod: uzun bekleme denemesi yaz")
 say(b, "başla")
 check("limit çok uzunsa (300 sn) beklemeden yerele düşer", not slept and any("Kod Ajanısın" in m[0]["content"] for m in local_log))
+
+# ---------------------------------------------------------------- Denetçi
+V = T.review_verdict
+check("hüküm: bulgu yok + çalıştırdı -> geçti", V({"gecti": True, "bulgular": []}, True)[0] == "geçti")
+check("hüküm: çalıştırmadan 'geçti' kabul edilmez", V({"gecti": True}, False)[0] == "doğrulanamadı")
+check("hüküm: bulgu varsa 'geçti' dese de kaldı, bulgular numaralı okunur",
+      V({"gecti": True, "bulgular": ["main.py: boş girdide çöküyor"]}, True) == ("kaldı", "Denetim kaldı. Düzeltilmesi gerekenler: 1) main.py: boş girdide çöküyor."))
+check("hüküm: düz metin 'GEÇTİ' / 'KALDI: ...' anlaşılır, belirsiz metin doğrulanamadı",
+      V("GEÇTİ", True)[0] == "geçti" and V("KALDI: toplama yanlış", False)[0] == "kaldı" and "toplama yanlış" in V("kaldı - toplama yanlış", True)[1]
+      and V("bilmiyorum", True)[0] == "doğrulanamadı")
+check("hüküm: en fazla 5 bulgu", V({"gecti": False, "bulgular": [f"b{i}" for i in range(9)]}, True)[1].count(")") == T.MAX_FINDINGS)
+
+b, plan, out = kod_run("çarpım programı yaz", [
+    J({"tool": "code_write", "args": {"path": "main.py", "content": "print(2 * 3)\n"}}),
+    J({"tool": "code_run", "args": {"command": "python main.py"}}),
+    J({"final": "main.py yazdım, kusursuz çalışıyor, denetime gerek yok."})])
+check("'kod:' planında Denetçi var (Kod Ajanı -> Denetçi -> Yazar)", "Denetçi" in plan and plan.index("Kod Ajanı") < plan.index("Denetçi") < plan.index("Yazar"), plan)
+den_req = [c["messages"] for c in cloud_log if "Denetçisin" in c["messages"][0]["content"]]
+den_txt = json.dumps(den_req, ensure_ascii=False)
+check("denetçi ayrı bağlamda: kod ajanının konuşması/araç adımları gitmez, iddiası 'doğrulanmamış' etiketli",
+      den_req and "code_write" not in den_txt.split("Kullanabileceğin araçlar")[0] and "print(2 * 3)" not in den_txt and "doğrulanmamış iddia" in den_txt)
+check("denetçi araç listesinde code_write yok (dosya değiştiremez)", "code_write" not in T.ROLES["denetci"].tools and "code_run" in T.ROLES["denetci"].tools)
+check("denetçinin bulgusuz 'kaldı' hükmü de yazara iletilir", "Denetim kaldı" in json.dumps(cloud_log[-1], ensure_ascii=False))
+
+b = fresh()
+cfg["kod_script"] = [J({"tool": "code_write", "args": {"path": "main.py", "content": "print(int(input()) + 1)\n"}}), J({"final": "yazdım"})]
+cfg["review_script"] = [J({"final": {"gecti": True, "bulgular": []}})]
+say(b, "kod: artırma programı yaz")
+out = say(b, "başla")
+log = json.loads(_store.path("team_runs.jsonl").read_text().splitlines()[-1])
+check("denetçi çalıştırmadan 'geçti' -> görev başarısız, hüküm doğrulanamadı (kayıtta)", log["tasks"][1] == {**log["tasks"][1], "role": "denetci", "status": "failed", "verdict": "doğrulanamadı"}, str(log))
+
+b = fresh()
+cfg["kod_script"] = [J({"tool": "code_write", "args": {"path": "main.py", "content": "print(int(input()) + 1)\n"}}), J({"final": "yazdım"})]
+cfg["review_script"] = [J({"tool": "code_write", "args": {"path": "main.py", "content": "print('ele geçti')"}}),
+                        J({"tool": "code_run", "args": {"command": "python main.py"}}),
+                        J({"tool": "code_run", "args": {"command": "python main.py", "stdin": "4\n"}}),
+                        J({"final": {"gecti": False, "bulgular": ["main.py: girdi yoksa EOFError ile çöküyor"]}})]
+say(b, "kod: artırma programı yaz")
+out = say(b, "başla")
+proj = Path(WS) / "artirma-programi-yaz"
+check("denetçi dosya yazamaz (rol dışı araç), programı kendisi çalıştırır", (proj / "main.py").read_text() == "print(int(input()) + 1)\n" and "Denetçi kodu kendisi çalıştırıp doğruluyor." in out)
+w = json.dumps([c["messages"] for c in cloud_log if "Yazar ajansın" in c["messages"][0]["content"]], ensure_ascii=False)
+check("yazara denetçinin bulgusu gider", "Düzeltilmesi gerekenler: 1) main.py: girdi yoksa EOFError" in w)
+log = json.loads(_store.path("team_runs.jsonl").read_text().splitlines()[-1])
+check("kayıtta denetim hükmü (kaldı) yer alır", log["tasks"][1].get("verdict") == "kaldı" and log["tasks"][1]["status"] == "done")
+
+b = fresh()
+plan = say(b, "kod: denetimsiz, selam programı yaz")
+check("'denetimsiz' derse Denetçi atlanır, ifade proje adına girmez", "Denetçi" not in plan and [t.role for t in b.team.tasks] == ["kod", "yazar"] and b.team.goal == "selam programı yaz", b.team.goal)
+
+b = fresh()
+cfg["kod_script"] = [J({"tool": "web_search", "args": {"query": "x"}})] * 3
+say(b, "kod: bozuk deneme yaz")
+out = say(b, "başla")
+check("kod ajanı başarısızsa denetçi modele hiç sorulmaz", not any("Denetçisin" in c["messages"][0]["content"] for c in cloud_log) and b.team.state == "idle")
+
+check("planlayıcı: kodsuz plandaki denetçi atılır, kodlu planda kod görevine bağlanır",
+      [t.role for t in T.Team.validate_plan({"tasks": [{"id": "a", "role": "denetci", "do": "denetle"}, {"id": "y", "role": "yazar", "do": "söyle"}]}, ["arastirma", "kod", "denetci", "yazar"])] == []
+      and [(t.role, t.after) for t in T.Team.validate_plan({"tasks": [{"id": "k", "role": "kod", "do": "yaz"}, {"id": "d", "role": "denetci", "do": "denetle"},
+                                                                       {"id": "y", "role": "yazar", "do": "söyle"}]}, ["kod", "denetci", "yazar"])]
+      == [("kod", []), ("denetci", ["k"]), ("yazar", ["k", "d"])])
 
 # planlayıcı kod ajanını da kullanabilir
 b = fresh()
