@@ -16,7 +16,7 @@ Durum: `[ ]` bekliyor · `[~]` sürüyor · `[x]` bitti (tarih + commit kısaltm
 - [x] [YAZILIM→HW] **Qt "ada" yer paylaşımı:** ekranın üst kenarında küçük, tıklanabilir bildirim/onay çubuğu; bekleyen `_confirm` işlemleri için **Evet/Hayır** butonları, durum (dinliyor/düşünüyor/konuşuyor). Mantığı test edilebilir kısım [YAZILIM], görsel/konum doğrulaması [HW]. coucou'dan yalnızca fikir al, kod/varlık kopyalama.
 
 ## 3. Hafıza ve entegrasyon
-- [ ] [YAZILIM] **SQLite FTS5 hafıza:** `memory.json` → arama yapılabilir depo (geri uyumlu göç); isteğe bağlı yerel gömme (Ollama gömme modeli) ikinci aşama. Kişisel veri buluta gitmez.
+- [x] [YAZILIM] **SQLite FTS5 hafıza:** `memory.json` → arama yapılabilir depo (geri uyumlu göç); isteğe bağlı yerel gömme (Ollama gömme modeli) ikinci aşama. Kişisel veri buluta gitmez.
 - [ ] [YAZILIM] **MCP istemcisi:** yerel MCP sunucularına bağlanma; her MCP aracı `hidden` + onay kapılı, `REMOTE_BLOCKED`'a ekli, gizlilik kuralı korunur.
 
 ## 4. Platform ve özellik
@@ -31,6 +31,7 @@ Durum: `[ ]` bekliyor · `[~]` sürüyor · `[x]` bitti (tarih + commit kısaltm
 - [ ] Zamanlanmış/proaktif ajan görevleri; Google Takvim senkronu; ntfy bildirimi
 - [ ] Kod ajanında "kendi projem" kipi (workspace dışı projeye kontrollü erişim — güvenlik tasarımı önce kullanıcıya özetlenir)
 - [ ] Ders ajanı, Git ajanı
+- [ ] Hafıza 2. aşama: yerel gömme (Ollama gömme modeli) ile anlamsal arama; VRAM ölçülmeli (sesli sohbette 6,8/8 GB).
 - [x] Kod ajanı yerel modelde geçersiz JSON (2026-10-25, aşağıda not)
 
 ## Bitenler
@@ -43,3 +44,4 @@ Durum: `[ ]` bekliyor · `[~]` sürüyor · `[x]` bitti (tarih + commit kısaltm
 - 2026-10-25 · Yerel modelde geçersiz JSON ölçüldü ve düzeltildi. 9 gerçek tur (gemma4:e4b, proje kipi) ham cevap + `done_reason` kaydı: "4096 bağlam taşması" varsayımı YANLIŞ çıktı (190 cevaptan yalnızca 2'si `done=length`, o da tekrar döngüsü). Asıl neden JSON yazım hataları: dizge içinde kaçışsız tırnak, kaçışlı sınırlayıcı (`\"…\"`), fazladan/eksik kapatıcı, nesneden sonra başıboş karakter, tek cevapta birden çok çağrı. `team._repair` son çare onarım; dizge ortasında kesilmiş cevap yalnızca `final` ise kabul (yarım dosya yazılmaz). Kayıtlı 190 cevapta geçersiz oranı %20 → %1,1; onarılan tüm `.py` içerikleri derleniyor. Ayrıca ölçümden: aynı çağrı tekrarlanmaz (denetçi aynı dosyaları okuyup tur sınırına takılıyordu), dosya `code_run` olmadan en fazla 2 kez yazılır, denetçi tur sınırında son kez yalnızca hüküm istenir, mimar planındaki yazılmamış dosya kendiliğinden bulgu. Açık kalan: yerel model engel mesajına rağmen aynı dosyayı yazmayı denemeyi sürdürebiliyor (1/9 turda kod parçası tur sınırında düştü); bulut yolu ölçülmedi.
 - 2026-10-25 · Qt "ada" [YAZILIM kısmı bitti, HW bekliyor]: `island.py` (`main.py --island`), pano sunucusunda `/api/island` + `/api/island/answer`. Düğmeler sesli cevapla aynı yoldan; `_confirm.pending_info()` (salt görüntü + artan kimlik) ile eski soruya cevap reddi; plan onayı (ajan/ekip) da gösterilir. Fare/klavye aracı Jarvis pencerelerini (başlık "JARVIS Ada"/"JARVIS Komut Merkezi") yasaklı yüzey sayar; ada odak almaz, imlecin altındaki pencereye de bakılır. Pano 'pending' bayrağı ekip planını da sayıyor (önceden yalnızca ajan). `test_island.py` 26 OK (ekransız Qt duman testi dahil); gerçek ekranda görüntü alınıp kontrol edildi (üst orta, boş/onay halleri).
 - 2026-10-25 · Qt "ada" HW denemesi: kullanıcı doğruladı (üstte göründü, Evet/Hayır doğru çalıştı) → push.
+- 2026-10-25 · SQLite FTS5 hafıza: `skills/memory.py` artık `data/memory.db` (0600; FTS5, bm25 sıralama, Türkçe harf katlama + kaba kök/önek araması; FTS5 yoksa LIKE). Eski `memory.json` ilk kullanımda içeri alınır ve `memory.json.bak` olarak kalır (silinmez). Araç adları/parametreleri aynı (model uyumu), sınır 500 → 5000 kayıt. Pano hafıza kartı `memory.stats()`. `test_memory.py` 29 OK. Ayrıca `test_app` gerçek tek-örnek kilidine bakıyordu (makinede Jarvis açıkken düşüyordu) → geçici kilit. Gerçek veride göç Jarvis yeniden başlatılınca olur (data/ okunmadı).

@@ -53,7 +53,7 @@ Bu belgedeki her teknik iddia kod tabanından doğrulanmıştır; yine de deği�
 | Masaüstü kurulum | `app.py`, `install_app.py`, `autostart.py` | Menüde JARVIS simgesi, terminalsiz başlatma, tek örnek kilidi (`fcntl`). |
 
 ### 3.1 Veri
-Tüm kalıcı veri `data/` altında (`JARVIS_DATA` ile değişir; testler geçici klasör kullanır). Dosyalar 0600, klasör 0700. Erişim `skills/_store.py` üzerinden (`load/save/path/runtime_path`). Bilinen dosyalar: `memory.json, reminders.json, agenda.json, contacts.json, settings.json, status.json, control.json, dashboard.json, briefing.json, router_stats.json, models.json, phone.json, phone_push.json, remote.json, secret.json, session.json, telegram.json, browser_sites.json, conversations.jsonl, team_runs.jsonl, keys.env, fcm_service_account.json, browser_profile/, ram_watch.csv`. Kilit/pid dosyaları `$XDG_RUNTIME_DIR` altındadır.
+Tüm kalıcı veri `data/` altında (`JARVIS_DATA` ile değişir; testler geçici klasör kullanır). Dosyalar 0600, klasör 0700. Erişim `skills/_store.py` üzerinden (`load/save/path/runtime_path`). Bilinen dosyalar: `memory.db (SQLite FTS5; eski memory.json göçte memory.json.bak olur), reminders.json, agenda.json, contacts.json, settings.json, status.json, control.json, dashboard.json, briefing.json, router_stats.json, models.json, phone.json, phone_push.json, remote.json, secret.json, session.json, telegram.json, browser_sites.json, conversations.jsonl, team_runs.jsonl, keys.env, fcm_service_account.json, browser_profile/, ram_watch.csv`. Kilit/pid dosyaları `$XDG_RUNTIME_DIR` altındadır.
 
 ### 3.2 Model ve donanım gerçekleri (ölçüldü, `RAM.md`)
 - Sesli sohbette VRAM **6,8/8 GB** (sıkışık). Gemma+Whisper+TTS birlikte rahat; ek büyük model eklemek VRAM'i aşar.
@@ -90,11 +90,11 @@ Python 3, tip ipuçları (yeni dosyalarda `from __future__ import annotations`),
 
 | Komut | Ne yapar |
 |---|---|
-| `python check_all.py --quick` | Modelsiz mantık testleri (saniyeler). **Son durum: 41 OK, 0 hata.** Her değişiklikten sonra çalıştır. |
+| `python check_all.py --quick` | Modelsiz mantık testleri (saniyeler). **Son durum: 42 OK, 0 hata.** Her değişiklikten sonra çalıştır. |
 | `python check_all.py` | + ortam kontrolü |
 | `python check_all.py --model` | + gerçek model araç seçimi (`tool_check.py`; GPU+Ollama, dakikalar) |
 | `python check_all.py --vision` | + gerçek ekran görüşü |
-| `python test_<ad>.py` | Tek modül (routes, browser, agent, team, code, agenda, maintenance, island, app, dashboard, desktop, mobile, phone, phonelink, ram, router, security, web, window) |
+| `python test_<ad>.py` | Tek modül (routes, browser, agent, team, code, agenda, maintenance, island, memory, app, dashboard, desktop, mobile, phone, phonelink, ram, router, security, web, window) |
 | `python code_check.py` | Kod ajanı bubblewrap kutusu |
 | `python router_check.py` | Anahtar + gizlilik kapısı |
 | `python phone_check.py [--wifi / --via app / --app-pair / --app-test]` | Telefon/ADB/FCM tanılama |
@@ -148,7 +148,7 @@ Genel tutum: küçük, geri alınabilir commit'ler; her commit'te testler yeşil
 
 **Sonra:**
 4. **Qt "ada" yer paylaşımı** (üst kenarda küçük bir bildirim/onay çubuğu; **Evet/Hayır** butonlarıyla `_confirm`'e bağlanır). Cinnamon appleti/desklet alternatifleri değerlendirildi; Qt overlay önerildi.
-5. **FTS5 / anlamsal hafıza** (şimdi `memory.json` düz liste; yerel gömme modeli düşünülebilir).
+5. **FTS5 / anlamsal hafıza** — FTS5 bitti (`skills/memory.py`, `data/memory.db`); ikinci aşama yerel gömme (anlamsal arama) bekliyor.
 6. **MCP istemcisi.**
 7. **Windows taşıma** (paralel yürüyebilir): `platform_compat.py` soyutlaması; `psutil`, `pycaw` (ses), `pyautogui`, `mss`; `kur.bat`/`install.ps1`; donanım algılayıp hafif profil seçme; Windows'ta kod ajanı kapalı (bubblewrap yok); README'ye Windows bölümü. Linux davranışını bozma.
 8. **Sipariş özelliği** (Getir/Yemeksepeti/Trendyol GO) — site önceliği için kullanıcıya **bir kez** sor; kural: sepeti kur, ödemede dur.
@@ -175,7 +175,7 @@ Kullanıcı Claude Code'u **Claude masaüstü uygulamasından (Code sekmesi)** k
 ```bash
 cd ~/jarvis
 git status && git log --oneline -5 && git tag -l | tail -3
-python check_all.py --quick | tail -3      # 41 OK bekleniyor (conda env freya)
+python check_all.py --quick | tail -3      # 42 OK bekleniyor (conda env freya)
 cat TASKS.md                               # sıradaki görev
 ```
 `.claude/settings.json` (repoda) izin listesini ve `data/**`, `*.env`, `fcm_service_account.json`, `google-services.json` okuma yasağını tanımlar. İlk iş doğrula: `data/` altından bir dosya okumayı dene → reddedilmeli. Reddedilmezse kullanıcıya söyle (uygulama dosyayı okumuyor demektir). Sonra `TASKS.md` bölüm 0'dan başla.

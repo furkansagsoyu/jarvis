@@ -105,7 +105,7 @@ Telefon tarayıcısında (ana ekrana eklenebilir) çalışan sayfa: **yazışma*
 | Üst kenar adası | `python main.py --wake --island`: ekranın üst ortasında küçük durum hapı (Dinliyor/Düşünüyor/Konuşuyor); onay ya da plan beklerken soruyu, kalan süreyi ve **Evet/Hayır** düğmelerini gösterir |
 | Komut Merkezi panosu (V2) | `python main.py --dash`: kendi penceresinde canlı pano (sistem, ajanlar, modeller, akış, hızlı komutlar; görev/takvimi elle ekle-sil; gün/saate göre sohbet geçmişi, arama, otomatik silme; yetenek listesi; Yazışma sekmesinde Jarvis ile sohbet) |
 | Masaüstü uygulaması | `python install_app.py`: menüde JARVIS simgesi, terminalsiz başlar; Ayarlar sekmesinde tema (cyan, amber, yeşil, mor, açık) |
-| Hatırlatıcılar, hafıza | "20 dakika sonra beni uyar", "şunu hatırla…" (yeniden başlatınca da durur) |
+| Hatırlatıcılar, hafıza | "20 dakika sonra beni uyar", "şunu hatırla…", "kedimin adı neydi" (hafıza yerel SQLite FTS5 deposunda: Türkçe ekleri ve harfleri tolere eden, alaka sıralı arama; yeniden başlatınca da durur) |
 | Web | "Ankara'nın nüfusunu araştır" (sonuçları okur ve özetler) |
 | Tarayıcı kontrolü | "github.com'a git", "sayfayı oku", "arama kutusuna jarvis yaz ve ara" |
 | Şarkı/video oynatma | "Böyle Kahpedir Dünya şarkısını oynat", "youtube'dan sezen aksu şarkısı aç" (YouTube'da arar, ilk sonucu çalar, tarayıcıyı kapatmaz) |
@@ -219,6 +219,7 @@ skills/            beceriler: her dosya kendini tanımlar ve otomatik yüklenir
   codeagent.py       Kod ajanı araçları (workspace/, güvenli kutu)
   phone.py           telefon araması (ADB ya da uygulama), alarm, yerel rehber
   agenda.py          takvim ve görevler (yerel, Türkçe tarih ayrıştırıcı: _trdate.py)
+  memory.py          hafıza (data/memory.db, SQLite FTS5; eski memory.json bir kez içeri alınır, .bak olarak kalır)
   maintenance.py     Sistem bakım ajanı (sağlık raporu + onaylı güvenli düzeltmeler)
   screen.py, camera.py, files.py, web.py, reminders.py, hardware.py, volume.py, brightness.py, apps.py, ...
 phonelink.py       telefon uygulamasına imzalı FCM komutu; eşleştirme

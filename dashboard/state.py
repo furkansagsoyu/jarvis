@@ -220,8 +220,9 @@ def _model(ctx):
 
 @provider("hafiza")
 def _hafiza(ctx):
-    facts = _store.load("memory.json", [])
-    return {"count": len(facts), "last": [f["text"] for f in facts[-3:]][::-1],
+    from skills import memory  # noqa: PLC0415
+    mem = memory.stats()
+    return {"count": mem["count"], "last": mem["last"],
             "turns": len(getattr(ctx.brain, "history", [])) // 2,
             "summary": bool(getattr(ctx.brain, "summary", ""))}
 

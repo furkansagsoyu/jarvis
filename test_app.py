@@ -39,6 +39,7 @@ check("ikinci kaldırma sorunsuz", I.remove(home=home) == [])
 check("yeniden kurulum üzerine yazar", I.install(home=home)["desktop"].exists())
 
 # başlatıcı: kilit durumu
+app.LOCK = str(Path(tempfile.mkdtemp()) / "jarvis.lock")  # gerçek kilit değil: makinede Jarvis açıkken de test bağımsız
 lock = open(app.LOCK, "a+")  # noqa: SIM115
 fcntl.flock(lock, fcntl.LOCK_UN)
 check("Jarvis çalışmıyorsa is_running False", app.is_running() is False)
