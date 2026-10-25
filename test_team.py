@@ -210,6 +210,9 @@ check("JSON ayrıştırma: ham satır sonu, sondaki açıklama, fazla virgül",
       and T.parse_json('{"tool": "code_run", "args": {"path": "main.py"}} Umarım yardımcı olur }') == {"tool": "code_run", "args": {"path": "main.py"}}
       and T.parse_json('{"tool": "code_read", "args": {"path": "a.py",},}') == {"tool": "code_read", "args": {"path": "a.py"}}
       and T.parse_json('Tamam: {"final": "bitti"}') == {"final": "bitti"} and T.parse_json("{bozuk") is None)
+raw_re = r'{"tool": "code_write", "args": {"path": "m.py", "content": "x = re.compile(r\"\d+\\s\")\nprint(1)"}}'
+check("JSON ayrıştırma: koddaki geçersiz kaçış (\\d) onarılır, geçerli \\\\s ve \\n bozulmaz",
+      T.parse_json(raw_re) == {"tool": "code_write", "args": {"path": "m.py", "content": 'x = re.compile(r"\\d+\\s")\nprint(1)'}})
 
 # ---------------------------------------------------------------- konuşma akışı
 b = fresh()

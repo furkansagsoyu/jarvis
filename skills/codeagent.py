@@ -297,16 +297,20 @@ def _trim(out: str) -> str:
     return out[:OUT_HEAD] + f"\n…(ortası kısaltıldı, {len(out) - OUT_HEAD - OUT_TAIL} karakter)…\n" + out[-OUT_TAIL:]
 
 
-def _run(argv: list[str], root: Path, mode: str) -> str:
+MAX_STDIN = 2000   # programa verilebilen girdi (karakter)
+
+
+def _run(argv: list[str], root: Path, mode: str, stdin_text: str = "") -> str:
     env = {"PATH": "/usr/bin:/bin", "LANG": "C.UTF-8", "HOME": "/tmp", "PYTHONDONTWRITEBYTECODE": "1"}  # anahtar/oturum değişkeni YOK
     cmd, pre = build_cmd(argv, root, mode)
     try:
-        p = subprocess.Popen(cmd, cwd=str(root), env=env, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+        p = subprocess.Popen(cmd, cwd=str(root), env=env, stdin=subprocess.PIPE if stdin_text else subprocess.DEVNULL,
+                             stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                              start_new_session=True, **({"preexec_fn": pre} if pre else {}))
     except OSError as exc:
         return f"Hata: başlatılamadı ({exc})."
     try:
-        out, _ = p.communicate(timeout=RUN_TIMEOUT)
+        out, _ = p.communicate(input=stdin_text.encode("utf-8") if stdin_text else None, timeout=RUN_TIMEOUT)
         text = out.decode("utf-8", errors="replace").strip()
         return f"Çıkış kodu {p.returncode}." + (f"\n{_trim(text)}" if text else " (çıktı yok)")
     except subprocess.TimeoutExpired:
@@ -319,12 +323,13 @@ def _run(argv: list[str], root: Path, mode: str) -> str:
         return f"Hata: {RUN_TIMEOUT} sn içinde bitmedi, durduruldu." + (f"\nŞu ana kadarki çıktı:\n{_trim(text)}" if text else "")
 
 
-def code_run(command: str) -> str:
+def code_run(command: str, stdin: str = "") -> str:
     if _project is None:
         return "Hata: Proje klasörü yok."
     argv = _argv(str(command))
     if isinstance(argv, str):
         return argv
+    stdin_text = str(stdin or "")[:MAX_STDIN]
     import memguard  # noqa: PLC0415
 
     low = memguard.need("kod çalıştırmak", 1.0)
@@ -334,8 +339,8 @@ def code_run(command: str) -> str:
     root = _project.resolve()
     if mode is None:
         return confirm.request(f"Güvenli kutu yok ({why}). '{command}' komutu proje klasöründe doğrudan, korumasız çalışacak.",
-                               lambda: _run(argv, root, "off"))
-    return _run(argv, root, mode)
+                               lambda: _run(argv, root, "off", stdin_text))
+    return _run(argv, root, mode, stdin_text)
 
 
 def _p(**props):
@@ -350,5 +355,6 @@ SKILLS = [
     {"name": "code_write", "description": "Kod projesine dosya yazar (tam içerik).", "hidden": True, "run": code_write,
      "parameters": _p(path=("string", "Dosya yolu"), content=("string", "Dosyanın tam içeriği"))},
     {"name": "code_run", "description": "Kod projesinde python/pytest/node komutu çalıştırır (güvenli kutuda, internetsiz).", "hidden": True, "run": code_run,
-     "parameters": _p(command=("string", "Örn. python main.py"))},
+     "parameters": _p(command=("string", "Örn. python main.py"),
+                      stdin=("string", "Program input() ile okuyorsa verilecek girdi, satırlar \\n ile (örn. 2+3\\nq\\n)", "opt"))},
 ]

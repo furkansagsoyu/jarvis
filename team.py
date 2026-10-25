@@ -71,6 +71,9 @@ ROLES: dict[str, Role] = {r.key: r for r in (
          "Kurallar: yalnızca Python standart kütüphanesini kullan (internet ve pip yok); her dosya en fazla ~120 satır olsun; önce code_write ile dosyayı TAM yaz, "
          "sonra code_run ile çalıştır ya da test et (python main.py, python -m unittest); hata çıkarsa çıktıyı oku ve düzelt. "
          "Bağlam kısa tutulur: eski adımlar özetlenir; bir dosyanın güncel halini görmek için code_read kullan. "
+         "Program klavyeden input() ile okuyorsa code_run'a stdin ver, örn. {\"command\": \"python main.py\", \"stdin\": \"2+3\\nq\\n\"}; "
+         "stdin vermezsen input() EOFError ile çıkış kodu 1 verir, bu kodun bozuk olduğu anlamına GELMEZ. "
+         "Hata çıktısını oku ve nedenini düzelt; aynı komutu değiştirmeden tekrarlama. Birim testleri tests/ altında yaz ve python -m unittest ile çalıştır. "
          "İş bitince final'de neyi yazdığını, nasıl çalıştırılacağını ve test sonucunu 2-3 cümleyle söyle; çalıştırıp görmediğin bir şeye 'çalışıyor' deme.",
          ("code_write", "code_read", "code_list", "code_run"), cloud=True, max_rounds=14, obs_max=3000, max_tokens=1800,
          say=(("code_write", "Kod yazıyorum."), ("code_run", "Çalıştırıp deniyorum.")), patient=True, view_budget=7000),
@@ -138,6 +141,14 @@ def speakable(text: str) -> str:
     return " ".join(out)
 
 
+_BAD_ESC = re.compile(r'\\(?:(["\\/bfnrt]|u[0-9a-fA-F]{4})|(.))', re.S)
+
+
+def _fix_escapes(text: str) -> str:
+    """JSON'da geçersiz kaçışları (örn. kodun içindeki regex \\d, \\s) çift ters eğik çizgiye çevirir; geçerli olanlara dokunmaz."""
+    return _BAD_ESC.sub(lambda m: m.group(0) if m.group(1) is not None else "\\\\" + m.group(2), text)
+
+
 def parse_json(raw: str) -> dict | None:
     """Modelin cevabından ilk JSON nesnesini çıkarır. Hoşgörülü: dizge içinde ham satır sonu/sekme, nesneden sonra gelen
     açıklama ve sondaki fazla virgül kabul edilir. Dizi ya da düz metin için None."""
@@ -152,9 +163,15 @@ def parse_json(raw: str) -> dict | None:
         b = raw.rfind("}")
         if b <= a:
             return None
-        try:
-            d = json.loads(re.sub(r",\s*([}\]])", r"\1", raw[a:b + 1]), strict=False)  # sondaki fazla virgül
-        except ValueError:
+        body = raw[a:b + 1]
+        d = None
+        for cand in (body, _fix_escapes(body)):   # önce olduğu gibi, sonra geçersiz kaçışlar onarılmış
+            try:
+                d = json.loads(re.sub(r",\s*([}\]])", r"\1", cand), strict=False)  # sondaki fazla virgül
+                break
+            except ValueError:
+                continue
+        if d is None:
             return None
     return d if isinstance(d, dict) else None
 
@@ -423,6 +440,7 @@ class Team:
                 d = parse_json(raw)
                 if not d:
                     t.bad_json += 1
+                    t.rounds -= 1      # geçersiz yanıt tur hakkını yemesin (üst üste 3'te zaten durur)
                     print(f"[ekip] {t.id} geçersiz JSON ({t.model}, {len(raw or '')} karakter): {(raw or '')[:300]!r}", flush=True)
                     if t.bad_json >= 3:
                         self._finish_task(t, "failed", "(model geçerli yanıt vermedi)")
@@ -452,7 +470,7 @@ class Team:
                 props = (self.brain.tools[name][0]["function"]["parameters"].get("properties") or {})
                 args = {k: v for k, v in (d.get("args") or {}).items() if k in props} if isinstance(d.get("args"), dict) else {}
                 result = self._exec(t, name, args)
-                print(f"\n[ekip] {t.id} {name}({args}) -> {result[:200]}", flush=True)
+                print(f"\n[ekip] {t.id} {name}({args}) -> {' ⏎ '.join(result[:300].splitlines())}", flush=True)
                 if confirm.has_pending():
                     self.state, self._pending = "confirm", (t, name)
                     confirm.wrap(self._on_confirmed)
