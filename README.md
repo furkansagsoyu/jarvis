@@ -31,7 +31,7 @@ python router_check.py            # anahtar ve gizlilik kapısı denemesi
 
 ## Ekip modu (çoklu ajan)
 
-Çok adımlı işleri uzman ajanlar yapar: **Planlayıcı → Araştırma Ajanı / Dosya Ajanı → Yazar**. Her ajan yalnızca kendi rolünün araçlarını kullanır.
+Çok adımlı işleri uzman ajanlar yapar: **Planlayıcı → Araştırma Ajanı / Dosya Ajanı / Kod Ajanı / Bakım Ajanı → Yazar**. Bakım Ajanı (sistem sağlık raporu) Dosya Ajanı gibi yalnızca yerelde çalışır. Her ajan yalnızca kendi rolünün araçlarını kullanır.
 
 - Başlatma: **"ekip: <görev>"** (planı model çıkarır) ya da **"araştır: <konu>"** (hazır plan: Araştırma + Yazar). Plan baştan okunur, tek "evet" ile başlar; riskli adımlar kendi onayını ister.
 - Model seçimi her çağrıda yapılır: **bağlam temizse ücretsiz bulut** (güçlü model), değilse ya da bulut yoksa **yerel**. Kişisel veri okuyan bir görev (Dosya Ajanı) ve ona bağlı her görev (Yazar dahil) yalnızca yerelde çalışır; sonucu buluta gitmez. Web'den gelen içerik buluta gidebilir (herkese açık kaynak).
@@ -103,6 +103,7 @@ Telefon tarayıcısında (ana ekrana eklenebilir) çalışan sayfa: **yazışma*
 | Ajan modu | "Ajan modu: Wikipedia'da Ankara'yı araştır ve özetle" (planı okur, onay ister) |
 | Ekip ve kod ajanı | "araştır: …", "ekip: …", "kod: bir hesap makinesi yaz" (Kod Ajanı yazar, Denetçi bağımsız çalıştırıp doğrular, Yazar söyler), "proje: …" (Mimar önce parçalara böler) |
 | Sistem | "CPU kaç?", "Pil kaç?", "Sistem durumu nasıl?", düşük pil uyarısı |
+| Sistem bakımı | "Sistem bakımı yap", "Bilgisayarım neden yavaş" (bellek, swap, VRAM, modeller, disk, günlük, unutulmuş derleme süreçleri; kendi başına değişiklik yapmaz, güvenli düzeltmeleri onayla önerir) |
 | Günaydın özeti | "Günaydın" (tarih, hava, hatırlatıcılar), sabahları kendiliğinden |
 | Uzaktan | Telegram botu üzerinden metin komutları (hassas araçlar kapalı) |
 | Konfor | Eller serbest mod, durum penceresi ve tepsi simgesi, Sustur, otomatik başlatma |
@@ -193,7 +194,7 @@ Tarayıcı testleri gerçek bir Chromium ile yerel test sitesinde çalışır. F
 main.py            konuşma döngüsü (mikrofon → STT → beyin → TTS)
 brain.py           model, araç çağırma, kural tabanlı hızlı yol, oturum, bağlam özetleme
 agent.py           ajan modu (planla, onayla, adım adım yürüt)
-team.py            Ekip modu (çoklu ajan: planlayıcı, mimar, uzman ajanlar, denetçi, yazar)
+team.py            Ekip modu (çoklu ajan: planlayıcı, mimar, uzman ajanlar [araştırma, dosya, kod, bakım], denetçi, yazar)
 router.py, privacy.py   Model yönlendirici (ücretsiz bulut, yedek zinciri) ve gizlilik kapısı
 convlog.py         kalıcı konuşma günlüğü (panodaki Konuşmalar; süreli otomatik silme)
 stt.py, tts.py, wake.py   konuşma tanıma, sentez, uyanma sözcüğü
@@ -205,6 +206,7 @@ skills/            beceriler: her dosya kendini tanımlar ve otomatik yüklenir
   codeagent.py       Kod ajanı araçları (workspace/, güvenli kutu)
   phone.py           telefon araması (ADB ya da uygulama), alarm, yerel rehber
   agenda.py          takvim ve görevler (yerel, Türkçe tarih ayrıştırıcı: _trdate.py)
+  maintenance.py     Sistem bakım ajanı (sağlık raporu + onaylı güvenli düzeltmeler)
   screen.py, camera.py, files.py, web.py, reminders.py, hardware.py, volume.py, brightness.py, apps.py, ...
 phonelink.py       telefon uygulamasına imzalı FCM komutu; eşleştirme
 phone_app/         Jarvis Telefon uygulaması (Flutter + Kotlin; Firebase Messaging)

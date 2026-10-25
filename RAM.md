@@ -11,6 +11,7 @@ Hedef makine: 15 GB RAM, 8 GB VRAM (RTX 3070 Ti), swap yok. Bellek biterse çeki
 | Kod ajanı bellek tavanı | Sandbox içindeki tüm süreçler toplam `JARVIS_CODE_MEM` (varsayılan 3G) ile sınırlı (systemd cgroup, varsa). Python ayrıca 3 GB adres alanıyla sınırlı. |
 | OOM'da önce sandbox ölür | Sandbox süreçleri `oom_score_adj=1000` ile başlar: bellek bitince çekirdek önce onları öldürür, Ollama'yı ya da masaüstünü değil. |
 | `JARVIS_KEEP_ALIVE` | Modelin boşta bellekte kalma süresi (varsayılan 30m). RAM/VRAM sıkışıksa `5m` yap; ilk cevap biraz gecikir. |
+| Sistem bakım ajanı | "**Sistem bakımı yap**" / "**bilgisayarım neden yavaş**": bellek, swap, PSI, VRAM, yüklü modeller ve CPU'ya taşma, Ollama servis ayarları, disk, workspace boyutu, Jarvis günlüğündeki hata izleri ve unutulmuş Gradle/Kotlin daemon'ları tek raporda (`skills/maintenance.py`, model çağrısı yok). Kendi başına bir şey yapmaz; yalnızca fazladan yüklü modeli boşaltmayı ve daemon'ları durdurmayı **onayla** önerir, sudo gerektirenleri (swap, sysctl, Ollama ayarı) yalnızca söyler. |
 | `JARVIS_NUM_CTX` | Bağlam uzunluğunu sabitler (ör. 4096 ya da 8192). KV önbelleği bununla orantılı büyür; ayarsızsa Ollama varsayılanı. |
 
 ## Sistem tarafı (bir kez, sen yap)
@@ -96,4 +97,5 @@ kotlin.daemon.jvmargs=-Xmx768m
 # 3) şu an kalan arka plan süreçlerini kapat
 cd phone_app/android && ./gradlew --stop ; pkill -f KotlinCompileDaemon
 ```
-Derleme biraz yavaşlayabilir; bellek zaten kısıtlıysa buna değer.
+Derleme biraz yavaşlayabilir; bellek zaten kısıtlıysa buna değer. 3. adımı Jarvis'e de yaptırabilirsin: "sistem bakımı yap" kalan
+daemon'ları bulur ve onay verirsen durdurur.

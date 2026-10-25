@@ -63,7 +63,7 @@ SESSION_TTL = 12 * 3600  # bundan eski konuşma geçmişi yüklenmez
 # Uzaktan (Telegram) gelen komutlarda çalıştırılmayan araçlar: içerik makine dışına, üçüncü taraf sunucuya çıkar.
 REMOTE_BLOCKED = {"move_file", "trash_file", "undo_last_action", "phone_ring", "phone_call", "phone_hangup", "phone_answer", "phone_status", "contact_add", "contacts_sync", "code_list", "code_read", "code_write", "code_run", "read_file", "recall", "look_at_screen", "look_at_camera", "browser_open", "browser_play", "browser_read", "browser_click",
                   "browser_type", "browser_back", "browser_close", "mouse_move", "mouse_click", "scroll",
-                  "keyboard_type", "press_key"}
+                  "keyboard_type", "press_key", "system_health"}
 
 # Ölçümle (tool_diag.py, tool_diag2.py, tool_check.py) doğrulandı: SADECE bu kısa hal 8/8 araç çağırıyor.
 # Kural eklemek (sayıları yazıyla yaz, anlık bilgiyi uydurma, yetenek listesi, cümle sınırı...) tek tek
@@ -85,7 +85,7 @@ ACTION_CLAIM = re.compile(
     r"açıldı|kapatıldı|ayarlandı|yapıldı|kısıldı|kısıldı|artırıldı|azaltıldı|arandı|başlatıldı|çalıştırıldı|"
     r"iptal edildi|iptal ettim|sonlandırıldı|sonlandırdım|kapattım|bitirdim|durduruldu|durdurdum)\b|"
     r"\baraç|"
-    r"\b(open_app|set_volume|change_volume|get_time|get_date|web_search|list_abilities|remember|recall|forget|set_reminder|list_reminders|cancel_reminders|get_weather|get_battery|morning_brief|look_at_screen|look_at_camera|browser_open|browser_play|browser_read|browser_click|browser_type|browser_back|browser_close|mouse_move|mouse_click|keyboard_type|press_key|get_system_status|find_files|read_file|move_file|trash_file|undo_last_action)\b",
+    r"\b(open_app|set_volume|change_volume|get_time|get_date|web_search|list_abilities|remember|recall|forget|set_reminder|list_reminders|cancel_reminders|get_weather|get_battery|morning_brief|look_at_screen|look_at_camera|browser_open|browser_play|browser_read|browser_click|browser_type|browser_back|browser_close|mouse_move|mouse_click|keyboard_type|press_key|get_system_status|system_health|find_files|read_file|move_file|trash_file|undo_last_action)\b",
     re.IGNORECASE,
 )
 # Saat/tarih gibi anlık bilgilerde modele karar bırakılmaz (gemma tarihi uydurdu: "25 Mayıs 2024").
@@ -104,6 +104,9 @@ WORD_SCREEN = re.compile(r"\bekran\w*\b.*\b(ne var|bak\w*|oku\w*|anlat\w*|özetl
 WORD_CAMERA = re.compile(r"\b(kamera\w*|web\s?(?:cam|kam)\w*)\b.*\b(bak\w*|ne var|görüyor\w*|anlat\w*|göster\w*)\b|\bbana bak\b|\belimde ne var\b|\bkarşında ne var\b", re.I)
 WORD_CAMERA_NOT = re.compile(r"\b(aç|kapat|ayarla|kur|indir|yükle)\w*\b", re.I)
 WORD_SCREEN_NOT = re.compile(r"karart|aydınlat|parlak|kapat|kilitle|görüntüsü al|ekran görüntüsü|kaydet", re.I)
+# Sistem bakım raporu (skills/maintenance.py): WORD_HW'den ÖNCE bakılır ("bilgisayar neden yavaş" donanım sorusu değil, bakım)
+WORD_MAINT = re.compile(r"\b(?:sistem|bilgisayar)\w*\s+(?:bakım|sağlı[kğ])\w*|\bbakım\s+(?:yap|raporu|kontrol)\w*|\bsağlık\s+(?:raporu|kontrol)\w*|"
+                        r"\bbilgisayar\w*\s+(?:neden|niye)\s+(?:bu\s+kadar\s+)?(?:yavaş|kasıyor|donuyor)\w*", re.I)
 WORD_HW = re.compile(r"\b(cpu|işlemci\w*|ram|vram|gpu|ekran kart\w*|disk\w*|depolama\w*|sistem durumu\w*|bilgisayar\w*\s+(nasıl|durumu|ne durumda|sıcaklığ\w*)|donanım\w*)\b", re.I)
 # "bulut: ..." / "bulutta sor, ...": yalnızca bu cümle (konuşma geçmişi, hafıza, ekran HİÇ eklenmeden) ücretsiz bulut modeline sorulur
 WORD_CLOUD = re.compile(r"^\W*bulut(?:ta|tan|la)?\s*(?:(?:sor|çöz|cevapla)\b\s*[:,\-–]?|[:\-–])\s*(?P<q>.{6,})$", re.I | re.S)
@@ -427,6 +430,8 @@ class Brain:
     def _fast_route(self, text: str) -> list[tuple[str, dict]]:
         """Kural tabanlı hızlı yol: (araç adı, argümanlar) listesi döndürür (boşsa model karar verir)."""
         calls = []
+        if "system_health" in self.tools and WORD_MAINT.search(text):
+            return [("system_health", {})]
         if "get_system_status" in self.tools and WORD_HW.search(text) and not NOT_A_QUERY.search(text):
             m = WORD_HW.search(text).group(1).lower()
             part = ("cpu" if m in ("cpu",) or m.startswith("işlemci") else "ram" if m in ("ram",) else
