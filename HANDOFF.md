@@ -171,11 +171,11 @@ Genel tutum: küçük, geri alınabilir commit'ler; her commit'te testler yeşil
 ---
 
 ## 10. Hızlı başlangıç (Claude Code ilk oturum)
+Kullanıcı Claude Code'u **Claude masaüstü uygulamasından (Code sekmesi)** kullanıyor: Ortam = Yerel, klasör = `~/jarvis`, izin modu = Auto (ya da Accept edits). Terminal (`claude`) ya da VS Code eklentisi kullanmıyor; talimatlar ona göre.
 ```bash
 cd ~/jarvis
 git status && git log --oneline -5 && git tag -l | tail -3
-conda activate freya        # ya da /home/furkan/miniconda3/envs/freya/bin/python kullan
-python check_all.py --quick | tail -3      # 39 OK bekleniyor
-cat TASKS.md                # sıradaki görev
+python check_all.py --quick | tail -3      # 39 OK bekleniyor (conda env freya)
+cat TASKS.md                               # sıradaki görev
 ```
-İlk oturumda ayrıca `/permissions` ile şunları doğrula/ekle: `data/**` ve `**/*.env` için okuma/yazma yasağı; `python check_all.py *`, `git add/commit/push`, `pytest/python` için izin. Sonra `TASKS.md` görev 1'den başla.
+`.claude/settings.json` (repoda) izin listesini ve `data/**`, `*.env`, `fcm_service_account.json`, `google-services.json` okuma yasağını tanımlar. İlk iş doğrula: `data/` altından bir dosya okumayı dene → reddedilmeli. Reddedilmezse kullanıcıya söyle (uygulama dosyayı okumuyor demektir). Sonra `TASKS.md` bölüm 0'dan başla.

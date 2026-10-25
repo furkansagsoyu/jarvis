@@ -5,7 +5,7 @@ Durum: `[ ]` bekliyor · `[~]` sürüyor · `[x]` bitti (tarih + commit kısaltm
 
 ## 0. Hazırlık
 - [ ] [YAZILIM] `git status`, `git log --oneline -5`, `git tag -l`: `v2zi` etiketi, `team.py`/`test_team.py` alt çizgi düzeltmesi ve `RAM.md` güncellemesi commit'li/push'lu mu? Eksikse tamamla (etiket: sıradaki `v2zj`).
-- [ ] [YAZILIM] `python check_all.py --quick` → 39 OK doğrula. `/permissions` ile `data/**`, `**/*.env` koruması ve test/git komutları izinlerini kur.
+- [ ] [YAZILIM] `python check_all.py --quick` → 39 OK doğrula. `.claude/settings.json` korumasını doğrula: `data/` altından okuma denemesi reddedilmeli (reddedilmezse kullanıcıya bildir).
 
 ## 1. Ajan serisi (team.py rolleri)
 - [ ] [YAZILIM] **Denetçi ajanı:** kod ajanı çıktısını (workspace projesi) ayrı bağlamda çalıştırıp/okuyup doğrular; bulgu listesi + geçti/kaldı. Yalnızca düzeltme gerektiren bulguları bildirir. Rol testleri `test_team.py`'ye. `kod:` akışına isteğe bağlı son adım olarak bağla.

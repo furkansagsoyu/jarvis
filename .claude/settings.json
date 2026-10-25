@@ -1,0 +1,24 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python check_all.py *)",
+      "Bash(python test_*.py *)",
+      "Bash(python code_check.py *)",
+      "Bash(python -m pytest *)",
+      "Bash(ruff *)",
+      "Bash(git status *)",
+      "Bash(git diff *)",
+      "Bash(git log *)",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(git push *)",
+      "Bash(git tag *)"
+    ],
+    "deny": [
+      "Read(./data/**)",
+      "Read(**/*.env)",
+      "Read(**/fcm_service_account.json)",
+      "Read(**/google-services.json)"
+    ]
+  }
+}
