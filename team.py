@@ -139,14 +139,23 @@ def speakable(text: str) -> str:
 
 
 def parse_json(raw: str) -> dict | None:
+    """Modelin cevabından ilk JSON nesnesini çıkarır. Hoşgörülü: dizge içinde ham satır sonu/sekme, nesneden sonra gelen
+    açıklama ve sondaki fazla virgül kabul edilir. Dizi ya da düz metin için None."""
     raw = _FENCE.sub("", _THINK.sub("", raw or "")).strip()
-    a, b = raw.find("{"), raw.rfind("}")
-    if a < 0 or b <= a:
+    a = raw.find("{")
+    if a < 0:
         return None
+    dec = json.JSONDecoder(strict=False)
     try:
-        d = json.loads(raw[a:b + 1])
+        d, _ = dec.raw_decode(raw, a)       # nesneden sonra metin olabilir ("... } Umarım yardımcı olur")
     except ValueError:
-        return None
+        b = raw.rfind("}")
+        if b <= a:
+            return None
+        try:
+            d = json.loads(re.sub(r",\s*([}\]])", r"\1", raw[a:b + 1]), strict=False)  # sondaki fazla virgül
+        except ValueError:
+            return None
     return d if isinstance(d, dict) else None
 
 
@@ -414,11 +423,13 @@ class Team:
                 d = parse_json(raw)
                 if not d:
                     t.bad_json += 1
-                    if t.bad_json >= 2:
+                    print(f"[ekip] {t.id} geçersiz JSON ({t.model}, {len(raw or '')} karakter): {(raw or '')[:300]!r}", flush=True)
+                    if t.bad_json >= 3:
                         self._finish_task(t, "failed", "(model geçerli yanıt vermedi)")
                         break
                     t.messages.append({"role": "user", "content": "Yalnızca geçerli tek bir JSON nesnesi ver."})
                     continue
+                t.bad_json = 0  # sayaç ARDIŞIK geçersiz yanıtları sayar
                 t.messages.append({"role": "assistant", "content": json.dumps(d, ensure_ascii=False)[:600], "public": not t.private, "private": t.private})
                 if "final" in d:
                     self._finish_task(t, "done", str(d["final"]))

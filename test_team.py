@@ -193,7 +193,7 @@ cfg["research_mode"] = "garbage"
 say(b, "araştır: herhangi bir konu")
 out = say(b, "evet")
 last = json.loads(_store.path("team_runs.jsonl").read_text().splitlines()[-1])
-check("model geçerli JSON vermezse görev 2 denemede başarısız olur (sonsuz döngü yok)", last["tasks"][0]["status"] == "failed" and b.team.state == "idle")
+check("model geçerli JSON vermezse görev 3 ardışık denemede başarısız olur (sonsuz döngü yok)", last["tasks"][0]["status"] == "failed" and b.team.state == "idle")
 
 # ---------------------------------------------------------------- plan doğrulama
 have = ["arastirma", "dosya", "yazar"]
@@ -205,6 +205,11 @@ check("plan: en fazla 5 görev", len(V({"tasks": [{"role": "arastirma", "do": f"
 check("plan: boş/bozuk plan reddedilir", V(None, have) == [] and V({"tasks": "x"}, have) == [] and V({"tasks": [{"role": "yazar", "do": "y"}]}, have) == [])
 check("plan: rol yüklü araç yoksa kullanılmaz", V({"tasks": [{"role": "dosya", "do": "oku"}]}, ["arastirma", "yazar"]) == [])
 check("JSON ayrıştırma: kod çiti, think, fazlalık", T.parse_json("<think>x</think>```json\n{\"final\": \"a\"}\n```") == {"final": "a"} and T.parse_json("yok") is None and T.parse_json("[1]") is None)
+check("JSON ayrıştırma: ham satır sonu, sondaki açıklama, fazla virgül",
+      T.parse_json('{"final": "satır bir\nsatır iki"}') == {"final": "satır bir\nsatır iki"}
+      and T.parse_json('{"tool": "code_run", "args": {"path": "main.py"}} Umarım yardımcı olur }') == {"tool": "code_run", "args": {"path": "main.py"}}
+      and T.parse_json('{"tool": "code_read", "args": {"path": "a.py",},}') == {"tool": "code_read", "args": {"path": "a.py"}}
+      and T.parse_json('Tamam: {"final": "bitti"}') == {"final": "bitti"} and T.parse_json("{bozuk") is None)
 
 # ---------------------------------------------------------------- konuşma akışı
 b = fresh()

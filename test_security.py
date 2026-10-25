@@ -116,8 +116,8 @@ SKIP = ("test_", "tool_diag", "_check", "phone_app", "__pycache__")
 bad_calls = []
 for f in sorted(HERE.rglob("*.py")):
     s = str(f)
-    if any(k in s for k in SKIP) or f.name in ("check_all.py", "stt_test.py"):
-        continue
+    if any(k in s for k in SKIP) or f.name in ("check_all.py", "stt_test.py") or "workspace" in f.relative_to(HERE).parts:
+        continue  # workspace/: kod ajanının ürettiği kod (proje kodu değil)
     for n in ast.walk(ast.parse(f.read_text(encoding="utf-8"))):
         if not isinstance(n, ast.Call):
             continue
@@ -132,7 +132,7 @@ for f in sorted(HERE.rglob("*.py")):
 check("eval/exec/os.system/pickle/shell=True/mktemp hiçbir yerde yok", not bad_calls, str(bad_calls))
 check("TLS doğrulaması kapatılmamış (verify=False / unverified context yok)",
       not any(("verify=False" in t or "_create_unverified_context" in t or "CERT_NONE" in t) for t in
-              (f.read_text(encoding="utf-8") for f in HERE.rglob("*.py") if "test_" not in f.name and "phone_app" not in str(f))))
+              (f.read_text(encoding="utf-8") for f in HERE.rglob("*.py") if "test_" not in f.name and "phone_app" not in str(f) and "workspace" not in f.relative_to(HERE).parts)))
 gi = (HERE / ".gitignore").read_text()
 check(".gitignore: data/, Firebase anahtarı, hizmet hesabı dosyaları", "data/" in gi and "google-services.json" in gi)
 
