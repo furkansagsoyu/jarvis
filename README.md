@@ -59,6 +59,21 @@ python router_check.py            # anahtar ve gizlilik kapısı denemesi
 - Ada odak almaz (klavyeyle tetiklenemez) ve fare/klavye aracı Jarvis'in kendi pencerelerine (ada, pano) tıklamaz/yazmaz: model kendi onayını veremez.
 - Pano sunucusuna yalnızca 127.0.0.1 üzerinden, oturum anahtarıyla bağlanır. Fikir [coucou](https://github.com/louis-cfm/coucou)'dan (MIT) alındı; kod ve görseller bu projeye özgüdür.
 
+## MCP araçları (yerel sunucular)
+
+Jarvis, [Model Context Protocol](https://modelcontextprotocol.io) sunucularına stdio üzerinden bağlanabilir (`mcp_client.py`, ek bağımlılık yok). Sunucuları **sen** `data/mcp.json` dosyasına yazarsın:
+
+```json
+{"servers": {
+  "zaman": {"command": "uvx", "args": ["mcp-server-time"], "tools": ["get_current_time"], "timeout": 30}
+}}
+```
+
+- Kullanım: "**mcp araçları**" (sunucular ve araçlar), "**mcp: zaman get_current_time timezone=Europe/Istanbul**" ya da `mcp: <sunucu> <araç> {"json": "argüman"}`.
+- **Her çağrı onay ister** (sunucu, araç ve argümanlar okunur); model onay veremez. Araçlar modelin şemasında yok, yalnızca bu açık komutla çalışır; sonuç modele gitmeden okunur.
+- `tools` verilirse yalnızca o araçlar kullanılabilir (izin listesi). Sunucuya Jarvis'in ortamı/anahtarları geçmez (yalnızca PATH, HOME, LANG + `env`). Uzaktan (Telegram/telefon) kapalı.
+- Yalnızca güvendiğin yerel sunucuları ekle: sunucu kendi işini kendi yetkinle yapar (dosyaya yazabilir, internete çıkabilir). Takılan sunucu zaman aşımında kapatılır, sonraki kullanımda yeniden başlar.
+
 ## Telefon araması (Android, ADB)
 
 Telefonu USB ile bağla (Geliştirici seçenekleri → USB hata ayıklama açık, bilgisayara izin ver). Sonra: "**Annemi ara**", "**0555 123 45 67'yi ara**" (önce "…arayacağım, onaylıyor musun?" der, "evet" dersen arar), "**aramayı kapat**", "**aramayı aç**" (çalanı), "**telefon bağlı mı**".
@@ -114,6 +129,7 @@ Telefon tarayıcısında (ana ekrana eklenebilir) çalışan sayfa: **yazışma*
 | Ajan modu | "Ajan modu: Wikipedia'da Ankara'yı araştır ve özetle" (planı okur, onay ister) |
 | Ekip ve kod ajanı | "araştır: …", "ekip: …", "kod: bir hesap makinesi yaz" (Kod Ajanı yazar, Denetçi bağımsız çalıştırıp doğrular, Yazar söyler), "proje: …" (Mimar önce parçalara böler) |
 | Sistem | "CPU kaç?", "Pil kaç?", "Sistem durumu nasıl?", düşük pil uyarısı |
+| MCP araçları | "mcp araçları", "mcp: zaman get_current_time timezone=Europe/Istanbul" (yalnızca senin `data/mcp.json`'da tanımladığın yerel sunucular; her çağrı onay ister) |
 | Sistem bakımı | "Sistem bakımı yap", "Bilgisayarım neden yavaş" (bellek, swap, VRAM, modeller, disk, günlük, unutulmuş derleme süreçleri; kendi başına değişiklik yapmaz, güvenli düzeltmeleri onayla önerir) |
 | Günaydın özeti | "Günaydın" (tarih, hava, hatırlatıcılar), sabahları kendiliğinden |
 | Uzaktan | Telegram botu üzerinden metin komutları (hassas araçlar kapalı) |
@@ -204,6 +220,7 @@ Tarayıcı testleri gerçek bir Chromium ile yerel test sitesinde çalışır. F
 
 ```
 main.py            konuşma döngüsü (mikrofon → STT → beyin → TTS)
+mcp_client.py      yerel MCP istemcisi (stdio JSON-RPC; araçlar skills/mcp.py, sunucular data/mcp.json)
 island.py          üst kenar adası (durum + Evet/Hayır; Qt, pano sunucusunun /api/island uçları)
 brain.py           model, araç çağırma, kural tabanlı hızlı yol, oturum, bağlam özetleme
 agent.py           ajan modu (planla, onayla, adım adım yürüt)

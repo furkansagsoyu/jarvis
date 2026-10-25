@@ -526,6 +526,13 @@ def logic_tests() -> None:
         assert r.returncode == 0, "\n".join(l for l in r.stdout.splitlines() if l.startswith("HATA"))[:400] or r.stderr[-300:]
         return f"{r.stdout.count('OK   ')} OK"
 
+    @check("MCP istemcisi: protokol, izin listesi, onay kapısı, anahtar sızmaz, zaman aşımı, yeniden başlatma, uzaktan kapalı (test_mcp)")
+    def _():
+        r = subprocess.run([sys.executable, str(HERE / "test_mcp.py")], capture_output=True, text=True, cwd=str(HERE),
+                           env={**os.environ, "PYTHONPATH": str(HERE)}, timeout=120)
+        assert r.returncode == 0, "\n".join(l for l in r.stdout.splitlines() if l.startswith("HATA"))[:400] or r.stderr[-300:]
+        return f"{r.stdout.count('OK   ')} OK"
+
     @check("Hafıza (SQLite FTS5): Türkçe arama, sıralama, göç (yedek kalır), izinler, FTS5'siz yedek (test_memory)")
     def _():
         r = subprocess.run([sys.executable, str(HERE / "test_memory.py")], capture_output=True, text=True, cwd=str(HERE),

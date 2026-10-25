@@ -63,7 +63,7 @@ SESSION_TTL = 12 * 3600  # bundan eski konuşma geçmişi yüklenmez
 # Uzaktan (Telegram) gelen komutlarda çalıştırılmayan araçlar: içerik makine dışına, üçüncü taraf sunucuya çıkar.
 REMOTE_BLOCKED = {"move_file", "trash_file", "undo_last_action", "phone_ring", "phone_call", "phone_hangup", "phone_answer", "phone_status", "contact_add", "contacts_sync", "code_list", "code_read", "code_write", "code_run", "read_file", "recall", "look_at_screen", "look_at_camera", "browser_open", "browser_play", "browser_read", "browser_click",
                   "browser_type", "browser_back", "browser_close", "mouse_move", "mouse_click", "scroll",
-                  "keyboard_type", "press_key", "system_health"}
+                  "keyboard_type", "press_key", "system_health", "mcp_list", "mcp_call"}
 
 # Ölçümle (tool_diag.py, tool_diag2.py, tool_check.py) doğrulandı: SADECE bu kısa hal 8/8 araç çağırıyor.
 # Kural eklemek (sayıları yazıyla yaz, anlık bilgiyi uydurma, yetenek listesi, cümle sınırı...) tek tek
@@ -85,7 +85,7 @@ ACTION_CLAIM = re.compile(
     r"açıldı|kapatıldı|ayarlandı|yapıldı|kısıldı|kısıldı|artırıldı|azaltıldı|arandı|başlatıldı|çalıştırıldı|"
     r"iptal edildi|iptal ettim|sonlandırıldı|sonlandırdım|kapattım|bitirdim|durduruldu|durdurdum)\b|"
     r"\baraç|"
-    r"\b(open_app|set_volume|change_volume|get_time|get_date|web_search|list_abilities|remember|recall|forget|set_reminder|list_reminders|cancel_reminders|get_weather|get_battery|morning_brief|look_at_screen|look_at_camera|browser_open|browser_play|browser_read|browser_click|browser_type|browser_back|browser_close|mouse_move|mouse_click|keyboard_type|press_key|get_system_status|system_health|find_files|read_file|move_file|trash_file|undo_last_action)\b",
+    r"\b(open_app|set_volume|change_volume|get_time|get_date|web_search|list_abilities|remember|recall|forget|set_reminder|list_reminders|cancel_reminders|get_weather|get_battery|morning_brief|look_at_screen|look_at_camera|browser_open|browser_play|browser_read|browser_click|browser_type|browser_back|browser_close|mouse_move|mouse_click|keyboard_type|press_key|get_system_status|system_health|mcp_list|mcp_call|find_files|read_file|move_file|trash_file|undo_last_action)\b",
     re.IGNORECASE,
 )
 # Saat/tarih gibi anlık bilgilerde modele karar bırakılmaz (gemma tarihi uydurdu: "25 Mayıs 2024").
@@ -104,6 +104,9 @@ WORD_SCREEN = re.compile(r"\bekran\w*\b.*\b(ne var|bak\w*|oku\w*|anlat\w*|özetl
 WORD_CAMERA = re.compile(r"\b(kamera\w*|web\s?(?:cam|kam)\w*)\b.*\b(bak\w*|ne var|görüyor\w*|anlat\w*|göster\w*)\b|\bbana bak\b|\belimde ne var\b|\bkarşında ne var\b", re.I)
 WORD_CAMERA_NOT = re.compile(r"\b(aç|kapat|ayarla|kur|indir|yükle)\w*\b", re.I)
 WORD_SCREEN_NOT = re.compile(r"karart|aydınlat|parlak|kapat|kilitle|görüntüsü al|ekran görüntüsü|kaydet", re.I)
+# MCP (skills/mcp.py): yalnızca açık komutla; çağrı her zaman onay ister
+MCP_LIST = re.compile(r"^\W*mcp\b[^:]*\b(?:araç|sunucu|listele|neler)\w*", re.I)
+MCP_CALL = re.compile(r"^\W*mcp\s*:\s*(?P<server>[\w-]+)\s+(?P<tool>[\w.-]+)\s*(?P<args>.*)$", re.I | re.S)
 # Sistem bakım raporu (skills/maintenance.py): WORD_HW'den ÖNCE bakılır ("bilgisayar neden yavaş" donanım sorusu değil, bakım)
 WORD_MAINT = re.compile(r"\b(?:sistem|bilgisayar)\w*\s+(?:bakım|sağlı[kğ])\w*|\bbakım\s+(?:yap|raporu|kontrol)\w*|\bsağlık\s+(?:raporu|kontrol)\w*|"
                         r"\bbilgisayar\w*\s+(?:neden|niye)\s+(?:bu\s+kadar\s+)?(?:yavaş|kasıyor|donuyor)\w*", re.I)
@@ -117,7 +120,7 @@ WORD_BRIEF = re.compile(r"günaydın|günün özeti|sabah özeti|bugün neler va
 WORD_CONTEXT_REF = re.compile(r"\b(onu|bunu|şunu|ilk\w*|birinci\w*|ikinci\w*|üçüncü\w*|dördüncü\w*|beşinci\w*)\b", re.I)
 FOLLOWUP_TOOLS = {"read_file", "web_search", "browser_read"}  # sonucu doğrudan okunmaz; model özetleyip cevaplar
 # Dışarıdan gelen metin döndüren araçlar: sonrasındaki model turunda ARAÇ KAPALI (prompt injection araç çağıramasın).
-UNTRUSTED_TOOLS = {"read_file", "web_search", "browser_read", "look_at_screen", "look_at_camera"}
+UNTRUSTED_TOOLS = {"read_file", "web_search", "browser_read", "look_at_screen", "look_at_camera", "mcp_call"}
 WORD_UNDO = re.compile(r"geri al|eski haline|eskisi gibi|önceki haline|eski seviyesine|az önceki(ni)? (iptal|geri)", re.I)
 _TLD = r"(?:com|org|net|io|dev|edu|gov|tr|co|info|app|ai|me)"
 BR_SITE = re.compile(r"\b((?:[a-z0-9\-]+\.)+" + _TLD + r"(?:/[^\s]*)?)", re.I)
@@ -430,6 +433,12 @@ class Brain:
     def _fast_route(self, text: str) -> list[tuple[str, dict]]:
         """Kural tabanlı hızlı yol: (araç adı, argümanlar) listesi döndürür (boşsa model karar verir)."""
         calls = []
+        if "mcp_call" in self.tools:
+            m = MCP_CALL.match(text.strip())
+            if m:
+                return [("mcp_call", {"server": m.group("server"), "tool": m.group("tool"), "args": m.group("args").strip()})]
+            if MCP_LIST.match(text.strip()):
+                return [("mcp_list", {})]
         if "system_health" in self.tools and WORD_MAINT.search(text):
             return [("system_health", {})]
         if "get_system_status" in self.tools and WORD_HW.search(text) and not NOT_A_QUERY.search(text):
