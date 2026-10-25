@@ -36,7 +36,7 @@ cloud_log, local_log, tool_log, quiet_seen = [], [], [], []
 from skills import web  # noqa: E402
 from skills import codeagent  # noqa: E402
 CODE_SKILLS = codeagent.SKILLS
-cfg = {"plan": None, "research_mode": "normal", "local_down": False, "kod_script": [], "review_script": []}
+cfg = {"plan": None, "research_mode": "normal", "local_down": False, "kod_script": [], "review_script": [], "arch": None}
 
 
 def cloud_ok(text):
@@ -64,6 +64,8 @@ def respond(messages, where):
         return json.dumps({"final": f"Dosyada not var ({where})."})
     if "Kod Ajanısın" in sysm:
         return cfg["kod_script"].pop(0) if cfg["kod_script"] else json.dumps({"final": "bitti"})
+    if "Sen Mimarsın" in sysm:
+        return json.dumps(cfg["arch"], ensure_ascii=False) if cfg["arch"] is not None else "mimari yok"
     if "Denetçisin" in sysm:
         return cfg["review_script"].pop(0) if cfg["review_script"] else json.dumps({"final": {"gecti": False, "bulgular": []}})
     if "Yazar ajansın" in sysm:
@@ -102,7 +104,7 @@ def mk_tools():
 def fresh(router_key=True):
     cloud_log.clear(); local_log.clear(); tool_log.clear()
     confirm.cancel()
-    cfg.update(plan=None, research_mode="normal", kod_script=[], review_script=[])
+    cfg.update(plan=None, research_mode="normal", kod_script=[], review_script=[], arch=None)
     codeagent.set_project(None)
     os.environ["GROQ_API_KEY"] = "gsk_testtesttesttesttesttest" if router_key else ""
     b = B.Brain(tools=mk_tools())
@@ -411,6 +413,58 @@ check("planlayıcı: kodsuz plandaki denetçi atılır, kodlu planda kod görevi
       and [(t.role, t.after) for t in T.Team.validate_plan({"tasks": [{"id": "k", "role": "kod", "do": "yaz"}, {"id": "d", "role": "denetci", "do": "denetle"},
                                                                        {"id": "y", "role": "yazar", "do": "söyle"}]}, ["kod", "denetci", "yazar"])]
       == [("kod", []), ("denetci", ["k"]), ("yazar", ["k", "d"])])
+
+# ---------------------------------------------------------------- Mimar ("proje:")
+VD = T.validate_design
+d = VD({"ozet": "x", "parcalar": [{"dosyalar": ["../kacis.py", "/etc/a.py", "./depo.py", "a.py", "b.py"], "is": "depo"},
+                                   {"dosyalar": ["depo.py"], "is": "aynı dosya tekrar"}, {"dosyalar": "main.py", "is": "giriş"},
+                                   {"dosyalar": ["c.py"], "is": ""}, *[{"dosyalar": [f"p{i}.py"], "is": "ek"} for i in range(6)]]})
+check("mimari doğrulama: kaçış/mutlak yol atılır, './' temizlenir, parça başı 2 dosya, aynı dosya iki parçada yok, boş iş atılır, en fazla 4 parça",
+      d and [p["dosyalar"] for p in d[1]] == [["depo.py", "a.py"], ["main.py"], ["p0.py"], ["p1.py"]], str(d))
+check("mimari doğrulama: parçasız / bozuk çıktı reddedilir", VD(None) is None and VD({"parcalar": []}) is None and VD({"parcalar": [{"dosyalar": ["../x.py"], "is": "y"}]}) is None)
+
+ARCH = {"ozet": "Komut satırı harcama takipçisi.", "parcalar": [
+    {"dosyalar": ["depo.py", "tests/test_depo.py"], "is": "harcamaları JSON dosyasında tut", "arayuz": "def ekle(ad, tutar) -> None; def liste() -> list"},
+    {"dosyalar": ["main.py"], "is": "komut satırı menüsü", "arayuz": "def main() -> None"}]}
+b = fresh()
+cfg["arch"] = ARCH
+plan = say(b, "proje: harcamalarımı takip eden komut satırı uygulaması yaz")
+check("'proje:' mimarı onaydan önce çağırır, plan okunur: parçalar + Denetçi + Yazar, onay bekler",
+      "Mimar planı" in plan and "Proje 2 parçada" in plan and "depo.py, tests/test_depo.py yaz" in plan and "Denetçi" in plan and "Başlayayım mı" in plan
+      and b.team.state == "plan" and [t.role for t in b.team.tasks] == ["kod", "kod", "denetci", "yazar"] and not tool_log, plan)
+check("mimar bulutta çalıştı (temiz bağlam), henüz kod ajanı çağrılmadı",
+      any("Sen Mimarsın" in c["messages"][0]["content"] for c in cloud_log) and not any("Kod Ajanısın" in c["messages"][0]["content"] for c in cloud_log))
+check("proje kipinde araç çağrısı sınırı yükseltilir; denetçi tüm kod parçalarına bağlı",
+      b.team.max_calls == T.MAX_CALLS_PROJECT and b.team.tasks[2].after == ["t1", "t2"] and b.team.tasks[1].after == ["t1"])
+cfg["kod_script"] = [J({"tool": "code_write", "args": {"path": "depo.py", "content": "V = []\n"}}), J({"final": "depo.py yazıldı"}),
+                     J({"tool": "code_write", "args": {"path": "main.py", "content": "import depo\nprint(len(depo.V))\n"}}),
+                     J({"tool": "code_run", "args": {"command": "python main.py"}}), J({"final": "main.py yazıldı, 0 yazdırdı"})]
+out = say(b, "evet")
+kreqs = [json.dumps(c["messages"], ensure_ascii=False) for c in cloud_log if "Kod Ajanısın" in c["messages"][0]["content"]]
+proj = Path(WS) / "harcamalarimi-takip-eden-komut"
+check("tek 'evet' ile parçalar sırayla aynı proje klasöründe yazılır", (proj / "depo.py").exists() and (proj / "main.py").exists() and b.team.state == "idle", str(list(Path(WS).iterdir())))
+check("her kod ajanı mimarın tasarımını ve arayüzleri görür", kreqs and all("Mimarın tasarımı" in r and "def ekle(ad, tutar)" in r for r in kreqs))
+check("ikinci parça birinci parçanın sonucunu görür", any("depo.py yazıldı" in r and "main.py yaz:" in r for r in kreqs))
+check("sonda denetçi ve yazar çalışır", any("Denetçisin" in c["messages"][0]["content"] for c in cloud_log) and "Sonuç hazır" in out)
+
+b = fresh()
+cfg["arch"] = None
+out = say(b, "proje: bir şey yaz bakalım")
+check("mimar plan çıkaramazsa kibarca söyler, ekip boşta kalır", "mimari plan çıkaramadım" in out and b.team.state == "idle")
+b = fresh()
+cfg["arch"] = ARCH
+say(b, "mimar: harcama uygulaması yaz")
+out = say(b, "hayır")
+check("'mimar:' de başlatır; 'hayır' iptal eder, hiçbir kod yazılmaz", "iptal" in out and b.team.state == "idle" and not any("Kod Ajanısın" in c["messages"][0]["content"] for c in cloud_log))
+b = fresh()
+cfg["arch"] = ARCH
+plan = say(b, "proje: denetimsiz, harcama uygulaması yaz")
+check("proje kipinde de 'denetimsiz' Denetçiyi atlar", [t.role for t in b.team.tasks] == ["kod", "kod", "yazar"] and "Denetçi" not in plan)
+b = fresh()
+cfg["plan"] = {"tasks": [{"id": "m", "role": "mimar", "do": "böl"}, {"id": "k", "role": "kod", "do": "yaz"}, {"id": "y", "role": "yazar", "do": "söyle"}]}
+say(b, "ekip: bir program yaz")
+preq = json.dumps([c["messages"] for c in cloud_log if "planlayıcısısın" in c["messages"][0]["content"]], ensure_ascii=False)
+check("mimar planlayıcıya rol olarak sunulmaz ve plana görev olarak giremez", preq and "- mimar:" not in preq and [t.role for t in b.team.tasks] == ["kod", "yazar"], str([t.role for t in b.team.tasks]))
 
 # planlayıcı kod ajanını da kullanabilir
 b = fresh()

@@ -9,7 +9,7 @@ Durum: `[ ]` bekliyor · `[~]` sürüyor · `[x]` bitti (tarih + commit kısaltm
 
 ## 1. Ajan serisi (team.py rolleri)
 - [x] [YAZILIM] **Denetçi ajanı:** kod ajanı çıktısını (workspace projesi) ayrı bağlamda çalıştırıp/okuyup doğrular; bulgu listesi + geçti/kaldı. Yalnızca düzeltme gerektiren bulguları bildirir. Rol testleri `test_team.py`'ye. `kod:` akışına isteğe bağlı son adım olarak bağla.
-- [ ] [YAZILIM] **Mimar ajanı:** büyük isteği modüllere/dosyalara böler (kod ajanı sınırlarına uygun: dosya başı ≈120 satır, kısa bağlam); plan sesli okunur, tek "evet".
+- [x] [YAZILIM] **Mimar ajanı:** büyük isteği modüllere/dosyalara böler (kod ajanı sınırlarına uygun: dosya başı ≈120 satır, kısa bağlam); plan sesli okunur, tek "evet".
 - [ ] [YAZILIM] **Sistem bakım ajanı:** `memguard`/`ram_report`/Ollama/log/disk sağlığı özeti ve öneriler; kendi başına değişiklik yapmaz, riskli adım onay kapılı.
 
 ## 2. Arayüz
@@ -36,3 +36,4 @@ Durum: `[ ]` bekliyor · `[~]` sürüyor · `[x]` bitti (tarih + commit kısaltm
 (Claude Code buraya tarih, commit ve kısa not ekler.)
 - 2026-10-25 · Bölüm 0: `main` = `origin/main`, çalışma ağacı temiz. `v2zi` (d0406dc) uzakta mevcut; alt çizgi düzeltmesi (fd004ab) ve `RAM.md` (901d4ab) push'lu → eksik yok, yeni etiket gerekmedi. `check_all.py --quick`: 39 OK, 0 hata. `data/settings.json` Read denemesi izin ayarlarınca reddedildi (not: deny kuralları Read aracını kapsar, Bash `cat`'i değil — kurala uyuluyor).
 - 2026-10-25 · Denetçi ajanı (`team.py` rolü `denetci`): `kod:` akışında Kod Ajanı → Denetçi → Yazar; "kod: denetimsiz, …" ile atlanır. Ayrı bağlam (kod ajanının konuşması gitmez, iddiası "doğrulanmamış" etiketli), araçları yalnızca `code_list/code_read/code_run`. Hüküm kodda: bulgu varsa geçti sayılmaz, hiç çalıştırmadan geçti → doğrulanamadı; `team_runs.jsonl`'a `verdict`. Planlayıcı planında denetçi yalnızca kod görevinden sonra kalır. Testler `test_team.py`.
+- 2026-10-25 · Mimar ajanı: "proje: …" / "mimar: …" → Mimar (onaydan önce tek bulut çağrısı) isteği ≤4 parçaya böler (parça başı ≤2 dosya, ≈120 satır/dosya, arayüzler); plan sesli okunur, tek "evet". Parçalar sırayla aynı projede Kod Ajanı görevleri, tasarım (≤1500 karakter) her kod ajanına ve denetçiye veri olarak gider; sonra Denetçi + Yazar. `validate_design` yolları kodda doğrular. Proje kipinde araç sınırı 60. Mimar planlayıcıya rol olarak sunulmaz.

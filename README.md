@@ -45,6 +45,7 @@ python router_check.py            # anahtar ve gizlilik kapısı denemesi
 - Dosya araçları yalnızca o proje klasöründe çalışır (mutlak yol, `..`, `~`, gizli dosya, sembolik bağ kaçışı, izinsiz uzantı reddedilir; boyut/sayı sınırı var). Gerçek projelerine ve ev klasörüne erişemez.
 - Kod **bubblewrap güvenli kutusunda** çalışır: internet yok, ev klasörün/anahtar dosyaların görünmez, ortam değişkenleri temiz, 30 sn süre sınırı. Kutu yoksa her çalıştırma onay ister (`sudo apt install bubblewrap`).
 - Yalnızca `python`, `python3`, `pytest`, `node` çalıştırılabilir (kabuk yok). Kutuyu denemek için: `python code_check.py`.
+- **Büyük istekler için Mimar:** "**proje: harcamalarımı takip eden komut satırı uygulaması yaz**" dersin. Mimar isteği kod ajanının sınırlarına uyan en fazla 4 parçaya böler (parça başı en fazla 2 dosya, dosya başı ≈120 satır, dosya arayüzleriyle); plan sesli okunur, tek "evet" ile parçalar sırayla aynı proje klasöründe yazılır, her kod ajanı mimarın tasarımını görür; sonda Denetçi tüm projeyi çalıştırır. Mimarın verdiği yollar kodda doğrulanır (kaçış/mutlak yol atılır, aynı dosya iki parçaya verilmez).
 - Denetçi dosya yazamaz (yalnızca `code_list/code_read/code_run`). Hükmü kod belirler: bulgu varsa "geçti" sayılmaz, programı kendisi hiç çalıştırmadıysa "geçti" kabul edilmez (doğrulanamadı). İstemezsen: "**kod: denetimsiz, …**". Hüküm `data/team_runs.jsonl` özetine de yazılır.
 - Ücretsiz bulutun küçük girdi sınırı nedeniyle uzun döngülerde eski adımlar kısa özete çevrilir; ajan dosyanın güncel halini `code_read` ile görür.
 
@@ -100,7 +101,7 @@ Telefon tarayıcısında (ana ekrana eklenebilir) çalışan sayfa: **yazışma*
 | Ekran ve kamera görüşü | "Ekranda ne var?", "Kameraya bak", "Elimde ne var?" (yerel görsel model) |
 | Fare ve klavye | "Fareyi sağa götür", "tıkla", "klavyeden merhaba yaz", "Enter'a bas" |
 | Ajan modu | "Ajan modu: Wikipedia'da Ankara'yı araştır ve özetle" (planı okur, onay ister) |
-| Ekip ve kod ajanı | "araştır: …", "ekip: …", "kod: bir hesap makinesi yaz" (Kod Ajanı yazar, Denetçi bağımsız çalıştırıp doğrular, Yazar söyler) |
+| Ekip ve kod ajanı | "araştır: …", "ekip: …", "kod: bir hesap makinesi yaz" (Kod Ajanı yazar, Denetçi bağımsız çalıştırıp doğrular, Yazar söyler), "proje: …" (Mimar önce parçalara böler) |
 | Sistem | "CPU kaç?", "Pil kaç?", "Sistem durumu nasıl?", düşük pil uyarısı |
 | Günaydın özeti | "Günaydın" (tarih, hava, hatırlatıcılar), sabahları kendiliğinden |
 | Uzaktan | Telegram botu üzerinden metin komutları (hassas araçlar kapalı) |
@@ -192,7 +193,7 @@ Tarayıcı testleri gerçek bir Chromium ile yerel test sitesinde çalışır. F
 main.py            konuşma döngüsü (mikrofon → STT → beyin → TTS)
 brain.py           model, araç çağırma, kural tabanlı hızlı yol, oturum, bağlam özetleme
 agent.py           ajan modu (planla, onayla, adım adım yürüt)
-team.py            Ekip modu (çoklu ajan: planlayıcı, uzman ajanlar, denetçi, yazar)
+team.py            Ekip modu (çoklu ajan: planlayıcı, mimar, uzman ajanlar, denetçi, yazar)
 router.py, privacy.py   Model yönlendirici (ücretsiz bulut, yedek zinciri) ve gizlilik kapısı
 convlog.py         kalıcı konuşma günlüğü (panodaki Konuşmalar; süreli otomatik silme)
 stt.py, tts.py, wake.py   konuşma tanıma, sentez, uyanma sözcüğü

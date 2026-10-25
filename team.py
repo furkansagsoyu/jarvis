@@ -2,7 +2,8 @@
 
 Başlatma (yalnızca açık komutla):  "ekip: <görev>"  (planı model çıkarır),  "araştır: <konu>"  (hazır plan: Araştırma + Yazar),
 "kod: <görev>"  (hazır plan: Kod Ajanı + Denetçi + Yazar; kod workspace/ klasöründe yazılır ve güvenli kutuda çalışır;
-hedefte "denetimsiz" geçerse Denetçi atlanır).
+hedefte "denetimsiz" geçerse Denetçi atlanır),  "proje: <büyük istek>"  (Mimar isteği küçük parçalara böler: her parça bir Kod Ajanı
+görevi, en fazla 2 dosya, dosya başı ≈120 satır; ardından Denetçi + Yazar. Mimar planı onaydan ÖNCE çıkarır, plan okunur, tek "evet").
 
 Denetçi: Kod Ajanı'nın projesini AYRI bağlamda (yazanın konuşması olmadan) okur ve kendisi çalıştırır; dosya yazamaz.
 Hükmü kod normalleştirir: bulgu varsa "geçti" sayılmaz, programı hiç çalıştırmadıysa "geçti" diyemez (yazan kendi işini notlamaz).
@@ -29,9 +30,13 @@ from agent import HELP, NETWORK
 from skills import _confirm as confirm
 from skills import _store
 
-START = re.compile(r"^\W*(?P<kw>ekip(?:\s+modu(?:nda)?)?|araştır(?:ma)?|kod(?:\s+yaz(?:ma)?)?)\s*[:,\-–]\s*(?P<goal>.{6,})$", re.I | re.S)
+START = re.compile(r"^\W*(?P<kw>ekip(?:\s+modu(?:nda)?)?|araştır(?:ma)?|kod(?:\s+yaz(?:ma)?)?|proje|mimar)\s*[:,\-–]\s*(?P<goal>.{6,})$", re.I | re.S)
 MAX_TASKS = 5
 MAX_CALLS = 30
+MAX_CALLS_PROJECT = 60   # "proje:" kipinde birden çok Kod Ajanı görevi olduğu için toplam araç çağrısı sınırı
+MAX_PARTS = 4            # Mimar'ın bölebileceği en fazla parça (her biri bir Kod Ajanı görevi)
+MAX_PART_FILES = 2       # bir parçada en fazla dosya
+DESIGN_MAX = 1500        # kod ajanlarına giden tasarım metninin en fazla karakteri (bulut girdi sınırı)
 VIEW_BUDGET = 9000   # bir model çağrısına giden en fazla karakter (ücretsiz bulutun ~5K jeton girdi sınırına sığsın)
 MAX_FAILS = 3
 MAX_WAIT = 75      # bulut limiti dolduysa en fazla bu kadar sn beklenir (yalnızca 'patient' roller)
@@ -93,6 +98,15 @@ ROLES: dict[str, Role] = {r.key: r for r in (
          "Çalıştırıp görmediğin bir şeye geçti deme.",
          ("code_run", "code_read", "code_list"), cloud=True, max_rounds=8, obs_max=3000,
          say=(("code_run", "Denetçi kodu kendisi çalıştırıp doğruluyor."),), patient=True, view_budget=7000),
+    Role("mimar", "Mimar", "büyük bir yazılım isteğini kod ajanının sınırlarına uyan küçük dosyalara ve parçalara böler",
+         "Sen Mimarsın. Kullanıcının yazılım isteğini, küçük bir kod ajanının sırayla yazabileceği parçalara bölersin. "
+         "Kod ajanının sınırları: yalnızca Python standart kütüphanesi (internet ve pip yok), her dosya en fazla ~120 satır, "
+         f"kısa bağlam (önceki parçaların kodunu ezbere bilmez, yalnızca senin yazdığın arayüzleri görür). En fazla {MAX_PARTS} parça, "
+         f"parça başına en fazla {MAX_PART_FILES} dosya (test dosyası dahil). Yollar proje kökünden göreli olsun (örn. depo.py, tests/test_depo.py). "
+         "Önce bağımlılığı olmayan parçalar gelsin, giriş noktası (main.py) en sonda. Her dosya için kısa arayüz yaz (fonksiyon/sınıf imzaları). "
+         'Yalnızca JSON yaz: {"ozet": "tek cümle", "parcalar": [{"dosyalar": ["depo.py", "tests/test_depo.py"], "is": "kısa Türkçe görev", '
+         '"arayuz": "def ekle(ad: str, tutar: float) -> None; def liste() -> list[dict]"}]}. İstek küçükse tek parça yeter.',
+         (), cloud=True, max_rounds=1),
     Role("yazar", "Yazar", "ajanların bulduklarını derleyip sonucu söyler",
          "Sen Yazar ajansın. Kullanıcının hedefini ve ajanların topladığı verileri Türkçe, en fazla dört kısa düz cümleyle söyle. "
          "Sesli okunacak: madde işareti, tire, başlık, kalın yazı ve 'Hedef:' gibi etiket KULLANMA; doğrudan sonucu söyle. "
@@ -184,6 +198,32 @@ def review_verdict(final, ran: bool) -> tuple[str, str]:
     return "kaldı", "Denetim kaldı. Düzeltilmesi gerekenler: " + " ".join(f"{i}) {f.rstrip('.')}." for i, f in enumerate(found, 1))
 
 
+_PATH = re.compile(r"^(?!.*\.\.)[A-Za-z0-9_][A-Za-z0-9_./-]{0,79}\.[A-Za-z0-9]{1,5}$")
+
+
+def validate_design(d: dict | None) -> tuple[str, list[dict]] | None:
+    """Mimar çıktısını doğrular: güvenli göreli yollar, en fazla MAX_PARTS parça / MAX_PART_FILES dosya, aynı dosya iki parçada yazılmaz.
+    (özet, [{"dosyalar", "is", "arayuz"}]) ya da None."""
+    if not d or not isinstance(d.get("parcalar"), list):
+        return None
+    parts, seen = [], set()
+    for raw in d["parcalar"]:
+        if not isinstance(raw, dict) or len(parts) >= MAX_PARTS:
+            continue
+        files = raw.get("dosyalar")
+        files = [files] if isinstance(files, str) else files if isinstance(files, list) else []
+        files = [f for f in (str(x).strip().removeprefix("./") for x in files) if _PATH.match(f) and "//" not in f and f not in seen][:MAX_PART_FILES]
+        job = " ".join(str(raw.get("is", "")).split())[:160]
+        if not files or not job:
+            continue
+        seen.update(files)
+        parts.append({"dosyalar": files, "is": job, "arayuz": " ".join(str(raw.get("arayuz", "")).split())[:300]})
+    if not parts:
+        return None
+    summary = " ".join(str(d.get("ozet", "")).split())[:200] or "İstek parçalara bölündü"
+    return summary, parts
+
+
 def speakable(text: str) -> str:
     """Sesli okunacak düz metin: markdown ve madde işaretlerini temizler, satırları cümle olarak birleştirir."""
     out = []
@@ -250,6 +290,9 @@ class Team:
         self._pending: tuple[Task, str] | None = None
         self.plan_expires = 0.0
         self.t0 = 0.0
+        self.summary = ""
+        self.design = ""              # Mimar'ın tasarımı (proje kipi): kod ajanlarına ve denetçiye veri olarak gider
+        self.max_calls = MAX_CALLS
         self.project = None           # Kod Ajanı'nın bu görevdeki proje klasörü (workspace/<ad>)
         self.said: set[str] = set()   # söylenen ilerleme cümleleri (tekrarlanmaz)
 
@@ -284,7 +327,8 @@ class Team:
             m = START.match(text.strip())
             if m:
                 kw = m.group("kw").lower()
-                return iter([self.start(m.group("goal").strip(), kind="araştır" if kw.startswith("araştır") else "kod" if kw.startswith("kod") else "")])
+                kind = "araştır" if kw.startswith("araştır") else "kod" if kw.startswith("kod") else "proje" if kw in ("proje", "mimar") else ""
+                return iter([self.start(m.group("goal").strip(), kind=kind)])
         return None
 
     # ------------------------------------------------------------------ model seçimi
@@ -327,11 +371,11 @@ class Team:
     # ------------------------------------------------------------------ planlama
     def start(self, goal: str, kind: str = "") -> str:
         self.abort()
-        have = [k for k in ROLES if k in self.available_roles()]
+        have = [k for k in ROLES if k in self.available_roles() and k != "mimar"]  # mimar görev değil, plan çıkarır
         if not [k for k in have if k != "yazar"]:
             return "Ekip için gerekli araçlar (web arama, dosya, kod) yüklü değil."
-        review = kind == "kod" and "denetci" in have and not NO_REVIEW.search(goal)
-        if kind == "kod":
+        review = kind in ("kod", "proje") and "denetci" in have and not NO_REVIEW.search(goal)
+        if kind in ("kod", "proje"):
             goal = NO_REVIEW.sub(" ", goal).strip(" ,")
         if kind == "araştır" and "arastirma" in have:
             tasks = [Task("t1", "arastirma", f"şunu araştır: {goal}"), Task("t2", "yazar", "bulunanları derleyip söyle", ["t1"])]
@@ -341,8 +385,13 @@ class Team:
                 tasks.append(Task("t2", "denetci", "yazılan kodu bağımsız çalıştırıp doğrula", ["t1"]))
             tasks.append(Task(f"t{len(tasks) + 1}", "yazar", "yazılanı, denetim sonucunu ve nasıl çalıştırılacağını söyle" if review
                               else "yazılanı ve nasıl çalıştırılacağını söyle", [t.id for t in tasks]))
+        elif kind == "proje" and "kod" in have:
+            tasks = self._architect(goal, review)
+            if isinstance(tasks, str):
+                return tasks
         elif kind:
-            return {"araştır": "Araştırma için web arama aracı yüklü değil.", "kod": "Kod ajanı araçları yüklü değil."}[kind]
+            return {"araştır": "Araştırma için web arama aracı yüklü değil.", "kod": "Kod ajanı araçları yüklü değil.",
+                    "proje": "Kod ajanı araçları yüklü değil."}[kind]
         else:
             tasks = self._plan(goal, have)
             if isinstance(tasks, str):
@@ -350,7 +399,30 @@ class Team:
         self.goal, self.tasks = goal, tasks
         self.state, self.plan_expires = "plan", time.time() + PLAN_TTL
         listing = " ".join(f"{k}. {ROLES[t.role].title}: {t.do.rstrip('.')}." for k, t in enumerate(tasks, 1))
+        if kind == "proje":
+            n = sum(t.role == "kod" for t in tasks)
+            return f"Mimar planı şöyle. {self.summary.rstrip('.')}. Proje {n} parçada yazılacak. {listing} Başlayayım mı?"
         return f"Ekip planım şöyle. {listing} Başlayayım mı?"
+
+    def _architect(self, goal: str, review: bool):
+        """Mimar: isteği parçalara böler (onaydan önce, tek model çağrısı). Görev listesi ya da hata cümlesi döndürür."""
+        msgs = [{"role": "system", "content": ROLES["mimar"].prompt}, {"role": "user", "content": f"Kullanıcının isteği: {goal}"}]
+        try:
+            raw, _ = self._ask(None, msgs, plan=True, max_tokens=1200)
+        except Exception as exc:  # noqa: BLE001
+            return f"Mimari planı çıkaramadım ({type(exc).__name__})."
+        arch = validate_design(parse_json(raw))
+        if not arch:
+            return "Bu istek için mimari plan çıkaramadım. İsteği biraz daha açık söyler misin?"
+        summary, parts = arch
+        lines = [f"Özet: {summary}"] + [f"- {', '.join(p['dosyalar'])}: {p['is']}" + (f" | arayüz: {p['arayuz']}" if p["arayuz"] else "") for p in parts]
+        self.design, self.summary, self.max_calls = "\n".join(lines)[:DESIGN_MAX], summary, MAX_CALLS_PROJECT
+        tasks = [Task(f"t{i}", "kod", f"{', '.join(p['dosyalar'])} yaz: {p['is']}", [f"t{i - 1}"] if i > 1 else []) for i, p in enumerate(parts, 1)]
+        kod_ids = [t.id for t in tasks]
+        if review:
+            tasks.append(Task(f"t{len(tasks) + 1}", "denetci", "tüm projeyi bağımsız çalıştırıp doğrula", kod_ids))
+        tasks.append(Task(f"t{len(tasks) + 1}", "yazar", "yazılanı, denetim sonucunu ve nasıl çalıştırılacağını söyle", [t.id for t in tasks]))
+        return tasks
 
     def _plan(self, goal: str, have: list[str]):
         manual = "\n".join(f"- {k}: {ROLES[k].about}" for k in have)
@@ -409,6 +481,9 @@ class Team:
         proj = ""
         if self.project and t.role in ("kod", "denetci"):  # ajana GERÇEK yolu gösterme: 'workspace/...' önekini yollara eklerdi
             proj = "\nÇalışma klasörün proje kökü; yolları kökten itibaren yaz (örn. main.py, tests/test_main.py). Yola 'workspace' ya da proje adı EKLEME."
+            if self.design:
+                proj += ("\n\nMimarın tasarımı (tüm proje; sen yalnızca kendi görevindeki dosyaları yaz, diğer dosyaların arayüzüne uy; "
+                         "önceki parçaların dosyalarını code_read ile görebilirsin):\n" + self.design)
         elif self.project and t.role == "yazar":
             proj = f"\nProje klasörü: {rel_name(self.project)}"
         msgs = [{"role": "system", "content": sys_text},
@@ -507,7 +582,7 @@ class Team:
                     text = speakable(text)
                     self._finish_task(t, "done" if text else "failed", text)
                     break
-                if t.rounds >= role.max_rounds or self.calls >= MAX_CALLS:
+                if t.rounds >= role.max_rounds or self.calls >= self.max_calls:
                     self._finish_task(t, "failed", "(süre/araç sınırına ulaşıldı) " + next((m["content"][:300] for m in reversed(t.messages) if m["content"].startswith("Araç sonucu")), ""))
                     break
                 t.rounds += 1
