@@ -4,8 +4,8 @@ Etiketler: **[YAZILIM]** = testlerle doğrulanır, bittiğinde push edip sırada
 Durum: `[ ]` bekliyor · `[~]` sürüyor · `[x]` bitti (tarih + commit kısaltması ekle).
 
 ## 0. Hazırlık
-- [ ] [YAZILIM] `git status`, `git log --oneline -5`, `git tag -l`: `v2zi` etiketi, `team.py`/`test_team.py` alt çizgi düzeltmesi ve `RAM.md` güncellemesi commit'li/push'lu mu? Eksikse tamamla (etiket: sıradaki `v2zj`).
-- [ ] [YAZILIM] `python check_all.py --quick` → 39 OK doğrula. `.claude/settings.json` korumasını doğrula: `data/` altından okuma denemesi reddedilmeli (reddedilmezse kullanıcıya bildir).
+- [x] [YAZILIM] `git status`, `git log --oneline -5`, `git tag -l`: `v2zi` etiketi, `team.py`/`test_team.py` alt çizgi düzeltmesi ve `RAM.md` güncellemesi commit'li/push'lu mu? Eksikse tamamla (etiket: sıradaki `v2zj`).
+- [x] [YAZILIM] `python check_all.py --quick` → 39 OK doğrula. `.claude/settings.json` korumasını doğrula: `data/` altından okuma denemesi reddedilmeli (reddedilmezse kullanıcıya bildir).
 
 ## 1. Ajan serisi (team.py rolleri)
 - [ ] [YAZILIM] **Denetçi ajanı:** kod ajanı çıktısını (workspace projesi) ayrı bağlamda çalıştırıp/okuyup doğrular; bulgu listesi + geçti/kaldı. Yalnızca düzeltme gerektiren bulguları bildirir. Rol testleri `test_team.py`'ye. `kod:` akışına isteğe bağlı son adım olarak bağla.
@@ -34,3 +34,4 @@ Durum: `[ ]` bekliyor · `[~]` sürüyor · `[x]` bitti (tarih + commit kısaltm
 
 ## Bitenler
 (Claude Code buraya tarih, commit ve kısa not ekler.)
+- 2026-10-25 · Bölüm 0: `main` = `origin/main`, çalışma ağacı temiz. `v2zi` (d0406dc) uzakta mevcut; alt çizgi düzeltmesi (fd004ab) ve `RAM.md` (901d4ab) push'lu → eksik yok, yeni etiket gerekmedi. `check_all.py --quick`: 39 OK, 0 hata. `data/settings.json` Read denemesi izin ayarlarınca reddedildi (not: deny kuralları Read aracını kapsar, Bash `cat`'i değil — kurala uyuluyor).
