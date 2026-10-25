@@ -80,6 +80,7 @@ cfgs, warn = MC.parse_config({"servers": {"iyi": {"command": "x", "args": ["a"],
                                           "../kötü": {"command": "x"}, "envbozuk": {"command": "x", "env": {"A": 1}}}})
 check("yapılandırma: geçerli sunucu alınır, bozuklar uyarıyla atlanır, zaman aşımı sınırlanır",
       list(cfgs) == ["iyi"] and cfgs["iyi"].timeout == 300.0 and len(warn) == 4, str(warn))
+check("komuttaki '~' ev klasörüne açılır (kabuk yok)", MC.parse_config({"servers": {"a": {"command": "~/x/bin/srv"}}})[0]["a"].command == str(Path.home() / "x/bin/srv"))
 check("yapılandırma yoksa uyarısız boş", MC.parse_config({}) == ({}, []))
 
 # ---------------------------------------------------------------- liste ve çağrı
@@ -116,6 +117,10 @@ SK.mcp_call("sahte", "echo", "text=tekrar")
 _r = confirm.approve(); check("çökmeden sonra sunucu yeniden başlatılır", _r.startswith("yankı: tekrar"), _r)
 write_cfg({})
 check("yapılandırma değişince eski sunucular kapanır", "Tanımlı MCP sunucusu yok" in SK.mcp_list())
+real_time = '{\n  "source": {"timezone": "Europe/Istanbul", "is_dst": false},\n  "time_difference": "+6.0h"\n}'   # gerçek mcp-server-time biçimi
+check("JSON sonucu sesli okunur biçime çevrilir; JSON değilse dokunulmaz",
+      SK.speakable(real_time) == "source timezone: Europe/Istanbul; source is dst: hayır; time difference: +6.0h."
+      and SK.speakable("düz metin {x}") == "düz metin {x}" and SK.speakable("{bozuk") == "{bozuk" and SK.speakable('["a", 2]') == "1: a; 2: 2.")
 check("argüman ayrıştırma: sayı/bool/metin/tırnak", SK.parse_args('n=3 ok=true yol="/tmp/a b" ad=Ali') == {"n": 3, "ok": True, "yol": "/tmp/a b", "ad": "Ali"})
 
 # ---------------------------------------------------------------- Brain: hızlı yol, uzaktan, sonuç modele gitmez

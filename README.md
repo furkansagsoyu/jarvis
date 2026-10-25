@@ -61,11 +61,16 @@ python router_check.py            # anahtar ve gizlilik kapısı denemesi
 
 ## MCP araçları (yerel sunucular)
 
-Jarvis, [Model Context Protocol](https://modelcontextprotocol.io) sunucularına stdio üzerinden bağlanabilir (`mcp_client.py`, ek bağımlılık yok). Sunucuları **sen** `data/mcp.json` dosyasına yazarsın:
+Jarvis, [Model Context Protocol](https://modelcontextprotocol.io) sunucularına stdio üzerinden bağlanabilir (`mcp_client.py`, ek bağımlılık yok). Sunucuları **sen** kurar ve `data/mcp.json` dosyasına yazarsın. Denenmiş örnek (`mcp-server-time`, ayrı sanal ortamda; `freya` ortamı kirlenmez):
+
+```bash
+python -m venv ~/.local/share/jarvis/mcp-venv && ~/.local/share/jarvis/mcp-venv/bin/pip install mcp-server-time
+```
 
 ```json
 {"servers": {
-  "zaman": {"command": "uvx", "args": ["mcp-server-time"], "tools": ["get_current_time"], "timeout": 30}
+  "zaman": {"command": "~/.local/share/jarvis/mcp-venv/bin/mcp-server-time", "args": ["--local-timezone", "Europe/Istanbul"],
+            "tools": ["get_current_time", "convert_time"], "timeout": 30}
 }}
 ```
 
@@ -129,7 +134,7 @@ Telefon tarayıcısında (ana ekrana eklenebilir) çalışan sayfa: **yazışma*
 | Ajan modu | "Ajan modu: Wikipedia'da Ankara'yı araştır ve özetle" (planı okur, onay ister) |
 | Ekip ve kod ajanı | "araştır: …", "ekip: …", "kod: bir hesap makinesi yaz" (Kod Ajanı yazar, Denetçi bağımsız çalıştırıp doğrular, Yazar söyler), "proje: …" (Mimar önce parçalara böler) |
 | Sistem | "CPU kaç?", "Pil kaç?", "Sistem durumu nasıl?", düşük pil uyarısı |
-| MCP araçları | "mcp araçları", "mcp: zaman get_current_time timezone=Europe/Istanbul" (yalnızca senin `data/mcp.json`'da tanımladığın yerel sunucular; her çağrı onay ister) |
+| MCP araçları | "mcp araçları", "mcp: zaman get_current_time timezone=Europe/Istanbul" (JSON sonuç sesli okunur cümleye çevrilir; yalnızca senin `data/mcp.json`'da tanımladığın yerel sunucular; her çağrı onay ister) |
 | Sistem bakımı | "Sistem bakımı yap", "Bilgisayarım neden yavaş" (bellek, swap, VRAM, modeller, disk, günlük, unutulmuş derleme süreçleri; kendi başına değişiklik yapmaz, güvenli düzeltmeleri onayla önerir) |
 | Günaydın özeti | "Günaydın" (tarih, hava, hatırlatıcılar), sabahları kendiliğinden |
 | Uzaktan | Telegram botu üzerinden metin komutları (hassas araçlar kapalı) |

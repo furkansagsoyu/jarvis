@@ -67,7 +67,8 @@ def parse_config(raw) -> tuple[dict[str, ServerConfig], list[str]]:
             timeout = min(max(float(c.get("timeout", DEFAULT_TIMEOUT)), 1.0), 300.0)
         except (TypeError, ValueError):
             timeout = DEFAULT_TIMEOUT
-        out[name.lower()] = ServerConfig(name.lower(), c["command"].strip(), args, env, tools, timeout)
+        cmd = os.path.expanduser(c["command"].strip())   # kabuk yok: '~' burada açılır
+        out[name.lower()] = ServerConfig(name.lower(), cmd, args, env, tools, timeout)
     return out, warn
 
 

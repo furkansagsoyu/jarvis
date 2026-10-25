@@ -58,6 +58,32 @@ def parse_args(text: str) -> dict | str:
     return out
 
 
+def speakable(text: str) -> str:
+    """JSON sonucu sesli okunabilir düz metne çevirir ('source datetime: 2026-...; time_difference: +6.0h').
+    Gerçek mcp-server-time çıktısı girintili JSON; TTS süslü parantez ve tırnakları okumasın. JSON değilse aynen döner."""
+    t = (text or "").strip()
+    if not t.startswith(("{", "[")):
+        return text
+    try:
+        data = json.loads(t)
+    except ValueError:
+        return text
+    out: list[str] = []
+
+    def walk(v, path: str) -> None:
+        if isinstance(v, dict):
+            for k, x in v.items():
+                walk(x, f"{path} {k}".strip())
+        elif isinstance(v, list):
+            for i, x in enumerate(v, 1):
+                walk(x, f"{path} {i}".strip())
+        else:
+            val = {True: "evet", False: "hayır", None: "yok"}.get(v, v) if isinstance(v, (bool, type(None))) else v
+            out.append(f"{path.replace('_', ' ')}: {val}" if path else str(val))
+    walk(data, "")
+    return "; ".join(out) + "." if out else "Boş sonuç."
+
+
 def mcp_list() -> str:
     import mcp_client  # noqa: PLC0415
     mgr = _manager()
@@ -98,6 +124,7 @@ def mcp_call(server: str, tool: str, args: str | dict = "") -> str:
             text, is_err = mgr.get(server).call(tool, arguments)
         except mcp_client.McpError as exc:
             return f"MCP: {exc}."
+        text = speakable(text)
         text = text if len(text) <= MAX_OUT else text[:MAX_OUT - 1] + "…"
         return f"MCP aracı hata verdi: {text}" if is_err else (text or "Araç çalıştı, çıktı yok.")
     return confirm.request(f"MCP: '{server}' sunucusunda '{tool}' aracı şu argümanlarla çalışacak: {shown}.", run)
