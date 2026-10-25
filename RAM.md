@@ -42,6 +42,21 @@ Environment="OLLAMA_KV_CACHE_TYPE=q8_0"
 ```
 Not: `MAX_LOADED_MODELS=1` iken model değişince (ör. yedeğe düşünce) yeni model yüklenirken birkaç sn gecikme olur; karşılığında iki model aynı anda RAM'i yemez.
 
+## Ölçülen değerler (geliştiricinin makinesi: 15,3 GB RAM, RTX 3070 Ti 8 GB, Ekim 2026)
+Tahmin tablosunun yerine geçen gerçek `--watch` ölçümleri. "Boş" = çalışırken görülen en düşük kullanılabilir bellek.
+
+| Senaryo | En az boş RAM | En çok kullanım | VRAM tepe | Durum |
+|---|---|---|---|---|
+| Sesli sohbet (Jarvis + pano) | 9,3 GB | 6,0 GB | 6,8 GB | rahat |
+| Kod ajanı + tarayıcı (Chromium) | 7,4 GB | 7,9 GB | 6,8 GB | rahat |
+| Yedek model `qwen3:8b` (Jarvis açık) | 9,7 GB | 5,6 GB | 6,8 GB | rahat; model %21 CPU'ya taşıyor (yavaşlar) |
+| Flutter/Gradle derlemesi biter bitmez (Jarvis açık, java 1,7–2,2 GB kalır) | 5,8 GB | 9,6 GB | 6,8 GB | rahat |
+
+- `gpt-oss:20b` (13 GB) denendi: doğruluk `gemma4:e4b` ile aynı (65/68 ve 64/68) ama karar 2,3 sn (gemma 0,2 sn), ilk cümle 3,7 sn, %51/49 CPU/GPU; sesli asistan için uygun değil, kaldırıldı.
+- Derleme 25–55 sn sürdü; ölçümler derleme bittikten hemen sonrasını kapsıyor (anlık tepe birkaç yüz MB daha yüksek olabilir, pay bol). `-Xmx2G` sınırı işe yarıyor; ama Gradle arka plan süreçleri derlemeden sonra da yaklaşık 2 GB tutar: bitince `./gradlew --stop`.
+- Swap, boş bellek bolken bile dolabilir (çekirdek soğuk sayfaları atar): zararsızdır; `vm.swappiness=10` ile azalır.
+- Sınır VRAM'de: Jarvis açıkken `qwen3:8b` tam GPU'ya sığmaz (yaklaşık %21 CPU'ya taşar).
+
 ## Senaryolar (kaba tahmin; 15 GB RAM için)
 `python ram_report.py` çalışan bileşenleri ölçüp aynı tabloyu senin gerçek değerlerinle hesaplar.
 
