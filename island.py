@@ -24,12 +24,16 @@ import urllib.request
 from urllib.parse import parse_qs, urlparse
 
 TITLE = "JARVIS Ada"
-POLL_MS = 500
+POLL_MS = 300            # durum yoklaması (uyanınca adanın büyümesi gecikmesin)
 COLORS = {"starting": "#9aa0a6", "listening": "#34a853", "recording": "#00c853", "thinking": "#f9ab00", "speaking": "#4285f4", "muted": "#ea4335",
           "stopped": "#5f6368", "confirm": "#ff6d00"}
 MAX_Q = 160
 WIDE, NARROW = 580, 210
 MASCOT_PX = 34
+ACTIVE_PX = 76           # etkin halde (uyandı / düşünüyor / konuşuyor) ortadaki büyük maskot
+ACTIVE_W = 250
+GROW_MS = 320            # büyüme/küçülme süresi (yaylanan geçiş; coucou'nun "çentikten çıkma" fikri)
+ACTIVE_MASCOTS = ("listening", "thinking", "speaking")
 FRAME_MS = 66            # maskot kare süresi (~15 kare/sn; küçük çizim, CPU yükü düşük)
 REDUCED = os.environ.get("JARVIS_REDUCED_MOTION") == "1"   # hareket azaltma: yalnızca durağan kare
 # Çekirdek maskotunun renkleri (assets/cekirdek.svg ile aynı): (çizgi, göz/ağız, gövde)
@@ -94,9 +98,12 @@ def mascot_svg(state: str, t: float = 0.0, since: float = 0.0) -> bytes:
 
 def view(snap: dict | None) -> dict:
     """Sunucu durumundan adanın görünümü (Qt'siz test edilir):
-    {text, color, buttons, width, qid, title, mascot}. snap None ise (Jarvis'e ulaşılamıyor) gri, düğmesiz, maskot 'error'."""
+    {text, color, buttons, width, qid, title, mascot, mode}. mode: compact (boşta küçük hap) | active ("Hey Jarvis"ten sonra
+    dinlerken/düşünürken/konuşurken: ada büyür, maskot ortaya gelir) | confirm (soru + Evet/Hayır).
+    snap None ise (Jarvis'e ulaşılamıyor) gri, düğmesiz, maskot 'error'."""
     if not snap:
-        return {"text": "Jarvis'e ulaşılamıyor", "color": COLORS["stopped"], "buttons": False, "width": NARROW, "qid": "", "title": "", "mascot": "error"}
+        return {"text": "Jarvis'e ulaşılamıyor", "color": COLORS["stopped"], "buttons": False, "width": NARROW, "qid": "", "title": "",
+                "mascot": "error", "mode": "compact"}
     mascot = snap.get("mascot") if snap.get("mascot") in ("idle", "listening", "thinking", "speaking", "alert", "error") else "idle"
     label = snap.get("label") or "—"
     color = COLORS.get(snap.get("state", ""), COLORS["starting"])
@@ -106,8 +113,10 @@ def view(snap: dict | None) -> dict:
         head = "Onay bekliyor" if snap["kind"] == "confirm" else "Plan onayı"
         left = int(snap.get("left") or 0)
         return {"text": q, "color": COLORS["confirm"], "buttons": True, "width": WIDE, "qid": str(snap["id"]),
-                "title": f"{head}{f' · {left} sn' if left else ''}", "mascot": "alert"}
-    return {"text": label, "color": color, "buttons": False, "width": NARROW, "qid": "", "title": "", "mascot": mascot}
+                "title": f"{head}{f' · {left} sn' if left else ''}", "mascot": "alert", "mode": "confirm"}
+    if mascot in ACTIVE_MASCOTS:
+        return {"text": label + "…", "color": color, "buttons": False, "width": ACTIVE_W, "qid": "", "title": "", "mascot": mascot, "mode": "active"}
+    return {"text": label, "color": color, "buttons": False, "width": NARROW, "qid": "", "title": "", "mascot": mascot, "mode": "compact"}
 
 
 class Client:
@@ -174,9 +183,24 @@ def run_qt(client: Client, parent: int | None) -> int:
     outer = QtWidgets.QVBoxLayout(win)
     outer.setContentsMargins(0, 0, 0, 0)
     outer.addWidget(pill)
-    row = QtWidgets.QHBoxLayout(pill)
+    col = QtWidgets.QVBoxLayout(pill)
+    col.setContentsMargins(0, 0, 0, 0)
+    rowbox = QtWidgets.QWidget()
+    row = QtWidgets.QHBoxLayout(rowbox)
     row.setContentsMargins(14, 7, 10, 7)
     row.setSpacing(10)
+    stage = QtWidgets.QWidget()               # etkin hal: büyük maskot ortada, durum yazısı altında
+    stage_l = QtWidgets.QVBoxLayout(stage)
+    stage_l.setContentsMargins(10, 10, 10, 8)
+    stage_l.setSpacing(4)
+    caption = QtWidgets.QLabel("")
+    caption.setObjectName("caption")
+    align = Qt.AlignmentFlag if hasattr(Qt, "AlignmentFlag") else Qt
+    caption.setAlignment(align.AlignHCenter)
+    stage_l.addWidget(caption)
+    col.addWidget(rowbox)
+    col.addWidget(stage)
+    stage.hide()
     dot = QtWidgets.QLabel("●")
     try:  # maskot (durağan SVG); QtSvg yoksa eski renkli nokta kalır
         try:
@@ -208,16 +232,53 @@ def run_qt(client: Client, parent: int | None) -> int:
     win.setStyleSheet(
         "#pill{background:rgba(8,14,26,232);border:1px solid rgba(120,160,200,90);border-radius:16px;}"
         "QLabel{color:#e8eef6;font-size:13px;} #title{color:#ffb74d;font-size:11px;font-weight:600;}"
+        "#caption{color:#a5f3fc;font-size:12px;letter-spacing:1px;}"
         "QPushButton{color:#e8eef6;background:rgba(255,255,255,24);border:1px solid rgba(255,255,255,60);"
         "border-radius:10px;padding:4px 14px;font-weight:600;} QPushButton:hover{background:rgba(255,255,255,48);}"
         "#yes{background:rgba(52,168,83,170);border-color:rgba(52,168,83,230);} #yes:hover{background:rgba(52,168,83,220);}")
-    cur = {"qid": "", "busy": False, "dead": 0, "last": None}
+    cur = {"qid": "", "busy": False, "dead": 0, "last": None, "mode": ""}
+    grow = QtCore.QPropertyAnimation(win, b"geometry")
+    curve = QtCore.QEasingCurve.Type if hasattr(QtCore.QEasingCurve, "Type") else QtCore.QEasingCurve
 
-    def place(width: int):
+    def target(width: int):
         scr = (win.screen() if hasattr(win, "screen") and win.screen() else app.primaryScreen()).availableGeometry()
-        win.setFixedWidth(width)
-        win.adjustSize()
-        win.move(scr.x() + (scr.width() - width) // 2, scr.y() + 6)
+        # yükseklik yalnızca görünen bölümden (satır ya da sahne) hesaplanır; düzen önbelleği temizlenir, yoksa küçülürken eski
+        # (büyük) yükseklikte kalıyordu
+        part = stage if stage.isVisibleTo(win) else rowbox
+        lay = part.layout()
+        lay.invalidate()
+        lay.activate()
+        h = lay.totalHeightForWidth(width) if lay.hasHeightForWidth() else part.sizeHint().height()
+        h = max(h, part.minimumSizeHint().height())
+        return QtCore.QRect(scr.x() + (scr.width() - width) // 2, scr.y() + 6, width, h)
+
+    def place(width: int, animate: bool):
+        to = target(width)
+        grow.stop()
+        if animate and not REDUCED and win.isVisible():   # büyürken hafif yaylanır, küçülürken yumuşak iner
+            grow.setDuration(GROW_MS)
+            grow.setEasingCurve(curve.OutBack if to.width() > win.width() else curve.OutCubic)
+            grow.setStartValue(win.geometry())
+            grow.setEndValue(to)
+            grow.start()
+        else:
+            win.setGeometry(to)
+
+    def set_mode(mode: str):
+        """Maskotu satır ile sahne arasında taşır (tek gösterge)."""
+        if face is None or mode == cur["mode"]:
+            return
+        big = mode == "active"
+        row.removeWidget(face)
+        stage_l.removeWidget(face)
+        if big:
+            stage_l.insertWidget(0, face, 0, align.AlignHCenter)
+            face.setFixedSize(ACTIVE_PX, ACTIVE_PX)
+        else:
+            row.insertWidget(0, face)
+            face.setFixedSize(MASCOT_PX, MASCOT_PX)
+        rowbox.setVisible(not big)
+        stage.setVisible(big)
 
     def render(v: dict):
         if v == cur["last"]:
@@ -230,11 +291,16 @@ def run_qt(client: Client, parent: int | None) -> int:
         title.setText(v["title"])
         title.setVisible(bool(v["title"]))
         body.setText(v["text"])
+        caption.setText(v["text"])
         yes.setVisible(v["buttons"])
         no.setVisible(v["buttons"])
         yes.setEnabled(True)
         no.setEnabled(True)
-        place(v["width"])
+        mode = v.get("mode", "compact") if face is not None else "compact"
+        changed = mode != cur["mode"]
+        set_mode(mode)
+        cur["mode"] = mode
+        place(v["width"], animate=changed)
 
     def send(ok: bool):
         qid = cur["qid"]

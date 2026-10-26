@@ -52,7 +52,7 @@ python router_check.py            # anahtar ve gizlilik kapısı denemesi
 
 ## Üst kenar adası
 
-`--island` ile (otomatik başlatma ve menü simgesi bunu varsayılan olarak açar; eski kurulumda `python autostart.py --install` ile yenile. Eski durum penceresi `--ui` artık otomatik açılmaz; istersen elle ver) ekranın üst ortasında, her zaman üstte duran küçük bir çubuk açılır (`island.py`, Qt). Boştayken yalnızca durumu gösterir; riskli bir işlem onayı ya da ajan/ekip planı beklerken genişler: soru, kalan süre, **Evet / Hayır**.
+"Hey Jarvis" dediğinde ada büyür ve maskot ortaya gelir (dinliyor / düşünüyor / konuşuyor yazısıyla), iş bitince yaylanarak küçük haline döner. `--island` ile (otomatik başlatma panoyu ve adayı varsayılan olarak açar; eski kurulumda `python autostart.py --install` ile yenile. Eski durum penceresi `--ui` artık otomatik açılmaz; istersen elle ver) ekranın üst ortasında, her zaman üstte duran küçük bir çubuk açılır (`island.py`, Qt). Boştayken yalnızca durumu gösterir; riskli bir işlem onayı ya da ajan/ekip planı beklerken genişler: soru, kalan süre, **Evet / Hayır**.
 
 - Düğmeler sesli "evet/hayır" ile **aynı yoldan** geçer (pano sunucusu → Brain → onay sınıflandırma); onay kapısı değişmez.
 - Her bekleyen işlemin bir kimliği var: ekrandaki soru değiştiyse eski soruya basılan Evet yeni işlemi onaylamaz.

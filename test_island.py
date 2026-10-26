@@ -49,6 +49,16 @@ v = island.view({"state": "thinking", "label": "Düşünüyor", "kind": "confirm
 check("onay: geniş, Evet/Hayır, soru ve kalan süre", v["buttons"] and v["width"] == island.WIDE and v["qid"] == "c7" and v["title"] == "Onay bekliyor · 42 sn" and "çöpe" in v["text"])
 v = island.view({"state": "speaking", "label": "Konuşuyor", "kind": "plan", "question": "x " * 200, "id": "pteam1", "left": 0})
 check("plan: başlık 'Plan onayı', uzun soru kısaltılır", v["title"] == "Plan onayı" and len(v["text"]) <= island.MAX_Q and v["text"].endswith("…"))
+check("uyanınca/düşünürken/konuşurken ada büyür (active), maskot ortada; boşta küçük hap (compact)",
+      all(island.view({"state": st, "label": "X", "kind": "", "id": "", "mascot": m})["mode"] == "active"
+          and island.view({"state": st, "label": "X", "kind": "", "id": "", "mascot": m})["width"] == island.ACTIVE_W
+          for st, m in (("recording", "listening"), ("thinking", "thinking"), ("speaking", "speaking")))
+      and island.view({"state": "listening", "label": "Dinliyor", "kind": "", "id": "", "mascot": "idle"})["mode"] == "compact")
+check("onay her zaman soru + düğmeli görünüm (konuşurken bile)",
+      island.view({"state": "speaking", "kind": "confirm", "id": "c3", "question": "q", "mascot": "alert"})["mode"] == "confirm"
+      and island.view(None)["mode"] == "compact")
+check("etkin halde büyük maskot (ACTIVE_PX > MASCOT_PX), geçiş animasyonlu ve hareket azaltmada kapalı",
+      island.ACTIVE_PX > 2 * island.MASCOT_PX and "if animate and not REDUCED" in (HERE / "island.py").read_text(encoding="utf-8"))
 check("kimliksiz bekleyen durum düğme göstermez", not island.view({"state": "listening", "kind": "confirm", "id": ""})["buttons"])
 check("Jarvis'e ulaşılamıyor: gri, düğmesiz", island.view(None)["color"] == island.COLORS["stopped"] and not island.view(None)["buttons"])
 for url in ("http://example.com:8765/?t=x", "http://192.168.1.5:8765/?t=x"):
