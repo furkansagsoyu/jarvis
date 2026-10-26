@@ -115,17 +115,27 @@ def jarvis_alive(parent: int | None) -> bool:
     return False
 
 
-def request_quit(url: str) -> bool:
-    """Panonun kendi 'Jarvis'i kapat' komutunu çağırır (aynı anahtar, aynı yol)."""
+def api_cmd(url: str, body: dict) -> bool:
+    """Panonun /api/cmd ucuna komut gönderir (aynı anahtar, aynı yol; yalnızca 127.0.0.1)."""
     try:
         u = urlparse(url)
         token = (parse_qs(u.query).get("t") or [""])[0]
-        req = urllib.request.Request(f"{u.scheme}://{u.netloc}/api/cmd", data=json.dumps({"id": "quit"}).encode(),
+        req = urllib.request.Request(f"{u.scheme}://{u.netloc}/api/cmd", data=json.dumps(body).encode(),
                                      headers={"X-Token": token, "Content-Type": "application/json"}, method="POST")
         with urllib.request.urlopen(req, timeout=3) as r:  # noqa: S310  (yalnızca 127.0.0.1)
             return r.status == 200
     except Exception:  # noqa: BLE001
         return False
+
+
+def request_quit(url: str) -> bool:
+    """Panonun kendi 'Jarvis'i kapat' komutunu çağırır."""
+    return api_cmd(url, {"id": "quit"})
+
+
+def request_island(url: str) -> bool:
+    """Tepsi menüsü 'Adayı aç': Ayarlar'da kapatılmış adayı geri açar (ada ~0,3 sn içinde görünür)."""
+    return api_cmd(url, {"island": {"key": "enabled", "value": True}})
 
 
 def close_to_tray_enabled() -> bool:
@@ -203,6 +213,7 @@ def run_qt(url: str, parent: int | None, hidden: bool = False) -> bool:
 
     menu = QtWidgets.QMenu()
     menu.addAction("Panoyu aç", show)
+    menu.addAction("Adayı aç", lambda: threading.Thread(target=lambda: request_island(url), daemon=True).start())
     menu.addSeparator()
     menu.addAction("Jarvis'i kapat", quit_jarvis)
     tray.setContextMenu(menu)

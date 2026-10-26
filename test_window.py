@@ -274,7 +274,15 @@ def s_basic():
     REG["timer"].timeout.emit()
     check("ikinci JARVIS başlatışı (SIGUSR1) gizli pencereyi açar", w.visible)
     texts = [x[0] for x in t.menu.items]
-    check("tepsi menüsü: Panoyu aç + Jarvis'i kapat", texts == ["Panoyu aç", "Jarvis'i kapat"])
+    check("tepsi menüsü: Panoyu aç + Adayı aç + Jarvis'i kapat", texts == ["Panoyu aç", "Adayı aç", "Jarvis'i kapat"], str(texts))
+    _sent = []
+    _real_api = W.api_cmd
+    W.api_cmd = lambda url, body: _sent.append(body) or True
+    try:
+        W.request_island("http://127.0.0.1:1/?t=x")
+    finally:
+        W.api_cmd = _real_api
+    check("'Adayı aç' yalnızca ada ayarını açar (Jarvis'e başka komut gitmez)", _sent == [{"island": {"key": "enabled", "value": True}}])
     w.hide()
     dict(t.menu.items)["Panoyu aç"]()
     check("menüden Panoyu aç", w.visible)

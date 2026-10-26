@@ -101,9 +101,11 @@ class Dashboard:
             self.httpd.shutdown()
 
     # ------------------------------------------------------------ komutlar
-    def run_command(self, cid: str = "", say: str = "", chat: bool = False, theme: str = "") -> dict:
+    def run_command(self, cid: str = "", say: str = "", chat: bool = False, theme: str = "", island: dict | None = None) -> dict:
         if theme:
             return {"ok": ui_state.set_theme(theme)}
+        if island is not None:   # Ayarlar > ADA ve tepsi menüsü: {"key": ..., "value": ...}
+            return {"ok": isinstance(island, dict) and ui_state.set_island(str(island.get("key", "")), island.get("value"))}
         if say:
             say = " ".join(say.split())[:MAX_SAY]
             st.feed("KOMUT", f"Panodan: {say}")
@@ -489,6 +491,7 @@ class Dashboard:
                     return self._json(200, dash.conv_op(data))
                 if self.path == "/api/island/answer":
                     return self._json(200, dash.island_answer(str(data.get("answer", "")), str(data.get("id", ""))))
-                return self._json(200, dash.run_command(str(data.get("id", "")), str(data.get("say", "")), bool(data.get("chat")), str(data.get("theme", ""))))
+                return self._json(200, dash.run_command(str(data.get("id", "")), str(data.get("say", "")), bool(data.get("chat")), str(data.get("theme", "")),
+                                                        data.get("island") if "island" in data else None))
 
         return H

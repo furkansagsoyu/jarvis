@@ -41,16 +41,44 @@ MASCOT_COLORS = {"alert": ("#f59e0b", "#fcd34d", "#33240a"), "error": ("#f43f5e"
 MASCOT_DEFAULT = ("#22d3ee", "#67e8f9", "#0e2a35")
 
 
+# Ada temaları (pano temalarıyla aynı vurgu renkleri): vurgu, vurgu2, maskot gövdesi, hap arka planı, yazı, kenarlık
+PALETTES = {
+    "cyan": ("#22d3ee", "#67e8f9", "#0e2a35", "rgba(8,14,26,232)", "#e8eef6", "rgba(120,160,200,90)"),
+    "amber": ("#ffb23f", "#ffd38a", "#33240a", "rgba(18,12,4,232)", "#f6efe2", "rgba(200,160,100,90)"),
+    "green": ("#2ee89a", "#8af5c6", "#0a2a1e", "rgba(4,16,10,232)", "#e6f6ee", "rgba(110,190,150,90)"),
+    "violet": ("#a779ff", "#cbb2ff", "#1e1236", "rgba(12,6,22,232)", "#efe9fb", "rgba(160,130,210,90)"),
+    "light": ("#0b78b5", "#0a5f93", "#dcebf7", "rgba(244,248,252,242)", "#14283b", "rgba(11,120,181,110)"),
+}
+SCALES = {"small": .85, "normal": 1.0, "large": 1.25}
+EDGE = 12   # sol/sağ konumda ekran kenarından boşluk
+
+
+def palette(name: str) -> tuple:
+    return PALETTES.get(name, PALETTES["cyan"])
+
+
+def geometry_for(cfg: dict, width: int, scr_x: int, scr_y: int, scr_w: int) -> tuple[int, int]:
+    """Adanın sol üst köşesi: konum ayarı (üst orta/sol/sağ) ve ekran alanına göre (Qt'siz test edilir)."""
+    pos = (cfg or {}).get("position", "center")
+    x = scr_x + EDGE if pos == "left" else scr_x + scr_w - width - EDGE if pos == "right" else scr_x + (scr_w - width) // 2
+    return x, scr_y + 6
+
+
+def scaled(cfg: dict, px: int) -> int:
+    return round(px * SCALES.get((cfg or {}).get("size", "normal"), 1.0))
+
+
 def _wave(t: float, period: float) -> float:
     """0..1..0 arası yumuşak dalga (CSS ease-in-out 0%,100% -> 50% kare çiftine yakın)."""
     return (1 - math.cos(2 * math.pi * (t % period) / period)) / 2
 
 
-def mascot_svg(state: str, t: float = 0.0, since: float = 0.0) -> bytes:
+def mascot_svg(state: str, t: float = 0.0, since: float = 0.0, theme: str = "cyan") -> bytes:
     """Adadaki maskotun t anındaki karesi: assets/cekirdek.svg'nin geometrisi ve @keyframes'i (süreler/değerler aynı).
     Qt'nin SVG çizicisi CSS animasyonu çalıştırmadığı için animasyon burada kare kare hesaplanır (run_qt ~15 kare/sn çizer).
-    t: saniye (saat); since: bu duruma geçilen an (hata titremesi yalnızca girişte). t=0 -> durağan ilk kare."""
-    line, face, body = MASCOT_COLORS.get(state, MASCOT_DEFAULT)
+    t: saniye (saat); since: bu duruma geçilen an (hata titremesi yalnızca girişte). t=0 -> durağan ilk kare.
+    theme: ada teması; maskot rengi temayı izler (uyarı/hata kendi rengini korur)."""
+    line, face, body = MASCOT_COLORS.get(state) or (palette(theme)[:3] if theme in PALETTES else MASCOT_DEFAULT)
     # hale: nefes (4 sn; konuşurken 1,2 sn) ölçek .92-1.05, saydamlık .7-1; uyarıda yanıp sönme (1 sn) .5-1
     if state == "alert":
         hs, ho = 1.0, .5 + .5 * _wave(t, 1.0)
@@ -105,6 +133,7 @@ def view(snap: dict | None) -> dict:
         return {"text": "Jarvis'e ulaşılamıyor", "color": COLORS["stopped"], "buttons": False, "width": NARROW, "qid": "", "title": "",
                 "mascot": "error", "mode": "compact"}
     mascot = snap.get("mascot") if snap.get("mascot") in ("idle", "listening", "thinking", "speaking", "alert", "error") else "idle"
+    cfg = snap.get("cfg") if isinstance(snap.get("cfg"), dict) else {}
     label = snap.get("label") or "—"
     color = COLORS.get(snap.get("state", ""), COLORS["starting"])
     if snap.get("kind") in ("confirm", "plan") and snap.get("id"):
@@ -113,10 +142,10 @@ def view(snap: dict | None) -> dict:
         head = "Onay bekliyor" if snap["kind"] == "confirm" else "Plan onayı"
         left = int(snap.get("left") or 0)
         return {"text": q, "color": COLORS["confirm"], "buttons": True, "width": WIDE, "qid": str(snap["id"]),
-                "title": f"{head}{f' · {left} sn' if left else ''}", "mascot": "alert", "mode": "confirm"}
+                "title": f"{head}{f' · {left} sn' if left else ''}", "mascot": "alert", "mode": "confirm", "cfg": cfg}
     if mascot in ACTIVE_MASCOTS:
-        return {"text": label + "…", "color": color, "buttons": False, "width": ACTIVE_W, "qid": "", "title": "", "mascot": mascot, "mode": "active"}
-    return {"text": label, "color": color, "buttons": False, "width": NARROW, "qid": "", "title": "", "mascot": mascot, "mode": "compact"}
+        return {"text": label + "…", "color": color, "buttons": False, "width": ACTIVE_W, "qid": "", "title": "", "mascot": mascot, "mode": "active", "cfg": cfg}
+    return {"text": label, "color": color, "buttons": False, "width": NARROW, "qid": "", "title": "", "mascot": mascot, "mode": "compact", "cfg": cfg}
 
 
 class Client:
@@ -229,14 +258,20 @@ def run_qt(client: Client, parent: int | None) -> int:
     row.addLayout(texts, 1)
     row.addWidget(yes)
     row.addWidget(no)
-    win.setStyleSheet(
-        "#pill{background:rgba(8,14,26,232);border:1px solid rgba(120,160,200,90);border-radius:16px;}"
-        "QLabel{color:#e8eef6;font-size:13px;} #title{color:#ffb74d;font-size:11px;font-weight:600;}"
-        "#caption{color:#a5f3fc;font-size:12px;letter-spacing:1px;}"
-        "QPushButton{color:#e8eef6;background:rgba(255,255,255,24);border:1px solid rgba(255,255,255,60);"
-        "border-radius:10px;padding:4px 14px;font-weight:600;} QPushButton:hover{background:rgba(255,255,255,48);}"
-        "#yes{background:rgba(52,168,83,170);border-color:rgba(52,168,83,230);} #yes:hover{background:rgba(52,168,83,220);}")
-    cur = {"qid": "", "busy": False, "dead": 0, "last": None, "mode": ""}
+    def style(theme: str, cfg: dict) -> str:
+        acc, acc2, _body, bg, tx, border = palette(theme)
+        fs = lambda px: f"{scaled(cfg, px)}px"  # noqa: E731
+        light = theme == "light"
+        btn = "rgba(0,0,0,18)" if light else "rgba(255,255,255,24)"
+        return (f"#pill{{background:{bg};border:1px solid {border};border-radius:{fs(16)};}}"
+                f"QLabel{{color:{tx};font-size:{fs(13)};}} #title{{color:{'#b86e00' if light else '#ffb74d'};font-size:{fs(11)};font-weight:600;}}"
+                f"#caption{{color:{acc2 if not light else acc};font-size:{fs(12)};letter-spacing:1px;}}"
+                f"QPushButton{{color:{tx};background:{btn};border:1px solid {border};border-radius:10px;padding:4px 14px;font-weight:600;"
+                f"font-size:{fs(13)};}} QPushButton:hover{{border-color:{acc};}}"
+                "#yes{color:#ffffff;background:rgba(52,168,83,190);border-color:rgba(52,168,83,230);} #yes:hover{background:rgba(52,168,83,230);}")
+
+    cur = {"qid": "", "busy": False, "dead": 0, "last": None, "mode": "", "cfg": None, "theme": "cyan"}
+    win.setStyleSheet(style("cyan", {}))
     grow = QtCore.QPropertyAnimation(win, b"geometry")
     curve = QtCore.QEasingCurve.Type if hasattr(QtCore.QEasingCurve, "Type") else QtCore.QEasingCurve
 
@@ -250,10 +285,11 @@ def run_qt(client: Client, parent: int | None) -> int:
         lay.activate()
         h = lay.totalHeightForWidth(width) if lay.hasHeightForWidth() else part.sizeHint().height()
         h = max(h, part.minimumSizeHint().height())
-        return QtCore.QRect(scr.x() + (scr.width() - width) // 2, scr.y() + 6, width, h)
+        x, y = geometry_for(cur["cfg"] or {}, width, scr.x(), scr.y(), scr.width())
+        return QtCore.QRect(x, y, width, h)
 
     def place(width: int, animate: bool):
-        to = target(width)
+        to = target(scaled(cur["cfg"] or {}, width))
         grow.stop()
         if animate and not REDUCED and win.isVisible():   # büyürken hafif yaylanır, küçülürken yumuşak iner
             grow.setDuration(GROW_MS)
@@ -271,12 +307,13 @@ def run_qt(client: Client, parent: int | None) -> int:
         big = mode == "active"
         row.removeWidget(face)
         stage_l.removeWidget(face)
+        px = scaled(cur["cfg"] or {}, ACTIVE_PX if big else MASCOT_PX)
         if big:
             stage_l.insertWidget(0, face, 0, align.AlignHCenter)
-            face.setFixedSize(ACTIVE_PX, ACTIVE_PX)
         else:
             row.insertWidget(0, face)
-            face.setFixedSize(MASCOT_PX, MASCOT_PX)
+        face.setFixedSize(px, px)
+        face.setVisible((cur["cfg"] or {}).get("mascot", True) is not False)
         rowbox.setVisible(not big)
         stage.setVisible(big)
 
@@ -287,7 +324,7 @@ def run_qt(client: Client, parent: int | None) -> int:
         dot.setStyleSheet(f"color:{v['color']};font-size:15px;")
         if face is not None and v.get("mascot") != cur.get("mascot"):
             cur["mascot"], cur["since"] = v.get("mascot"), time.monotonic()
-            face.load(mascot_svg(cur["mascot"] or "idle", cur["since"], cur["since"]))
+            face.load(mascot_svg(cur["mascot"] or "idle", cur["since"], cur["since"], cur["theme"]))
         title.setText(v["title"])
         title.setVisible(bool(v["title"]))
         body.setText(v["text"])
@@ -296,11 +333,32 @@ def run_qt(client: Client, parent: int | None) -> int:
         no.setVisible(v["buttons"])
         yes.setEnabled(True)
         no.setEnabled(True)
+        cfg = v.get("cfg") or {}
+        if cfg != cur["cfg"]:
+            apply_cfg(cfg)
+        if cfg.get("enabled") is False:
+            return
         mode = v.get("mode", "compact") if face is not None else "compact"
         changed = mode != cur["mode"]
         set_mode(mode)
         cur["mode"] = mode
         place(v["width"], animate=changed)
+
+    def apply_cfg(cfg: dict):
+        """Ayarlar > ADA: tema, boyut, maskot, her zaman üstte, aç/kapa (yeniden başlatmadan uygulanır)."""
+        old = cur["cfg"] or {}
+        cur["cfg"], cur["theme"] = cfg, cfg.get("theme", "cyan") if cfg.get("theme") in PALETTES else "cyan"
+        win.setStyleSheet(style(cur["theme"], cfg))
+        cur["mode"] = ""                           # boyut/maskot değiştiyse yerleşim yeniden kurulsun
+        if cfg.get("on_top", True) != old.get("on_top", True):
+            win.setWindowFlag(flags.WindowStaysOnTopHint, cfg.get("on_top", True) is not False)
+        if cfg.get("enabled") is False:
+            grow.stop()
+            win.hide()                             # yalnızca ada gizlenir; Jarvis çalışmaya devam eder
+        elif not win.isVisible():
+            win.show()
+        if face is not None and cur.get("mascot"):
+            face.load(mascot_svg(cur["mascot"], time.monotonic(), cur.get("since", 0.0), cur["theme"]))
 
     def send(ok: bool):
         qid = cur["qid"]
@@ -334,14 +392,15 @@ def run_qt(client: Client, parent: int | None) -> int:
 
     def frame():  # maskot animasyonu: durum yoklamasından bağımsız, ~15 kare/sn
         if face is not None and cur.get("mascot") and win.isVisible():
-            face.load(mascot_svg(cur["mascot"], time.monotonic(), cur.get("since", 0.0)))
+            face.load(mascot_svg(cur["mascot"], time.monotonic(), cur.get("since", 0.0), cur["theme"]))
 
     anim = QtCore.QTimer()
     anim.timeout.connect(frame)
     if face is not None and not REDUCED:
         anim.start(FRAME_MS)
     render(view(client.snapshot()))
-    win.show()
+    if (cur["cfg"] or {}).get("enabled", True) is not False:   # Ayarlar'da kapatılmışsa gizli başlar (tepsiden açılır)
+        win.show()
     (app.exec if hasattr(app, "exec") else app.exec_)()
     del timer, anim
     return 0

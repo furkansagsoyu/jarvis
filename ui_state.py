@@ -164,6 +164,42 @@ def set_theme(name: str) -> bool:
     return True
 
 
+# Üst kenar adası ayarları (settings.json "island"): pano Ayarlar > ADA ve tepsi menüsü değiştirir, ada her yoklamada okur.
+ISLAND_DEFAULTS = {"enabled": True, "on_top": True, "mascot": True, "position": "center", "size": "normal", "theme": "auto"}
+ISLAND_CHOICES = {"position": ("center", "left", "right"), "size": ("small", "normal", "large"), "theme": ("auto", *THEMES)}
+
+
+def island_settings() -> dict:
+    """Doğrulanmış ada ayarları (bozuk/eksik değer varsayılana düşer)."""
+    raw = _store.load("settings.json", {}).get("island")
+    raw = raw if isinstance(raw, dict) else {}
+    out = {}
+    for k, d in ISLAND_DEFAULTS.items():
+        v = raw.get(k, d)
+        ok = isinstance(v, bool) if isinstance(d, bool) else v in ISLAND_CHOICES[k]
+        out[k] = v if ok else d
+    return out
+
+
+def set_island(key: str, value) -> bool:
+    """Tek bir ada ayarını kaydeder; bilinmeyen anahtar ya da geçersiz değer -> False (hiçbir şey yazılmaz)."""
+    if key not in ISLAND_DEFAULTS:
+        return False
+    d = ISLAND_DEFAULTS[key]
+    if (isinstance(d, bool) and not isinstance(value, bool)) or (not isinstance(d, bool) and value not in ISLAND_CHOICES[key]):
+        return False
+    st = _store.load("settings.json", {})
+    st["island"] = {**island_settings(), key: value}
+    _store.save("settings.json", st)
+    return True
+
+
+def island_theme() -> str:
+    """Adanın kullanacağı tema: 'auto' ise panonun teması."""
+    t = island_settings()["theme"]
+    return theme() if t == "auto" else t
+
+
 def request_listen() -> None:
     """Panodan "Jarvis ile konuş": uyanma sözcüğü beklemeden hemen dinle."""
     ctl = _store.load("control.json", {})

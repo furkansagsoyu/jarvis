@@ -130,6 +130,38 @@ _, r = req(d, "POST", "/api/island/answer", {"answer": "yes", "id": snap["id"]})
 check("bekleyen yokken cevap iletilmez", not r["ok"] and sent == ["hayır"])
 check("onay kendisi sunucuda VERİLMEZ (yalnızca metin iletilir)", "approve" not in Path(server.__file__).read_text())
 
+# ---------------------------------------------------------------- Ayarlar > ADA
+check("ada ayarları varsayılanı", ui_state.island_settings() == ui_state.ISLAND_DEFAULTS)
+_, r1 = req(d, "POST", "/api/cmd", {"island": {"key": "size", "value": "large"}})
+_, r2 = req(d, "POST", "/api/cmd", {"island": {"key": "size", "value": "dev"}})
+_, r3 = req(d, "POST", "/api/cmd", {"island": {"key": "enabled", "value": "false"}})
+_, r4 = req(d, "POST", "/api/cmd", {"island": {"key": "shell", "value": True}})
+code5, _ = req(d, "POST", "/api/cmd", {"island": {"key": "size", "value": "small"}}, token=False)
+check("API: geçerli ayar kaydedilir; geçersiz değer/tip/anahtar ve anahtarsız istek reddedilir",
+      r1["ok"] and not r2["ok"] and not r3["ok"] and not r4["ok"] and code5 == 403 and ui_state.island_settings()["size"] == "large")
+for k, v in (("position", "right"), ("mascot", False), ("on_top", False), ("theme", "amber")):
+    ui_state.set_island(k, v)
+st_json = json.loads((Path(os.environ["JARVIS_DATA"]) / "settings.json").read_text(encoding="utf-8"))
+check("ayarlar settings.json'da kalır (yeniden başlatınca korunur)", st_json["island"] == {"enabled": True, "on_top": False, "mascot": False,
+                                                                                      "position": "right", "size": "large", "theme": "amber"})
+check("ada anlık durumu ve pano durumu ayarları taşır", state.island_snapshot(ctx)["cfg"]["position"] == "right" and state._durum(ctx)["island"]["size"] == "large")
+ui_state.set_island("theme", "auto")
+ui_state.set_theme("violet")
+check("tema 'panoyu izle' iken adanın teması panonunki", state.island_snapshot(ctx)["cfg"]["theme"] == "violet")
+ui_state.set_theme("cyan")
+check("bozuk settings.json ada ayarı varsayılana düşer", (Path(os.environ["JARVIS_DATA"]) / "settings.json").write_text('{"island": {"size": 7, "enabled": "x"}}') and
+      ui_state.island_settings() == ui_state.ISLAND_DEFAULTS)
+check("konum: üst orta / sol / sağ (ekran kenarından 12 px)",
+      island.geometry_for({"position": "center"}, 200, 0, 0, 1920) == (860, 6) and island.geometry_for({"position": "left"}, 200, 0, 0, 1920) == (12, 6)
+      and island.geometry_for({"position": "right"}, 200, 0, 0, 1920) == (1708, 6) and island.geometry_for({}, 200, 100, 30, 1000) == (500, 36))
+check("boyut: küçük/normal/büyük ölçeği", island.scaled({"size": "small"}, 100) == 85 and island.scaled({}, 100) == 100 and island.scaled({"size": "large"}, 100) == 125)
+check("maskot rengi temayı izler; uyarı/hata kendi rengini korur",
+      b"#ffb23f" in island.mascot_svg("idle", 0, 0, "amber") and b"#0b78b5" in island.mascot_svg("speaking", 0, 0, "light")
+      and b"#f59e0b" in island.mascot_svg("alert", 0, 0, "violet") and b"#f43f5e" in island.mascot_svg("error", 0, 0, "green"))
+check("her pano temasının ada paleti var", set(ui_state.THEMES) <= set(island.PALETTES))
+check("görünüm ayarları adaya geçer", island.view({"state": "listening", "mascot": "idle", "cfg": {"size": "small"}})["cfg"] == {"size": "small"})
+ui_state.set_island("enabled", True)
+
 # ---------------------------------------------------------------- uçtan uca: gerçek Brain, sahte riskli araç
 import brain as B  # noqa: E402
 

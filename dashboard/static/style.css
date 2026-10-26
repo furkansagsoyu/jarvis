@@ -173,3 +173,4 @@ mark{background:rgba(255,178,63,.35);color:var(--hi);border-radius:3px;padding:0
 .tcard .sw i{position:absolute;right:8px;bottom:8px;width:16px;height:16px;border-radius:50%}.tcard .sw b{position:absolute;left:8px;top:8px;width:46%;height:8px;border-radius:4px;opacity:.9}
 .tcard span{font-size:12.5px}.setgrp{margin-bottom:16px}.setgrp h5{font:600 11px var(--font);letter-spacing:.08em;color:var(--cy2);margin:0 0 8px}
 .setgrp p{color:var(--mut);font-size:12.5px;line-height:1.5;margin-bottom:6px}.setgrp code{color:var(--cy2)}
+.islrow{display:flex;flex-wrap:wrap;gap:8px;margin:6px 0}.islsel{background:var(--card);color:var(--tx);border:1px solid var(--line);border-radius:6px;padding:6px 8px;font:inherit;font-size:12.5px}

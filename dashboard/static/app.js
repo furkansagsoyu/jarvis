@@ -259,18 +259,32 @@ VIEWS.ayarlar = {
     tray.onclick = () => send({ id: "traytoggle" }); body._tray = tray;
     const cloud = h("button", { class: "pill vo", title: "Kapalıyken hiçbir şey ücretsiz bulut modellerine gitmez; yalnızca yerel model çalışır" });
     cloud.onclick = () => send({ id: "cloudtoggle" }); body._cloud = cloud;
+    /* ADA: üst kenar adası ayarları (settings.json'da kalır; ada en geç ~0,3 sn içinde uygular) */
+    const isl = (key, value) => api("/api/cmd", { island: { key, value } }).then((r) => { if (!r.ok) toast("Ayar kaydedilemedi", false); poll(); }).catch(() => toast("Bağlantı hatası", false));
+    const tog = (key, label, tip) => { const b = h("button", { class: "pill vo", title: tip }); b.onclick = () => isl(key, !(S && S.durum && S.durum.island && S.durum.island[key])); b._k = key; b._l = label; return b; };
+    const sel = (key, opts) => { const s = h("select", { class: "islsel" }, ...opts.map(([v, t]) => h("option", { value: v }, t))); s.onchange = () => isl(key, s.value); s._k = key; return s; };
+    body._isl = [tog("enabled", "Ada", "Kapatınca yalnızca ada gizlenir, Jarvis çalışmaya devam eder; tepsi menüsünden de geri açılır"),
+      tog("on_top", "Her zaman üstte", "Açıkken ada diğer pencerelerin üstünde kalır"), tog("mascot", "Maskot", "Çekirdek maskotunu adada göster ya da gizle")];
+    body._islSel = [sel("position", [["center", "Konum: üst orta"], ["left", "Konum: üst sol"], ["right", "Konum: üst sağ"]]),
+      sel("size", [["small", "Boyut: küçük"], ["normal", "Boyut: normal"], ["large", "Boyut: büyük"]]),
+      sel("theme", [["auto", "Tema: panoyu izle"], ...Object.entries(THEME_META).map(([id, [label]]) => [id, "Tema: " + label])])];
     const quit = confirmBtn("Jarvis'i kapat", () => { api("/api/cmd", { id: "quit" }).catch(() => {}); toast("Jarvis kapanıyor…"); });
     body._c = h("div", { class: "scroll" },
       h("div", { class: "setgrp" }, h("h5", {}, "TEMA"), h("p", {}, "Seçtiğin tema kaydedilir ve bir sonraki açılışta da kalır."), grid),
       h("div", { class: "setgrp" }, h("h5", {}, "UYGULAMA"), h("p", {}, "Pencereyi kapatmak Jarvis'i kapatmaz; sesle çağırmaya devam edebilirsin. Açıkken pencere sağ alttaki sistem tepsisine iner, simgeye tıklayınca pano geri gelir. Kapalıyken pencere kapanır, panoyu menüdeki JARVIS simgesiyle açarsın."), tray,
         h("p", {}, "Tamamen kapatmak için:"), quit),
+      h("div", { class: "setgrp" }, h("h5", {}, "ADA"), h("p", {}, "Ekranın üst kenarındaki durum ve onay çubuğu. Maskot rengi seçilen temayı izler. Adayı kapatmak Jarvis'i kapatmaz; tepsi simgesinin menüsündeki “Adayı aç” ile geri gelir."),
+        h("div", { class: "islrow" }, ...body._isl), h("div", { class: "islrow" }, ...body._islSel)),
       h("div", { class: "setgrp" }, h("h5", {}, "BULUT MODELLERİ"), h("p", {}, "Zor işlerde (kod, plan, “bulut: …” ile sorduğun genel sorular) ücretsiz bulut modelleri kullanılır. Parola, adres, telefon, hafıza, konuşma kaydı, ekran ve kamera ASLA gönderilmez; şüpheli bir şey varsa mesaj hiç gitmez."), cloud),
       h("div", { class: "setgrp" }, h("h5", {}, "HATA AYIKLAMA"), h("p", {}, "Kayıt dosyası: ", h("code", {}, "data/jarvis.log"), ". Terminalde görmek için simgeye sağ tıkla > “Hata ayıklama (terminalde)” ya da ", h("code", {}, "python main.py --wake --dash"), ".")));
     fill(body, body._c); markTheme(body);
   },
   update(s, body) { const on = !s.durum || s.durum.close_to_tray !== false; body._tray.classList.toggle("on", on);
     fill(body._tray, SVG("tool"), "Kapatınca tepsiye in: " + (on ? "Açık" : "Kapalı"));
-    const cl = !s.durum || s.durum.cloud !== false; body._cloud.classList.toggle("on", cl); fill(body._cloud, SVG("bolt"), "Bulut modelleri: " + (cl ? "Açık" : "Kapalı")); },
+    const cl = !s.durum || s.durum.cloud !== false; body._cloud.classList.toggle("on", cl); fill(body._cloud, SVG("bolt"), "Bulut modelleri: " + (cl ? "Açık" : "Kapalı"));
+    const ic = (s.durum && s.durum.island) || {};
+    body._isl.forEach((b) => { const on = ic[b._k] !== false; b.classList.toggle("on", on); fill(b, b._l + ": " + (on ? "Açık" : "Kapalı")); });
+    body._islSel.forEach((x) => { if (ic[x._k] && x.value !== ic[x._k] && document.activeElement !== x) x.value = ic[x._k]; }); },
 };
 function markTheme(body) { body.querySelectorAll(".tcard").forEach((b) => b.classList.toggle("on", b.dataset.t === curTheme)); }
 let view = "merkez", builtView = null;

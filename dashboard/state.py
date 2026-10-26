@@ -161,7 +161,8 @@ def _durum(ctx):
     return {"state": st.get("state", "starting"), "label": ui_state.STATES.get(st.get("state"), "—"),
             "muted": ui_state.is_muted(), "focus": ui_state.is_focus(), "chat_voice": ui_state.chat_voice(), "close_to_tray": ui_state.close_to_tray(), "cloud": ui_state.cloud_enabled(), "theme": ui_state.theme(), "pending": pending,
             "turns": st.get("turns", []), "uptime": int(time.time() - START),
-            "mascot": ui_state.mascot_state("muted" if ui_state.is_muted() else st.get("state", "starting"), pending, st.get("error_ts") or 0)}
+            "mascot": ui_state.mascot_state("muted" if ui_state.is_muted() else st.get("state", "starting"), pending, st.get("error_ts") or 0),
+            "island": ui_state.island_settings()}
 
 
 def island_snapshot(ctx) -> dict:
@@ -171,7 +172,8 @@ def island_snapshot(ctx) -> dict:
     st = ui_state.read_status()
     state = "muted" if ui_state.is_muted() else st.get("state", "starting")
     out = {"state": state, "label": ui_state.STATES.get(state, "—"), "kind": "", "question": "", "id": "", "left": 0,
-           "mascot": ui_state.mascot_state(state, False, st.get("error_ts") or 0)}
+           "mascot": ui_state.mascot_state(state, False, st.get("error_ts") or 0),
+           "cfg": {**ui_state.island_settings(), "theme": ui_state.island_theme()}}   # ada ayarları her yoklamada uygulanır
     try:
         from skills import _confirm  # noqa: PLC0415
         info = _confirm.pending_info()
