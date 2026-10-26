@@ -85,7 +85,7 @@ def _ddg_lite(query: str) -> list[tuple[str, str]]:
 
 def _groq(query: str) -> list[tuple[str, str]]:
     """Groq'un yerleşik web araması (Exa): kazıma gerektirmez; anahtar ve bulut ayarı açıksa kullanılır."""
-    import router  # noqa: PLC0415  (döngüsel içe aktarma olmasın)
+    from core import router  # noqa: PLC0415  (döngüsel içe aktarma olmasın)
     r = router.get()
     if not r.ready():
         return []

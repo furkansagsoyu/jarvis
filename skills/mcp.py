@@ -21,7 +21,7 @@ _state: dict = {"raw": None, "mgr": None, "warn": []}
 
 
 def _manager():
-    import mcp_client  # noqa: PLC0415
+    from core import mcp_client  # noqa: PLC0415
     raw = _store.load(mcp_client.CONFIG, None)
     if raw != _state["raw"] or _state["mgr"] is None:   # yapılandırma değiştiyse eski sunucular kapatılır
         if _state["mgr"]:
@@ -85,7 +85,7 @@ def speakable(text: str) -> str:
 
 
 def mcp_list() -> str:
-    import mcp_client  # noqa: PLC0415
+    from core import mcp_client  # noqa: PLC0415
     mgr = _manager()
     if not mgr.configs:
         warn = f" ({'; '.join(_state['warn'])})" if _state["warn"] else ""
@@ -101,7 +101,7 @@ def mcp_list() -> str:
 
 
 def mcp_call(server: str, tool: str, args: str | dict = "") -> str:
-    import mcp_client  # noqa: PLC0415
+    from core import mcp_client  # noqa: PLC0415
     arguments = args if isinstance(args, dict) else parse_args(args)
     if isinstance(arguments, str):
         return arguments

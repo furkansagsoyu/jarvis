@@ -30,9 +30,9 @@ import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-import convlog
-import remote
-import ui_state
+from core import convlog
+from connect import remote
+from desktop import ui_state
 from skills import _store, agenda
 
 from . import state as st

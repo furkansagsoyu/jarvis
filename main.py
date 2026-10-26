@@ -3,13 +3,13 @@
 
 Çalıştırma (freya ortamında, şarja takılı):
     python main.py
-    python main.py --mic 3          # mikrofon numarası (python stt.py --list-devices)
+    python main.py --mic 3          # mikrofon numarası (python voice/stt.py --list-devices)
     python main.py --text           # mikrofon yerine klavyeden yaz (hata ayıklama)
     python main.py --steps 12       # TTS adım sayısı (düşük = hızlı)
 
 Her tur: Enter -> konuş -> Enter. Çıkmak için "görüşürüz" de ya da q yaz.
 """
-import stt
+from voice import stt
 
 stt.ensure_cuda_libs()  # LD_LIBRARY_PATH'i ayarlar (gerekirse programı bir kez yeniden başlatır)
 
@@ -22,11 +22,11 @@ import threading  # noqa: E402
 import time  # noqa: E402
 from pathlib import Path  # noqa: E402
 
-import memguard  # noqa: E402
-import ui_state  # noqa: E402
-from brain import Brain  # noqa: E402
+from core import memguard  # noqa: E402
+from desktop import ui_state  # noqa: E402
+from core.brain import Brain  # noqa: E402
 from skills import agenda, battery, briefing, reminders  # noqa: E402
-from tts import list_output_devices, make_speaker, set_output_device  # noqa: E402
+from voice.tts import list_output_devices, make_speaker, set_output_device  # noqa: E402
 
 SENTENCE_END = re.compile(r"(?<=[.!?…])\s+")
 EXIT_WORDS = ("görüşürüz", "kapat kendini", "kendini kapat", "programı kapat", "çıkış yap", "hoşça kal")
@@ -146,7 +146,7 @@ def start_dashboard(brain, speaker, listener=None, window: bool = True):
     url = dash.start()
     print(f"      Pano açık: {url.split('?')[0]}", flush=True)
     try:
-        import remote  # noqa: PLC0415
+        from connect import remote  # noqa: PLC0415
         if remote.enabled():
             def _sync():
                 print(f"      {remote.sync(dash.port)}", flush=True)
@@ -163,7 +163,7 @@ def start_island(url: str):
     """Üst kenar adası (island.py): ayrı süreç; Jarvis kapanınca kendisi de kapanır."""
     if not os.environ.get("DISPLAY"):
         return None
-    return subprocess.Popen([sys.executable, str(Path(__file__).parent / "island.py"), url, "--parent", str(os.getpid())],
+    return subprocess.Popen([sys.executable, "-m", "desktop.island", url, "--parent", str(os.getpid())],
                             cwd=str(Path(__file__).parent))
 
 
@@ -190,7 +190,7 @@ def main():
                    help="Whisper ipucu metni: default (komut örnekleri), short (yalnızca 'Jarvis'), off (kapalı)")
     p.add_argument("--fresh", action="store_true", help="önceki konuşmayı yükleme (oturum devamlılığı kapalı değil, sıfırdan başlar)")
     p.add_argument("--ui", action="store_true", help="durum penceresi ve tepsi simgesi (ui.py) aç")
-    p.add_argument("--telegram", action="store_true", help="Telegram köprüsü (önce: python telegram_bot.py --setup)")
+    p.add_argument("--telegram", action="store_true", help="Telegram köprüsü (önce: python connect/telegram_bot.py --setup)")
     p.add_argument("--dash", action="store_true", help="Komut Merkezi panosunu kendi penceresinde aç (V2)")
     p.add_argument("--island", action="store_true", help="ekranın üst kenarında durum/onay adası (Evet/Hayır düğmeli; Qt)")
     p.add_argument("--morning", action="store_true", help="sabah (05-12) ilk açılışta günün özetini söyle (günde bir kez)")
@@ -202,7 +202,7 @@ def main():
     ui_state.reset()
     ui_proc = None
     if args.ui and os.environ.get("DISPLAY"):
-        ui_proc = subprocess.Popen([sys.executable, str(Path(__file__).with_name("ui.py")), "--parent", str(os.getpid())])
+        ui_proc = subprocess.Popen([sys.executable, "-m", "desktop.ui", "--parent", str(os.getpid())], cwd=str(Path(__file__).parent))
     t0 = time.perf_counter()
     listener = None
     if not args.text:
@@ -217,7 +217,7 @@ def main():
     print("[3/3] Gemma ısınıyor...", flush=True)
     wake = None
     if args.wake and not args.text:
-        import wake as wake_mod  # noqa: PLC0415
+        from voice import wake as wake_mod  # noqa: PLC0415
         wake = wake_mod.WakeWord(threshold=args.wake_threshold, mic=args.mic)
     brain = Brain()
     brain.warm_up()
@@ -230,7 +230,7 @@ def main():
     print(f"\nHazır ({time.perf_counter() - t0:.0f} sn). Konuşabilirsin.\n", flush=True)
     notify = speaker.say  # bildirimler (hatırlatma, pil) sesli söylenir; Telegram açıksa telefona da gider
     if args.telegram:
-        import telegram_bot  # noqa: PLC0415
+        from connect import telegram_bot  # noqa: PLC0415
 
         def on_telegram(text: str) -> str:
             return run_remote(brain, text, "Telegram")
@@ -244,7 +244,7 @@ def main():
                 _bot.notify(text)
             print("      Telegram köprüsü açık.", flush=True)
         else:
-            print("      Telegram kurulu değil (python telegram_bot.py --setup); atlandı.", flush=True)
+            print("      Telegram kurulu değil (python connect/telegram_bot.py --setup); atlandı.", flush=True)
     notify = wrap_notify(notify)  # akışa yazar; odak modunda sesli söylemez
     reminders.set_notifier(notify)  # süre dolunca arka plan iş parçacığından sesli söyler
     agenda.Monitor(notify).start()  # etkinliğe 10 dk kala sesli uyarır
@@ -268,7 +268,7 @@ def main():
         threading.Thread(target=enter_to_stop, daemon=True).start()
     dash_proc = island_proc = None
     try:
-        import remote  # noqa: PLC0415
+        from connect import remote  # noqa: PLC0415
         phone_on = remote.enabled()
     except Exception:  # noqa: BLE001
         phone_on = False

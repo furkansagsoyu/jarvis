@@ -162,8 +162,8 @@ def logic_tests() -> None:
 
     @check("Telegram: yetkisiz sohbet yok sayılır, read_file/recall uzaktan kapalı")
     def _():
-        import brain as B  # noqa: PLC0415
-        import telegram_bot as tb  # noqa: PLC0415
+        from core import brain as B  # noqa: PLC0415
+        from connect import telegram_bot as tb  # noqa: PLC0415
         brain = B.Brain()
         sent = []
 
@@ -184,8 +184,8 @@ def logic_tests() -> None:
 
     @check("Arayüz durumu ve sessize alma")
     def _():
-        import ui  # noqa: PLC0415
-        import ui_state  # noqa: PLC0415
+        from desktop import ui  # noqa: PLC0415
+        from desktop import ui_state  # noqa: PLC0415
         ui_state.reset()
         ui_state.add_turn("sen", "merhaba")
         ui_state.set_state("thinking")
@@ -197,7 +197,7 @@ def logic_tests() -> None:
 
     @check("Hoparlör seçici (numara / ad parçası)")
     def _():
-        import tts  # noqa: PLC0415
+        from voice import tts  # noqa: PLC0415
         devs = [{"name": "HDA Intel", "max_output_channels": 2}, {"name": "HDMI 0", "max_output_channels": 8},
                 {"name": "Mikrofon", "max_output_channels": 0}, {"name": "USB Kulaklık", "max_output_channels": 2}]
         assert tts.pick_output(devs, "hdmi")[0] == 1 and tts.pick_output(devs, "3")[0] == 3
@@ -206,8 +206,8 @@ def logic_tests() -> None:
     @check("Sustur isteği (arayüz → ana döngü)")
     def _():
         import threading  # noqa: PLC0415
-        import tts  # noqa: PLC0415
-        import ui_state  # noqa: PLC0415
+        from voice import tts  # noqa: PLC0415
+        from desktop import ui_state  # noqa: PLC0415
         ui_state.reset()
         assert not ui_state.consume_stop()
         ui_state.request_stop()
@@ -238,7 +238,7 @@ def logic_tests() -> None:
         saved = sys.modules.get("sounddevice")
         sys.modules["sounddevice"] = fake
         try:
-            import tts  # noqa: PLC0415
+            from voice import tts  # noqa: PLC0415
 
             class Sp(tts.BaseSpeaker):
                 sample_rate = 48000
@@ -297,7 +297,7 @@ def logic_tests() -> None:
     @check("Oturum devamlılığı: kaydet → yeniden başlat → yükle; eski ve sıfırlanan geçmiş")
     def _():
         import ollama  # noqa: PLC0415
-        import brain as B  # noqa: PLC0415
+        from core import brain as B  # noqa: PLC0415
         real = getattr(ollama, "chat", None)
         ollama.chat = lambda **kw: iter([{"message": {"content": "Tamam."}}]) if kw.get("stream") else {"message": {"content": "Merhaba.", "tool_calls": []}}
         try:
@@ -322,7 +322,7 @@ def logic_tests() -> None:
     @check("Model yedek merdiveni: gemma düşünce qwen, 5 dk yapışkan, sonra tekrar gemma")
     def _():
         import ollama  # noqa: PLC0415
-        import brain as B  # noqa: PLC0415
+        from core import brain as B  # noqa: PLC0415
         seen = []
 
         def fake(**kw):
@@ -350,7 +350,7 @@ def logic_tests() -> None:
     @check("Dış içerik okununca model turunda araç kapalı (prompt injection)")
     def _():
         import ollama  # noqa: PLC0415
-        import brain as B  # noqa: PLC0415
+        from core import brain as B  # noqa: PLC0415
         tools_seen = []
 
         def fake(**kw):
@@ -369,7 +369,7 @@ def logic_tests() -> None:
 
     @check("Tarayıcı kuralları + gerçek Chromium (test_browser)")
     def _():
-        r = subprocess.run([sys.executable, str(HERE / "test_browser.py")], capture_output=True, text=True,
+        r = subprocess.run([sys.executable, str(HERE / "tests" / "test_browser.py")], capture_output=True, text=True,
                            env={**os.environ, "PYTHONPATH": str(HERE)}, timeout=180)
         assert r.returncode == 0, "\n".join(l for l in r.stdout.splitlines() if l.startswith("HATA"))[:400] or r.stderr[-300:]
         return "ATLA playwright yok" if "ATLA" in r.stdout else f"{r.stdout.count('OK   ')} OK"
@@ -377,7 +377,7 @@ def logic_tests() -> None:
     @check("Webcam görüşü: sahte kare + sahte model, kamera yoksa açık hata, Telegram'dan kapalı")
     def _():
         from skills import camera, screen as scr  # noqa: PLC0415
-        import brain as B  # noqa: PLC0415
+        from core import brain as B  # noqa: PLC0415
         seen = {}
         real_cap, real_ask, real_dev = camera.capture, scr._ask_model, camera.device_exists
         try:
@@ -395,7 +395,7 @@ def logic_tests() -> None:
     @check("Bağlam özetleme: atılan mesajlar özete katlanır, dış içerik taşınmaz, kalıcı, sıfırlanır")
     def _():
         import ollama  # noqa: PLC0415
-        import brain as B  # noqa: PLC0415
+        from core import brain as B  # noqa: PLC0415
         sys_seen, calls = [], []
 
         def fake(**kw):
@@ -437,147 +437,147 @@ def logic_tests() -> None:
 
     @check("Ajan modu: plan, onay, tek araç kısıtı, araçsız özet, enjeksiyon/dosya sızıntısı, 3 hata, iptal (test_agent)")
     def _():
-        r = subprocess.run([sys.executable, str(HERE / "test_agent.py")], capture_output=True, text=True,
+        r = subprocess.run([sys.executable, str(HERE / "tests" / "test_agent.py")], capture_output=True, text=True,
                            env={**os.environ, "PYTHONPATH": str(HERE)}, timeout=120)
         assert r.returncode == 0, "\n".join(l for l in r.stdout.splitlines() if l.startswith("HATA"))[:400] or r.stderr[-300:]
         return f"{r.stdout.count('OK   ')} OK"
 
     @check("Fare/klavye kontrolü: onay, terminal/parola/banka reddi, yasak kısayol (sahte xdotool)")
     def _():
-        r = subprocess.run([sys.executable, str(HERE / "test_desktop.py")], capture_output=True, text=True,
+        r = subprocess.run([sys.executable, str(HERE / "tests" / "test_desktop.py")], capture_output=True, text=True,
                            env={**os.environ, "PYTHONPATH": str(HERE)}, timeout=60)
         assert r.returncode == 0, "\n".join(l for l in r.stdout.splitlines() if l.startswith("HATA"))[:400] or r.stderr[-300:]
         return f"{r.stdout.count('OK   ')} OK"
 
     @check("Takvim ve görevler: Türkçe tarih, depo, onaylı silme, 10 dk uyarı, sabah özeti (test_agenda)")
     def _():
-        r = subprocess.run([sys.executable, str(HERE / "test_agenda.py")], capture_output=True, text=True,
+        r = subprocess.run([sys.executable, str(HERE / "tests" / "test_agenda.py")], capture_output=True, text=True,
                            env={**os.environ, "PYTHONPATH": str(HERE), "JARVIS_DATA": str(TMP / "agenda_test")}, timeout=60)
         assert r.returncode == 0, "\n".join(l for l in r.stdout.splitlines() if l.startswith("HATA"))[:400] or r.stderr[-300:]
         return f"{r.stdout.count('OK   ')} OK"
 
     @check("Komut Merkezi panosu: anahtar/Host/yol güvenliği, komutlar, durum, hata yalıtımı (test_dashboard)")
     def _():
-        r = subprocess.run([sys.executable, str(HERE / "test_dashboard.py")], capture_output=True, text=True,
+        r = subprocess.run([sys.executable, str(HERE / "tests" / "test_dashboard.py")], capture_output=True, text=True,
                            env={**os.environ, "PYTHONPATH": str(HERE), "JARVIS_DATA": str(TMP / "dash_test")}, timeout=60)
         assert r.returncode == 0, "\n".join(l for l in r.stdout.splitlines() if l.startswith("HATA"))[:400] or r.stderr[-300:]
         return f"{r.stdout.count('OK   ')} OK"
 
     @check("Pano penceresi: tek pencere, tepsiye inme, bekçi, kapatma (test_window, sahte Qt)")
     def _():
-        r = subprocess.run([sys.executable, str(HERE / "test_window.py")], capture_output=True, text=True,
+        r = subprocess.run([sys.executable, str(HERE / "tests" / "test_window.py")], capture_output=True, text=True,
                            env={**os.environ, "PYTHONPATH": str(HERE), "JARVIS_DATA": str(TMP / "win_test")}, timeout=60)
         assert r.returncode == 0, "\n".join(l for l in r.stdout.splitlines() if l.startswith("HATA"))[:400] or r.stderr[-300:]
         return f"{r.stdout.count('OK   ')} OK"
 
     @check("Ekip modu (çoklu ajan): plan, roller, bulut/yerel seçimi, kirlenme kuralı, onay, enjeksiyon (test_team)")
     def _():
-        r = subprocess.run([sys.executable, str(HERE / "test_team.py")], capture_output=True, text=True,
+        r = subprocess.run([sys.executable, str(HERE / "tests" / "test_team.py")], capture_output=True, text=True,
                            env={**os.environ, "PYTHONPATH": str(HERE), "JARVIS_DATA": str(TMP / "team_test")}, timeout=60)
         assert r.returncode == 0, "\n".join(l for l in r.stdout.splitlines() if l.startswith("HATA"))[:400] or r.stderr[-300:]
         return f"{r.stdout.count('OK   ')} OK"
 
     @check("Kod ajanı araçları: yol güvenliği, sınırlar, çalıştırma kısıtları, güvenli kutu komutu (test_code)")
     def _():
-        r = subprocess.run([sys.executable, str(HERE / "test_code.py")], capture_output=True, text=True,
+        r = subprocess.run([sys.executable, str(HERE / "tests" / "test_code.py")], capture_output=True, text=True,
                            env={**os.environ, "PYTHONPATH": str(HERE), "JARVIS_DATA": str(TMP / "code_test")}, timeout=90)
         assert r.returncode == 0, "\n".join(l for l in r.stdout.splitlines() if l.startswith("HATA"))[:400] or r.stderr[-300:]
         return f"{r.stdout.count('OK   ')} OK"
 
     @check("Telefon (ADB): numara güvenliği, rehber, onay, arama doğrulama, kapatma (test_phone)")
     def _():
-        r = subprocess.run([sys.executable, str(HERE / "test_phone.py")], capture_output=True, text=True,
+        r = subprocess.run([sys.executable, str(HERE / "tests" / "test_phone.py")], capture_output=True, text=True,
                            env={**os.environ, "PYTHONPATH": str(HERE), "JARVIS_DATA": str(TMP / "phone_test")}, timeout=60)
         assert r.returncode == 0, "\n".join(l for l in r.stdout.splitlines() if l.startswith("HATA"))[:400] or r.stderr[-300:]
         return f"{r.stdout.count('OK   ')} OK"
 
     @check("Telefon uygulaması bağlantısı: imza, FCM gönderimi, eşleştirme, ADB/uygulama seçimi, alarm (test_phonelink)")
     def _():
-        r = subprocess.run([sys.executable, str(HERE / "test_phonelink.py")], capture_output=True, text=True, cwd=str(HERE),
+        r = subprocess.run([sys.executable, str(HERE / "tests" / "test_phonelink.py")], capture_output=True, text=True, cwd=str(HERE),
                            env={**os.environ, "PYTHONPATH": str(HERE), "JARVIS_DATA": str(TMP / "phonelink_test")}, timeout=60)
         assert r.returncode == 0, "\n".join(l for l in r.stdout.splitlines() if l.startswith("HATA"))[:400] or r.stderr[-300:]
         return f"{r.stdout.count('OK   ')} OK"
 
     @check("Telefon (mobil) arayüzü: ayrı anahtar/kapsam, Host+Origin, kilit, yazışma, ses, komutlar, ajanda, Tailscale, sayfa (test_mobile)")
     def _():
-        r = subprocess.run([sys.executable, str(HERE / "test_mobile.py")], capture_output=True, text=True, cwd=str(HERE),
+        r = subprocess.run([sys.executable, str(HERE / "tests" / "test_mobile.py")], capture_output=True, text=True, cwd=str(HERE),
                            env={**os.environ, "PYTHONPATH": str(HERE), "JARVIS_DATA": str(TMP / "mobile_test")}, timeout=120)
         assert r.returncode == 0, "\n".join(l for l in r.stdout.splitlines() if l.startswith("HATA"))[:400] or r.stderr[-300:]
         return f"{r.stdout.count('OK   ')} OK"
 
     @check("Güvenlik sertleştirme: data/ izinleri, özel kilit yolu, uzaktan kapalı araçlar, kod ajanı katmanları, tehlikeli çağrı taraması (test_security)")
     def _():
-        r = subprocess.run([sys.executable, str(HERE / "test_security.py")], capture_output=True, text=True, cwd=str(HERE),
+        r = subprocess.run([sys.executable, str(HERE / "tests" / "test_security.py")], capture_output=True, text=True, cwd=str(HERE),
                            env={**os.environ, "PYTHONPATH": str(HERE)}, timeout=60)
         assert r.returncode == 0, "\n".join(l for l in r.stdout.splitlines() if l.startswith("HATA"))[:400] or r.stderr[-300:]
         return f"{r.stdout.count('OK   ')} OK"
 
     @check("Bellek koruması + RAM raporu: düzeyler, Monitor (spam yok), ağır işi reddetme, ollama ps, senaryo tablosu (test_ram)")
     def _():
-        r = subprocess.run([sys.executable, str(HERE / "test_ram.py")], capture_output=True, text=True, cwd=str(HERE),
+        r = subprocess.run([sys.executable, str(HERE / "tests" / "test_ram.py")], capture_output=True, text=True, cwd=str(HERE),
                            env={**os.environ, "PYTHONPATH": str(HERE)}, timeout=60)
         assert r.returncode == 0, "\n".join(l for l in r.stdout.splitlines() if l.startswith("HATA"))[:400] or r.stderr[-300:]
         return f"{r.stdout.count('OK   ')} OK"
 
     @check("Çekirdek maskotu: durum -> data-state, pano/ada, SVG kapsamı ve sunumu, adadaki durağan sürüm (test_mascot)")
     def _():
-        r = subprocess.run([sys.executable, str(HERE / "test_mascot.py")], capture_output=True, text=True, cwd=str(HERE),
+        r = subprocess.run([sys.executable, str(HERE / "tests" / "test_mascot.py")], capture_output=True, text=True, cwd=str(HERE),
                            env={**os.environ, "PYTHONPATH": str(HERE), "JARVIS_DATA": str(TMP / "mascot_test")}, timeout=60)
         assert r.returncode == 0, "\n".join(l for l in r.stdout.splitlines() if l.startswith("HATA"))[:400] or r.stderr[-300:]
         return f"{r.stdout.count('OK   ')} OK"
 
     @check("Üst kenar adası: görünüm, onay kimliği, eski soruya cevap reddi, anahtar, uçtan uca Evet, Qt duman testi (test_island)")
     def _():
-        r = subprocess.run([sys.executable, str(HERE / "test_island.py")], capture_output=True, text=True, cwd=str(HERE),
+        r = subprocess.run([sys.executable, str(HERE / "tests" / "test_island.py")], capture_output=True, text=True, cwd=str(HERE),
                            env={**os.environ, "PYTHONPATH": str(HERE), "JARVIS_DATA": str(TMP / "island_test")}, timeout=120)
         assert r.returncode == 0, "\n".join(l for l in r.stdout.splitlines() if l.startswith("HATA"))[:400] or r.stderr[-300:]
         return f"{r.stdout.count('OK   ')} OK"
 
     @check("MCP istemcisi: protokol, izin listesi, onay kapısı, anahtar sızmaz, zaman aşımı, yeniden başlatma, uzaktan kapalı (test_mcp)")
     def _():
-        r = subprocess.run([sys.executable, str(HERE / "test_mcp.py")], capture_output=True, text=True, cwd=str(HERE),
+        r = subprocess.run([sys.executable, str(HERE / "tests" / "test_mcp.py")], capture_output=True, text=True, cwd=str(HERE),
                            env={**os.environ, "PYTHONPATH": str(HERE)}, timeout=120)
         assert r.returncode == 0, "\n".join(l for l in r.stdout.splitlines() if l.startswith("HATA"))[:400] or r.stderr[-300:]
         return f"{r.stdout.count('OK   ')} OK"
 
     @check("Hafıza (SQLite FTS5): Türkçe arama, sıralama, göç (yedek kalır), izinler, FTS5'siz yedek (test_memory)")
     def _():
-        r = subprocess.run([sys.executable, str(HERE / "test_memory.py")], capture_output=True, text=True, cwd=str(HERE),
+        r = subprocess.run([sys.executable, str(HERE / "tests" / "test_memory.py")], capture_output=True, text=True, cwd=str(HERE),
                            env={**os.environ, "PYTHONPATH": str(HERE), "JARVIS_DATA": str(TMP / "memory_test")}, timeout=60)
         assert r.returncode == 0, "\n".join(l for l in r.stdout.splitlines() if l.startswith("HATA"))[:400] or r.stderr[-300:]
         return f"{r.stdout.count('OK   ')} OK"
 
     @check("Sistem bakım ajanı: sağlık kuralları, onaysız değişiklik yok, güvenli düzeltmeler, daemon taraması (test_maintenance)")
     def _():
-        r = subprocess.run([sys.executable, str(HERE / "test_maintenance.py")], capture_output=True, text=True, cwd=str(HERE),
+        r = subprocess.run([sys.executable, str(HERE / "tests" / "test_maintenance.py")], capture_output=True, text=True, cwd=str(HERE),
                            env={**os.environ, "PYTHONPATH": str(HERE), "JARVIS_DATA": str(TMP / "maint_test")}, timeout=60)
         assert r.returncode == 0, "\n".join(l for l in r.stdout.splitlines() if l.startswith("HATA"))[:400] or r.stderr[-300:]
         return f"{r.stdout.count('OK   ')} OK"
 
     @check("Web arama: arka uç sırası, sessiz kip, Tavily, Groq yerleşik arama (test_web)")
     def _():
-        r = subprocess.run([sys.executable, str(HERE / "test_web.py")], capture_output=True, text=True,
+        r = subprocess.run([sys.executable, str(HERE / "tests" / "test_web.py")], capture_output=True, text=True,
                            env={**os.environ, "PYTHONPATH": str(HERE), "JARVIS_DATA": str(TMP / "web_test")}, timeout=60)
         assert r.returncode == 0, "\n".join(l for l in r.stdout.splitlines() if l.startswith("HATA"))[:400] or r.stderr[-300:]
         return f"{r.stdout.count('OK   ')} OK"
 
     @check("Model yönlendirici + gizlilik kapısı: Groq zinciri, limit/hata, engeller, 'bulut:' komutu (test_router)")
     def _():
-        r = subprocess.run([sys.executable, str(HERE / "test_router.py")], capture_output=True, text=True,
+        r = subprocess.run([sys.executable, str(HERE / "tests" / "test_router.py")], capture_output=True, text=True,
                            env={**os.environ, "PYTHONPATH": str(HERE), "JARVIS_DATA": str(TMP / "router_test")}, timeout=60)
         assert r.returncode == 0, "\n".join(l for l in r.stdout.splitlines() if l.startswith("HATA"))[:400] or r.stderr[-300:]
         return f"{r.stdout.count('OK   ')} OK"
 
     @check("Masaüstü uygulaması: .desktop, simge kurulum/kaldırma, başlatıcı (test_app)")
     def _():
-        r = subprocess.run([sys.executable, str(HERE / "test_app.py")], capture_output=True, text=True,
+        r = subprocess.run([sys.executable, str(HERE / "tests" / "test_app.py")], capture_output=True, text=True,
                            env={**os.environ, "PYTHONPATH": str(HERE), "JARVIS_DATA": str(TMP / "app_test")}, timeout=60)
         assert r.returncode == 0, "\n".join(l for l in r.stdout.splitlines() if l.startswith("HATA"))[:400] or r.stderr[-300:]
         return f"{r.stdout.count('OK   ')} OK"
 
     @check("Hızlı yol cümleleri (test_routes)")
     def _():
-        r = subprocess.run([sys.executable, str(HERE / "test_routes.py")], capture_output=True, text=True,
+        r = subprocess.run([sys.executable, str(HERE / "tests" / "test_routes.py")], capture_output=True, text=True,
                            env={**os.environ, "PYTHONPATH": str(HERE)}, timeout=120)
         assert r.returncode == 0, r.stdout[-400:]
         return re.findall(r"TÜMÜ TAMAM|\d+ HATA", r.stdout)[-1]
@@ -696,7 +696,7 @@ def env_checks() -> None:
     except (OSError, ValueError):
         pass
     record("OK" if cfg.get("token") and cfg.get("chat_id") else "UYARI", "Telegram",
-           "kurulu" if cfg.get("token") and cfg.get("chat_id") else "kurulu değil (python telegram_bot.py --setup)")
+           "kurulu" if cfg.get("token") and cfg.get("chat_id") else "kurulu değil (python connect/telegram_bot.py --setup)")
 
     desktop = Path.home() / ".config/autostart/jarvis.desktop"
     if desktop.exists():
@@ -705,9 +705,9 @@ def env_checks() -> None:
         want_tg = bool(cfg.get("token") and cfg.get("chat_id"))
         miss = [f for f, want in (("--telegram", want_tg), ("--island", True), ("--dash", True)) if want and f not in text]
         record("UYARI" if miss else "OK", "Otomatik başlatma", "kurulu: " + " ".join(flags)
-               + (f" — eksik bayrak {', '.join(miss)}: python autostart.py --install" if miss else ""))
+               + (f" — eksik bayrak {', '.join(miss)}: python tools/autostart.py --install" if miss else ""))
     else:
-        record("UYARI", "Otomatik başlatma kurulu değil", "python autostart.py --install")
+        record("UYARI", "Otomatik başlatma kurulu değil", "python tools/autostart.py --install")
     log = REAL_DATA / "jarvis.log"
     if log.exists():
         tail = log.read_text(errors="replace")[-3000:]
@@ -718,7 +718,7 @@ def env_checks() -> None:
 # --------------------------------------------------------------------- 3) model testi
 def model_checks(repeat: int) -> None:
     print(f"\n[3] Gerçek model araç seçimi (tool_check.py, her cümle {repeat} kez)")
-    r = subprocess.run([sys.executable, str(HERE / "tool_check.py"), "--repeat", str(repeat)],
+    r = subprocess.run([sys.executable, str(HERE / "tools" / "tool_check.py"), "--repeat", str(repeat)],
                        capture_output=True, text=True, cwd=HERE, timeout=1800)
     out = r.stdout + r.stderr
     bad = [ln for ln in out.splitlines() if ln.startswith("HATA")]
@@ -752,7 +752,7 @@ def main() -> None:
         model_checks(a.repeat)
     if a.agent:
         print("\n[5] Ajan planı (gerçek model)")
-        import brain as B  # noqa: PLC0415
+        from core import brain as B  # noqa: PLC0415
         br = B.Brain()
         for goal in ("Wikipedia'da Ankara'nın nüfusunu araştır ve bana söyle", "Masaüstündeki rapor dosyasını bul, oku ve özetle"):
             t3 = time.perf_counter()

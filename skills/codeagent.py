@@ -337,7 +337,7 @@ def code_run(command: str, stdin: str = "") -> str:
     if isinstance(argv, str):
         return argv
     stdin_text = str(stdin or "")[:MAX_STDIN]
-    import memguard  # noqa: PLC0415
+    from core import memguard  # noqa: PLC0415
 
     low = memguard.need("kod çalıştırmak", 1.0)
     if low:

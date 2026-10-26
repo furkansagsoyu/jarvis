@@ -2,8 +2,8 @@
   "permissions": {
     "allow": [
       "Bash(python check_all.py *)",
-      "Bash(python test_*.py *)",
-      "Bash(python code_check.py *)",
+      "Bash(python tests/test_*.py *)",
+      "Bash(python tools/code_check.py *)",
       "Bash(python -m pytest *)",
       "Bash(ruff *)",
       "Bash(git status *)",

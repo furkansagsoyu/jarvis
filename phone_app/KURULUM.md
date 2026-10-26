@@ -6,7 +6,7 @@
 2. Bilgisayarda: `pip install google-auth requests`
 3. Uygulamayı yükle (telefon USB ya da kablosuz ADB ile bağlı): `cd phone_app && flutter run --release`
 4. Telefonda uygulamayı aç, izinleri ver, pil kısıtlamasını kapat, Xiaomi'de "Otomatik başlatma"yı aç.
-5. Eşleştir (bir kez): `python phone_check.py --app-pair`, sonra `python phone_check.py --app-test` (telefona bildirim gelmeli).
+5. Eşleştir (bir kez): `python tools/phone_check.py --app-pair`, sonra `python tools/phone_check.py --app-test` (telefona bildirim gelmeli).
 6. Dene: kabloyu çıkar, Jarvis'e "Anılinho'yu ara" de, onayla. "Telefonu 2 dakika sonra çaldır, deneme" de.
 
 Sorun giderme: uygulama ekranındaki "Son olaylar" listesi her komutun sonucunu gösterir (ör. "REDDEDİLDİ: imza geçersiz" = yeniden eşleştir).

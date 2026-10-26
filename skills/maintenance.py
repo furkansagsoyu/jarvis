@@ -79,8 +79,8 @@ def _dir_size(root: Path, limit: int = 20000) -> float:
 
 
 def gather() -> dict:
-    import memguard  # noqa: PLC0415
-    import ram_report  # noqa: PLC0415
+    from core import memguard  # noqa: PLC0415
+    from tools import ram_report  # noqa: PLC0415
     data: dict = {}
     try:
         data["mem"] = {**memguard.read_meminfo(), "psi": memguard.read_psi()}
@@ -91,7 +91,7 @@ def gather() -> dict:
     data["models"] = ram_report.ollama_ps()
     data["env"] = ram_report.ollama_env()
     try:
-        import brain  # noqa: PLC0415
+        from core import brain  # noqa: PLC0415
         data["active_model"] = brain.MODEL
     except Exception:  # noqa: BLE001
         data["active_model"] = ""
@@ -127,7 +127,7 @@ def analyze(data: dict) -> tuple[list[str], list[Finding]]:
     status, found = [], []
     mem = data.get("mem")
     if mem:
-        import memguard  # noqa: PLC0415
+        from core import memguard  # noqa: PLC0415
         lvl = memguard.level(mem, mem.get("psi"))
         status.append(f"Bellekte {_gb(mem['available'])} gigabayt boş ({_gb(mem['total'])} içinden).")
         top = ", ".join(f"{n} {_gb(g)}" for n, g in (data.get("top") or [])[:3])

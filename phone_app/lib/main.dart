@@ -102,7 +102,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
           children: [
             _row('Bilgisayarla eşleşti', _b('paired'),
-                hint: 'Bilgisayarda: python phone_check.py --app-pair (telefon USB ya da kablosuz ADB ile bağlı olmalı)'),
+                hint: 'Bilgisayarda: python tools/phone_check.py --app-pair (telefon USB ya da kablosuz ADB ile bağlı olmalı)'),
             _row('Firebase belirteci alındı', token.isNotEmpty,
                 hint: tokenMsg.isEmpty ? 'İnternet ve Google Play hizmetleri gerekir' : tokenMsg,
                 action: 'Yenile', onTap: _loadToken),

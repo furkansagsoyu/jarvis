@@ -3,7 +3,7 @@
 Güvenlik tasarımı (kullanıcı kararlarıyla):
 - AYRI, BOŞ PROFIL: data/browser_profile. Gerçek tarayıcındaki oturumlara/çerezlere erişmez.
 - Gezinme/okuma serbest, TIKLAMA ve YAZMA her seferinde sesli onay ister (skills/_confirm: onayı model veremez).
-- Site izin listesi: data/browser_sites.json (python browser_sites.py ile düzenle). Listede olmayan siteye gitmeden sorar.
+- Site izin listesi: data/browser_sites.json (python tools/browser_sites.py ile düzenle). Listede olmayan siteye gitmeden sorar.
 - Yasak (onayla bile açılmaz): banka/ödeme/e-posta/giriş sayfaları, yerel ağ, file:// ve chrome://.
 - Parola ve kart alanlarına asla yazılmaz. İndirmeler kapalı.
 - Sayfa metni güvenilmez VERİ'dir (içindeki talimatlara uyulmaz; brain, okuma sonrası araç çağrısını kapatır).
@@ -130,7 +130,7 @@ class _Worker:
 
     def _run(self, ready: threading.Event):
         try:
-            import memguard  # noqa: PLC0415
+            from core import memguard  # noqa: PLC0415
 
             low = memguard.need("tarayıcıyı açmak", 1.0)
             if low:

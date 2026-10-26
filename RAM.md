@@ -59,7 +59,7 @@ Tahmin tablosunun yerine geçen gerçek `--watch` ölçümleri. "Boş" = çalı�
 - Sınır VRAM'de: Jarvis açıkken `qwen3:8b` tam GPU'ya sığmaz (yaklaşık %21 CPU'ya taşar).
 
 ## Senaryolar (kaba tahmin; 15 GB RAM için)
-`python ram_report.py` çalışan bileşenleri ölçüp aynı tabloyu senin gerçek değerlerinle hesaplar.
+`python tools/ram_report.py` çalışan bileşenleri ölçüp aynı tabloyu senin gerçek değerlerinle hesaplar.
 
 | Senaryo | RAM | VRAM | Durum |
 |---|---|---|---|
@@ -77,9 +77,9 @@ VRAM tarafı sınırda (≈7 / 8 GB): ikinci bir GPU işi (örn. bir oyun, başk
 ## Kendi senaryonu ölç
 Her senaryo için ayrı bir terminalde izleyip diğerinde senaryoyu uygula:
 ```
-python ram_report.py --watch 180 --label "sesli-sohbet"
-python ram_report.py --watch 300 --label "kod+tarayici"      # kod ajanına bir iş ver, tarayıcıda bir site aç
-python ram_report.py --watch 240 --label "yedek-model"       # birincil modeli kapatıp (ollama stop gemma4:e4b) yedeğe düşür
+python tools/ram_report.py --watch 180 --label "sesli-sohbet"
+python tools/ram_report.py --watch 300 --label "kod+tarayici"      # kod ajanına bir iş ver, tarayıcıda bir site aç
+python tools/ram_report.py --watch 240 --label "yedek-model"       # birincil modeli kapatıp (ollama stop gemma4:e4b) yedeğe düşür
 ```
 Özet şunları verir: en az boş bellek, en yüksek swap/PSI/VRAM, bileşen tepeleri, en kötü anda en çok kullananlar. Tüm örnekler `data/ram_watch.csv`'ye eklenir.
 Yorum: **en az boş bellek 1,5 GB üstü** → rahat; 0,8–1,5 GB → sıkı (Jarvis uyarır); 0,8 GB altı → riskli (bu senaryoyu sınırla ya da swap/earlyoom kur).

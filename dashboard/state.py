@@ -17,7 +17,7 @@ import time
 from collections import deque
 from pathlib import Path
 
-import ui_state
+from desktop import ui_state
 from skills import _store, agenda, hardware
 
 START = time.time()
@@ -216,7 +216,7 @@ def _model(ctx):
     llm = [{"name": n, "role": r, "active": n == getattr(brain, "active_model", brain.model),
             "installed": (n in installed) if installed is not None else None} for n, r in names]
     try:
-        import router  # noqa: PLC0415
+        from core import router  # noqa: PLC0415
         cloud = (getattr(brain, "router", None) or router.get()).status()
     except Exception:  # noqa: BLE001
         cloud = None
@@ -255,7 +255,7 @@ def _ajanlar(ctx):
                                                        else "Çoklu ajan: “ekip: …” ya da “araştır: …”")},
     ]
     try:
-        import team as _team  # noqa: PLC0415
+        from core import team as _team  # noqa: PLC0415
         for key, role in _team.ROLES.items():
             ready = all(t in brain.tools for t in role.tools[:1])
             busy = snap["state"] in ("running", "confirm") and snap["active_role"] == key
@@ -338,7 +338,7 @@ def _araclar(ctx):
 
 @provider("konusma")
 def _konusma(ctx):
-    import convlog  # noqa: PLC0415
+    from core import convlog  # noqa: PLC0415
     return {"rev": convlog.revision(), "retention": convlog.retention_days(),
             "recent": [{"id": i["id"], "who": i["who"], "text": i["text"], "time": time.strftime("%H:%M", time.localtime(i["ts"]))}
                        for i in convlog.recent(30)]}

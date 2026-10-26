@@ -282,7 +282,7 @@ def pair_wifi(addr: str, code: str) -> str:
         out = (r.stdout or "") + (r.stderr or "")
     except (subprocess.TimeoutExpired, OSError) as exc:
         return f"Eşleştirme başarısız: {exc}"
-    return "Eşleştirildi. Şimdi telefondaki Kablosuz hata ayıklama ANA ekranındaki IP:port ile: python phone_check.py --connect IP:PORT" if "successfully paired" in out.lower() else f"Eşleştirme olmadı: {out.strip()[:150]}"
+    return "Eşleştirildi. Şimdi telefondaki Kablosuz hata ayıklama ANA ekranındaki IP:port ile: python tools/phone_check.py --connect IP:PORT" if "successfully paired" in out.lower() else f"Eşleştirme olmadı: {out.strip()[:150]}"
 
 
 def connect_wifi(addr: str) -> str:
@@ -308,7 +308,7 @@ def pick_device() -> tuple[str | None, str]:
     if not any(st == "device" and (not want or s == want) for s, st in rows) and try_wireless():
         rows = devices()                  # USB yok -> kayıtlı kablosuz adres
     if not rows:
-        return None, "Telefon bağlı görünmüyor. USB kablosunu tak ya da kablosuz bağlantıyı kur (python phone_check.py --wifi)."
+        return None, "Telefon bağlı görünmüyor. USB kablosunu tak ya da kablosuz bağlantıyı kur (python tools/phone_check.py --wifi)."
     ready = [s for s, st in rows if st == "device" and (not want or s == want)]
     if ready:
         return ready[0], ""
@@ -372,7 +372,7 @@ def _ready_now() -> bool:
 
 def _via() -> str:
     try:
-        import phonelink  # noqa: PLC0415
+        from connect import phonelink  # noqa: PLC0415
         v = str(phonelink.setting("via", "auto"))
     except Exception:  # noqa: BLE001
         return "auto"
@@ -383,14 +383,14 @@ def _app_ready() -> bool:
     if _via() == "adb":
         return False
     try:
-        import phonelink  # noqa: PLC0415
+        from connect import phonelink  # noqa: PLC0415
         return phonelink.configured()
     except Exception:  # noqa: BLE001
         return False
 
 
 def _do_call_app(name: str) -> str:
-    import phonelink  # noqa: PLC0415
+    from connect import phonelink  # noqa: PLC0415
     ok, msg = phonelink.send("call", ttl=60, name=name)
     if not ok:
         return f"Hata: {msg}"
@@ -408,8 +408,8 @@ def phone_call(target: str) -> str:
     if _app_ready() and name != "bu numara":          # telefon uygulaması (internet üzerinden); numara dışarı çıkmaz
         return _confirm.request(ask, lambda: _do_call_app(name))
     if _via() == "app":
-        return "Telefon uygulaması kurulu değil ya da eşleşmemiş (python phone_check.py --app-pair)." if name != "bu numara" else \
-            "Numarayla aramayı yalnızca ADB bağlıyken yapabilirim. Ayarı değiştir: python phone_check.py --via auto"
+        return "Telefon uygulaması kurulu değil ya da eşleşmemiş (python tools/phone_check.py --app-pair)." if name != "bu numara" else \
+            "Numarayla aramayı yalnızca ADB bağlıyken yapabilirim. Ayarı değiştir: python tools/phone_check.py --via auto"
     serial, derr = pick_device()                       # kayıtlı kablosuz adrese bağlanmayı dene
     if serial:
         return _confirm.request(ask, lambda: _do_call(name, number))
@@ -424,7 +424,7 @@ def _key(serial: str, keycode: str) -> tuple[int, str]:
 
 def phone_hangup() -> str:
     if not _ready_now() and _app_ready():
-        import phonelink  # noqa: PLC0415
+        from connect import phonelink  # noqa: PLC0415
         ok, msg = phonelink.send("hangup", ttl=30)
         return "Kapatma komutunu telefona gönderdim." if ok else f"Hata: {msg}"
     serial, err = pick_device()
@@ -527,7 +527,7 @@ def phone_ring(text: str) -> str:
     at, title = got
     when = at.strftime("%d.%m %H:%M")
     if _app_ready():
-        import phonelink  # noqa: PLC0415
+        from connect import phonelink  # noqa: PLC0415
         ok, msg = phonelink.send("ring", ttl=300, id="r" + at.strftime("%y%m%d%H%M"), title=title, body=f"{title} – {at.strftime('%H:%M')}",
                                  at=int(at.timestamp() * 1000))
         return f"Telefona {at.strftime('%H:%M')} için “{title}” alarmını kurdum." if ok else f"Hata: {msg}"

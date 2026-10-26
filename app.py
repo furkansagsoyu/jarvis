@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """JARVIS masaüstü uygulaması başlatıcısı (terminalsiz).
 
-Uygulama menüsündeki "JARVIS" simgesi bunu çalıştırır (kurulum: python install_app.py).
+Uygulama menüsündeki "JARVIS" simgesi bunu çalıştırır (kurulum: python tools/install_app.py).
 - Jarvis kapalıysa: arka planda başlatır (çıktı data/jarvis.log), model yüklenince pano penceresi kendiliğinden açılır.
 - Jarvis zaten çalışıyorsa: pano penceresini öne getirir ya da yeniden açar (tek pencere kuralı dashboard/window.py'de).
   Pencereyi kapatmak Jarvis'i kapatmaz: pencere sağ alttaki sistem tepsisine iner, simgeye tıklayınca geri gelir.

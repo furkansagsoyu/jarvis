@@ -1,0 +1,207 @@
+#!/usr/bin/env python3
+"""Jarvis arayüzü: küçük durum penceresi + (varsa) sistem tepsisi simgesi.
+
+main.py --ui ile otomatik başlar; elle de açılabilir: python desktop/ui.py
+- Pencere: durum noktası, son konuşma satırları, "Sessize al" ve "Kapat" düğmeleri.
+- Tepsi simgesi (pystray + pillow kuruluysa): renk durumu gösterir; menü: Göster, Sessize al, Kapat.
+  Kurulu değilse yalnızca pencere açılır (pip install pystray pillow).
+- Ses/model işine karışmaz: yalnızca data/status.json'u okur, data/control.json'a yazar (bkz. ui_state.py).
+"""
+import sys as _sys  # noqa: E402
+from pathlib import Path as _Path  # noqa: E402
+
+_sys.path.insert(0, str(_Path(__file__).resolve().parent.parent))  # depo kökü: core/, voice/, desktop/... paketleri
+
+import os
+import queue
+import signal
+import sys
+
+from desktop import ui_state
+
+COLORS = {"starting": "#9aa0a6", "listening": "#34a853", "recording": "#00c853", "thinking": "#f9ab00", "speaking": "#4285f4", "muted": "#ea4335", "stopped": "#5f6368"}
+POLL_MS = 400
+
+
+def effective_state(st: dict) -> str:
+    """Sessize alınmışsa durum ne olursa olsun 'muted' gösterilir."""
+    return "muted" if ui_state.is_muted() else st.get("state", "starting")
+
+
+def turns_text(st: dict) -> str:
+    return "\n".join(f"{'Sen' if t['who'] == 'sen' else 'Jarvis'}: {t['text']}" for t in st.get("turns", []))
+
+
+def alive(pid: int | None) -> bool:
+    if not pid:
+        return False
+    try:
+        os.kill(pid, 0)
+        return True
+    except OSError:
+        return False
+
+
+def stop_jarvis(st: dict) -> None:
+    pid = st.get("pid")
+    if alive(pid) and pid != os.getpid():
+        os.kill(pid, signal.SIGTERM)
+
+
+_TR = str.maketrans("çğıöşüÇĞİÖŞÜ", "cgiosuCGIOSU")
+
+
+def ascii_title(text: str) -> str:
+    """X11 tepsi ipucu Latin-1 ister; Türkçe harfler ASCII'ye çevrilir (pencerede Türkçe kalır)."""
+    return text.translate(_TR)
+
+
+from skills import _store  # noqa: E402
+
+PIDFILE = str(_store.runtime_path("jarvis_ui.pid"))
+
+
+def claim_single_instance() -> None:
+    """Eski bir arayüz hâlâ açıksa onu kapatıp yerini al (iki pencere/tepsi simgesi birikmesin)."""
+    try:
+        old = int(open(PIDFILE).read().strip())
+        if old != os.getpid() and alive(old):
+            with open(f"/proc/{old}/cmdline", "rb") as f:
+                if b"ui.py" in f.read():
+                    os.kill(old, signal.SIGTERM)
+                    for _ in range(20):
+                        if not alive(old):
+                            break
+                        import time  # noqa: PLC0415
+                        time.sleep(0.1)
+    except (OSError, ValueError):
+        pass
+    try:
+        with open(PIDFILE, "w") as f:
+            f.write(str(os.getpid()))
+    except OSError:
+        pass
+
+
+def make_icon(color: str):
+    from PIL import Image, ImageDraw  # noqa: PLC0415
+
+    img = Image.new("RGBA", (64, 64), (0, 0, 0, 0))
+    ImageDraw.Draw(img).ellipse((8, 8, 56, 56), fill=color)
+    return img
+
+
+def run(parent: int | None = None):
+    """parent: bu arayüzü açan main.py'nin pid'i; o ölünce arayüz de kapanır (yetim pencere kalmaz)."""
+    import tkinter as tk  # noqa: PLC0415
+
+    claim_single_instance()
+
+    root = tk.Tk()
+    root.title("Jarvis")
+    root.geometry("360x300+40+60")
+    root.attributes("-topmost", True)
+    dot = tk.Label(root, text="●", font=("Sans", 22))
+    label = tk.Label(root, text="", font=("Sans", 13, "bold"))
+    dot.grid(row=0, column=0, padx=(12, 4), pady=8)
+    label.grid(row=0, column=1, sticky="w")
+    box = tk.Text(root, height=10, width=44, wrap="word", state="disabled", font=("Sans", 10))
+    box.grid(row=1, column=0, columnspan=3, padx=10, pady=4, sticky="nsew")
+    root.grid_rowconfigure(1, weight=1)
+    root.grid_columnconfigure(2, weight=1)
+    btns = tk.Frame(root)
+    btns.grid(row=2, column=0, columnspan=3, pady=8)
+
+    def toggle_mute():
+        ui_state.set_muted(not ui_state.is_muted())
+
+    def quit_all():
+        stop_jarvis(ui_state.read_status())
+        shutdown()
+
+    tk.Button(btns, text="Sustur", command=ui_state.request_stop).pack(side="left", padx=6)  # konuşan cevabı keser
+    mute_btn = tk.Button(btns, text="Sessize al", command=toggle_mute)
+    mute_btn.pack(side="left", padx=6)
+    tk.Button(btns, text="Arayüzü kapat", command=lambda: shutdown()).pack(side="left", padx=6)
+    tk.Button(btns, text="Jarvis'i kapat", command=quit_all).pack(side="left", padx=6)
+
+    actions: queue.Queue = queue.Queue()  # tepsi iş parçacığından gelen istekler ana (Tk) iş parçacığında işlenir
+    icon = None
+    try:
+        import pystray  # noqa: PLC0415
+
+        menu = pystray.Menu(
+            pystray.MenuItem("Göster", lambda: actions.put("show"), default=True),
+            pystray.MenuItem("Sustur (konuşmayı kes)", lambda: ui_state.request_stop()),
+            pystray.MenuItem("Sessize al / aç", lambda: actions.put("mute")),
+            pystray.MenuItem("Arayüzü kapat", lambda: actions.put("close")),
+            pystray.MenuItem("Jarvis'i kapat", lambda: actions.put("quit")),
+        )
+        icon = pystray.Icon("jarvis", make_icon(COLORS["starting"]), "Jarvis", menu)
+        icon.run_detached()
+    except Exception as exc:  # noqa: BLE001  (kütüphane yok / tepsi desteklenmiyor: yalnızca pencere)
+        print(f"[ui] tepsi simgesi yok ({type(exc).__name__}); yalnızca pencere açık.", flush=True)
+        icon = None
+
+    def show():
+        root.deiconify()
+        root.lift()
+
+    def shutdown():
+        # icon.stop() "setup did not finish within 5.0 seconds" uyarısı veriyordu; süreç zaten bitiyor,
+        # simge de onunla kapanır. Bu yüzden durdurmak yerine süreci doğrudan sonlandırıyoruz.
+        try:
+            root.destroy()
+        finally:
+            os._exit(0)
+
+    # Tepsi varken pencereyi kapatmak gizler; tepsi yoksa arayüz kapanır (Jarvis çalışmaya devam eder).
+    root.protocol("WM_DELETE_WINDOW", root.withdraw if icon else shutdown)
+
+    last = {"state": None, "text": None}
+
+    def tick():
+        while not actions.empty():
+            act = actions.get_nowait()
+            {"show": show, "mute": toggle_mute, "quit": quit_all, "close": shutdown}[act]()
+            if act in ("quit", "close"):
+                return
+        if parent and not alive(parent):  # Jarvis kapandı/çöktü: yetim arayüz kalmasın
+            shutdown()
+            return
+        st = ui_state.read_status()
+        state = effective_state(st)
+        if state != last["state"]:
+            dot.config(fg=COLORS.get(state, "#9aa0a6"))
+            label.config(text=ui_state.STATES.get(state, state))
+            mute_btn.config(text="Sesi aç" if state == "muted" else "Sessize al")
+            if icon:
+                try:
+                    icon.icon = make_icon(COLORS.get(state, "#9aa0a6"))
+                    icon.title = ascii_title(f"Jarvis: {ui_state.STATES.get(state, state)}")
+                except Exception as exc:  # noqa: BLE001  (tepsi güncellemesi arayüzü asla düşürmesin)
+                    print(f"[ui] tepsi güncellenemedi ({type(exc).__name__}: {exc})", flush=True)
+            last["state"] = state
+        text = turns_text(st)
+        if text != last["text"]:
+            box.config(state="normal")
+            box.delete("1.0", "end")
+            box.insert("end", text)
+            box.see("end")
+            box.config(state="disabled")
+            last["text"] = text
+        if st.get("pid") and not alive(st["pid"]) and state != "stopped":
+            ui_state.set_state("stopped")  # Jarvis çökmüş ya da öldürülmüş: kapalı göster
+        root.after(POLL_MS, tick)
+
+    tick()
+    root.mainloop()
+
+
+if __name__ == "__main__":
+    if not os.environ.get("DISPLAY"):
+        sys.exit("DISPLAY yok: arayüz grafik oturum ister.")
+    par = None
+    if "--parent" in sys.argv:
+        par = int(sys.argv[sys.argv.index("--parent") + 1])
+    run(par)

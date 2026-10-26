@@ -10,7 +10,7 @@ import datetime as dt
 
 
 def _link():
-    import phonelink  # noqa: PLC0415
+    from connect import phonelink  # noqa: PLC0415
     return phonelink
 
 

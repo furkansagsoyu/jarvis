@@ -19,7 +19,7 @@ Bu belgedeki her teknik iddia kod tabanından doğrulanmıştır; yine de deği�
 
 ## 2. Değişmez kurallar (kullanıcının kararları)
 
-1. **Gizlilik:** Ücretsiz bulut modelleri yalnızca kişisel veri olmadan kullanılabilir. Hafıza, konuşma kaydı, ekran, kamera, rehber, takvim, dosya içeriği **asla** buluta gitmez. Kapı: `privacy.py`.
+1. **Gizlilik:** Ücretsiz bulut modelleri yalnızca kişisel veri olmadan kullanılabilir. Hafıza, konuşma kaydı, ekran, kamera, rehber, takvim, dosya içeriği **asla** buluta gitmez. Kapı: `core/privacy.py`.
 2. **Sırlar:** API anahtarları/sırlar kullanıcı tarafından `data/` altındaki dosyalara konur (`data/keys.env`, `data/fcm_service_account.json`…). **Asla sohbette/komutta/commit'te** görünmez. Repo public: `data/`, `*.env`, `keys.env`, `fcm_service_account.json`, `phone_app/android/app/google-services.json`, `workspace/`, `*.zip` `.gitignore`'dadır; **bunları asla `git add -f` yapma.** (`google-services.json` eski geçmişte duruyor; Firebase API anahtarı Google Cloud'da `com.furkan.jarvisphone` paketi + SHA-1 ile kısıtlandı.)
 3. **Sipariş (Getir / Yemeksepeti / Trendyol GO):** kullanıcı kendi giriş yapar; ajan sepeti kurar ve **ödemeden önce DURUR**. Parola/kart saklanmaz. Hangi site(ler)in öncelikli olduğu henüz **cevaplanmadı**. **2026-10-26: özellik kullanıcı tarafından iptal edildi**; kural, yeniden gündeme gelirse geçerlidir.
 4. **Kod ajanı yalnızca `workspace/` içinde** çalışır (bubblewrap kutusu, internet yok).
@@ -31,26 +31,29 @@ Bu belgedeki her teknik iddia kod tabanından doğrulanmıştır; yine de deği�
 ## 3. Mimari
 
 ```
-"Hey Jarvis" ─► wake.py (openWakeWord) ─► stt.py (faster-whisper large-v3-turbo)
-      ─► brain.py ─► [hızlı kural yolu]  ya da  [Ollama gemma4:e4b, araç çağırma]
-      ─► skills/*  ─► tts.py (EMA Lightning, CPU) ─► hoparlör
+"Hey Jarvis" ─► voice/wake.py (openWakeWord) ─► voice/stt.py (faster-whisper large-v3-turbo)
+      ─► core/brain.py ─► [hızlı kural yolu]  ya da  [Ollama gemma4:e4b, araç çağırma]
+      ─► skills/*  ─► voice/tts.py (EMA Lightning, CPU) ─► hoparlör
 ```
 
 | Katman | Dosya(lar) | Not |
 |---|---|---|
 | Giriş noktası | `main.py` | Bayraklar: `--wake --text --ui --dash --island --telegram --morning --fresh --mic --speaker --tts --tts-device --wake-threshold --stt-prompt --list-speakers`. Otomatik başlatma: `~/.config/autostart/jarvis.desktop` → `main.py --wake --dash --island --morning --telegram` (eski durum penceresi `--ui` 2026-10-26 kullanıcı isteğiyle çıkarıldı; menü başlatıcısı `app.py`: `--wake --dash --island --morning`). |
-| Beyin | `brain.py` | `MODEL="gemma4:e4b"`, yedek `qwen3:8b` (`JARVIS_FALLBACK_MODELS`). **`think=False` her çağrıda gönderilir.** `MAX_HISTORY=16`, `MAX_TOOL_ROUNDS=3`. |
-| Hızlı yol | `brain.py: _fast_route`, `_browser_route` | Regex (`WORD_*`) ile kural tabanlı yönlendirme. Sık/kalıbı belli işler modele hiç sorulmaz. |
+| Beyin | `core/brain.py` | `MODEL="gemma4:e4b"`, yedek `qwen3:8b` (`JARVIS_FALLBACK_MODELS`). **`think=False` her çağrıda gönderilir.** `MAX_HISTORY=16`, `MAX_TOOL_ROUNDS=3`. |
+| Hızlı yol | `core/brain.py: _fast_route`, `_browser_route` | Regex (`WORD_*`) ile kural tabanlı yönlendirme. Sık/kalıbı belli işler modele hiç sorulmaz. |
 | Yetenekler | `skills/*.py` | Yeni dosya = yeni yetenek (aşağıda 4). |
-| Ajan modu | `agent.py` | Tek cümleden plan, adım adım yürütme. `ALLOWED/NETWORK/HELP` kümeleri. Max 8 adım. |
-| Ekip modu | `team.py` | Planlayıcı → Araştırma / Dosya / Kod → Yazar. |
-| Yönlendirici | `router.py`, `privacy.py` | Ücretsiz bulut (Groq vb., OpenAI uyumlu; `data/models.json` ile sağlayıcı eklenir) + gizlilik kapısı. |
-| Bellek koruması | `memguard.py`, `ram_report.py` | RAM/PSI izleme, ağır işi başlatmama. |
+| Ajan modu | `core/agent.py` | Tek cümleden plan, adım adım yürütme. `ALLOWED/NETWORK/HELP` kümeleri. Max 8 adım. |
+| Ekip modu | `core/team.py` | Planlayıcı → Araştırma / Dosya / Kod → Yazar. |
+| Yönlendirici | `core/router.py`, `core/privacy.py` | Ücretsiz bulut (Groq vb., OpenAI uyumlu; `data/models.json` ile sağlayıcı eklenir) + gizlilik kapısı. |
+| Bellek koruması | `core/memguard.py`, `tools/ram_report.py` | RAM/PSI izleme, ağır işi başlatmama. |
 | Pano / pencere | `dashboard/server.py` (127.0.0.1, `JARVIS_DASH_PORT`), `dashboard/window.py` (öncelik: Qt/QtWebEngine penceresi + tepsi simgesi [`pywebview[qt]` ile gelen qtpy] → pywebview → Chromium `--app`), `dashboard/static/` | `/api/state`, `/api/cmd`, `/api/agenda`, `/api/conv`, `/api/sessions`; mobil: `/m`, `/api/m/{state,chat,voice,cmd,agenda}`. |
-| Durum UI | `ui.py`, `ui_state.py` | Tepsi simgesi + durum penceresi. |
-| Uzaktan | `telegram_bot.py`, `remote.py`, `remote_setup.py` | Telegram (kısıtlı kip) ve telefon web arayüzü (Tailscale serve; Funnel açıksa kurulum reddedilir). |
-| Telefon | `phonelink.py`, `skills/phone.py`, `phone_app/` | ADB (USB/Wi-Fi) + FCM ile imzalı komut. Flutter + Kotlin uygulama (`com.furkan.jarvisphone`). |
-| Masaüstü kurulum | `app.py`, `install_app.py`, `autostart.py` | Menüde JARVIS simgesi, terminalsiz başlatma, tek örnek kilidi (`fcntl`). |
+| Durum UI | `desktop/ui.py`, `desktop/ui_state.py` | Tepsi simgesi + durum penceresi. |
+| Uzaktan | `connect/telegram_bot.py`, `connect/remote.py`, `connect/remote_setup.py` | Telegram (kısıtlı kip) ve telefon web arayüzü (Tailscale serve; Funnel açıksa kurulum reddedilir). |
+| Telefon | `connect/phonelink.py`, `skills/phone.py`, `phone_app/` | ADB (USB/Wi-Fi) + FCM ile imzalı komut. Flutter + Kotlin uygulama (`com.furkan.jarvisphone`). |
+| Masaüstü kurulum | `app.py`, `tools/install_app.py`, `tools/autostart.py` | Menüde JARVIS simgesi, terminalsiz başlatma, tek örnek kilidi (`fcntl`). |
+
+### 3.0 Klasör düzeni (2026-10-26)
+Kökte yalnızca giriş noktaları (`main.py`, `app.py`, `check_all.py`). Kod paketleri: `core/` (brain, agent, team, router, privacy, memguard, convlog, mcp_client), `voice/` (stt, tts, wake), `desktop/` (ui_state, ui, island), `connect/` (telegram_bot, remote, remote_setup, phonelink), `tools/` (kurulum/tanılama/ölçüm betikleri), `tests/` (test_*.py), ayrıca `skills/`, `dashboard/`, `assets/`, `phone_app/`. İçe aktarmalar paket yoluyla (`from core import brain`); `tools/` ve `tests/` betikleri başta depo kökünü `sys.path`'e ekler; ada `-m desktop.island` ile başlatılır. Her klasörde README.md var; ayrıntılı özellik anlatımları oralarda.
 
 ### 3.1 Veri
 Tüm kalıcı veri `data/` altında (`JARVIS_DATA` ile değişir; testler geçici klasör kullanır). Dosyalar 0600, klasör 0700. Erişim `skills/_store.py` üzerinden (`load/save/path/runtime_path`). Bilinen dosyalar: `mcp.json (kullanıcının MCP sunucuları), memory.db (SQLite FTS5; eski memory.json göçte memory.json.bak olur), reminders.json, agenda.json, contacts.json, settings.json, status.json, control.json, dashboard.json, briefing.json, router_stats.json, models.json, phone.json, phone_push.json, remote.json, secret.json, session.json, telegram.json, browser_sites.json, conversations.jsonl, team_runs.jsonl, keys.env, fcm_service_account.json, browser_profile/, ram_watch.csv`. Kilit/pid dosyaları `$XDG_RUNTIME_DIR` altındadır.
@@ -58,7 +61,7 @@ Tüm kalıcı veri `data/` altında (`JARVIS_DATA` ile değişir; testler geçic
 ### 3.2 Model ve donanım gerçekleri (ölçüldü, `RAM.md`)
 - Sesli sohbette VRAM **6,8/8 GB** (sıkışık). Gemma+Whisper+TTS birlikte rahat; ek büyük model eklemek VRAM'i aşar.
 - `qwen3:8b` yedek, Jarvis açıkken 21%/79% CPU/GPU bölünür. **`gpt-oss:20b` denendi ve reddedildi** (karar 2,3 sn, ilk parça 3,7 sn).
-- Gradle daemon'ları `./gradlew --stop` yapılmazsa bellekte kalır. `ram_report.py --watch SN` **saniye** alır (etiket için `--label`).
+- Gradle daemon'ları `./gradlew --stop` yapılmazsa bellekte kalır. `tools/ram_report.py --watch SN` **saniye** alır (etiket için `--label`).
 - Ollama sistem ayarları (RAM.md): `OLLAMA_MAX_LOADED_MODELS=1, NUM_PARALLEL=1, FLASH_ATTENTION=1, KV_CACHE_TYPE=q8_0`; earlyoom `-m 5 -s 10`. İsteğe bağlı kalan: `vm.swappiness=10`.
 - Ücretsiz bulut girdi sınırı ≈ **5000 jeton** (Groq ~8K/dk): büyük girdi hiç gönderilmeden reddedilir; 429'da sıradaki modele geçilir.
 
@@ -69,7 +72,7 @@ Tüm kalıcı veri `data/` altında (`JARVIS_DATA` ile değişir; testler geçic
 ### 4.1 Yetenek (skill) ekleme
 `skills/` altındaki `_` ile başlamayan her `.py` otomatik yüklenir. Dosya `SKILLS = [{"name", "description", "parameters", "run", "hidden"?}]` tanımlar; `run(**kwargs) -> str`. `description`'ın **ilk cümlesi** sistem prompt'undaki yetenek listesine girir (kısa tut).
 - **Neden `hidden`?** Araç sayısı arttıkça Gemma'nın doğru aracı seçmesi bozuluyor. Modelin şemasında görünmeyen, yalnızca kural tabanlı hızlı yoldan çağrılan araçlar `"hidden": True` işaretlenir (browser_*, agenda_*, phone_*, codeagent araçları…). **Yeni yetenek eklerken varsayılan tercih: hidden + hızlı yol kuralı.**
-- Yeni yetenek eklediğinde sırayla düşün: (a) `brain.py` `REMOTE_BLOCKED` (Telegram/telefon web'den kapatılmalı mı?), (b) `ACTION_CLAIM` regex'i (model araç çağırmadan "yaptım" derse yakalar), (c) `agent.py` `ALLOWED/NETWORK/HELP`, (d) onay gerekir mi (`_confirm.request`), (e) `test_routes.py` vaka(lar)ı + yetenek testi.
+- Yeni yetenek eklediğinde sırayla düşün: (a) `core/brain.py` `REMOTE_BLOCKED` (Telegram/telefon web'den kapatılmalı mı?), (b) `ACTION_CLAIM` regex'i (model araç çağırmadan "yaptım" derse yakalar), (c) `core/agent.py` `ALLOWED/NETWORK/HELP`, (d) onay gerekir mi (`_confirm.request`), (e) `tests/test_routes.py` vaka(lar)ı + yetenek testi.
 - Riskli işlem deseni: araç işi yapmaz, `confirm.request(açıklama, run)` ile bekleyen işlem kaydeder; sonraki cümle modele gitmeden evet/hayır olarak sınıflanır; 60 sn sonra düşer. Testte kalıntı onay: `confirm.cancel()`.
 
 ### 4.2 Yetenek dosyaları (özet)
@@ -77,12 +80,12 @@ Tüm kalıcı veri `data/` altında (`JARVIS_DATA` ile değişir; testler geçic
 
 ### 4.3 Son eklenen kritik parçalar (bu sohbetin sonu)
 - **`browser_play`** (`skills/browser.py`): `parse_play(text)` → sorgu ya da `None` (PLAY_NOUN/VERB/NOT/QUOTED/FILL regex'leri; "bir" bilerek dolgu sayılmaz; <2 karakter ya da "bir/bu/şu" → None). `_play`: YouTube arama sayfası → ilk `a#video-title[href^='/watch']` → izle sayfası → `video.play()`. Tarayıcıyı **kapatmaz**. Başlatma argümanı `--autoplay-policy=no-user-gesture-required`.
-- `brain._browser_route` en başta `parse_play` dener. `agent.py`: `CLOSE_WANTED = r"kapat(?!ma)"`; hedefte "kapat" yoksa plandaki `browser_close` adımı atılır ("kapatma" demek kapatmak değildir).
-- **Kod ajanı sağlamlaştırma:** `code_run(command, stdin="")` (≤2000 karakter; eskiden stdin DEVNULL → `EOFError` döngüsü); `team.py` tolerant `parse_json` + `_fix_escapes` (geçersiz `\` kaçışları), art arda 3 bozuk JSON'da bırakır ve tur sayılmaz, ham geçersiz JSON loglanır; TTS için `speakable` kelime içi alt çizgiyi korur (`test_main.py` "testmain.py" olmasın).
+- `brain._browser_route` en başta `parse_play` dener. `core/agent.py`: `CLOSE_WANTED = r"kapat(?!ma)"`; hedefte "kapat" yoksa plandaki `browser_close` adımı atılır ("kapatma" demek kapatmak değildir).
+- **Kod ajanı sağlamlaştırma:** `code_run(command, stdin="")` (≤2000 karakter; eskiden stdin DEVNULL → `EOFError` döngüsü); `core/team.py` tolerant `parse_json` + `_fix_escapes` (geçersiz `\` kaçışları), art arda 3 bozuk JSON'da bırakır ve tur sayılmaz, ham geçersiz JSON loglanır; TTS için `speakable` kelime içi alt çizgiyi korur (`tests/test_main.py` "testmain.py" olmasın).
 - Hava: `WORD_WEATHER` hızlı yolu. Takvim/görev, telefon uyarıları, Telegram, mobil web arayüzü çalışır durumda (kullanıcı "telefona bildirim sorunu yok" dedi).
 
 ### 4.4 Kod stili
-Python 3, tip ipuçları (yeni dosyalarda `from __future__ import annotations`), ruff ile lint (`.ruff_cache` var; yapılandırmayı doğrula). Docstring ve yorumlar **Türkçe**. Yeni kodda `eval/exec/os.system/shell=True/pickle` yok; TLS doğrulaması kapatılmaz (`test_security.py` bunu AST ile tarar; `workspace/` taramadan hariçtir). Bağımlılık eklersen `requirements.txt`'e ekle; isteğe bağlıysa **import'u tembel yap** ve yokluğunda kibarca düş.
+Python 3, tip ipuçları (yeni dosyalarda `from __future__ import annotations`), ruff ile lint (`.ruff_cache` var; yapılandırmayı doğrula). Docstring ve yorumlar **Türkçe**. Yeni kodda `eval/exec/os.system/shell=True/pickle` yok; TLS doğrulaması kapatılmaz (`tests/test_security.py` bunu AST ile tarar; `workspace/` taramadan hariçtir). Bağımlılık eklersen `requirements.txt`'e ekle; isteğe bağlıysa **import'u tembel yap** ve yokluğunda kibarca düş.
 
 ---
 
@@ -92,17 +95,17 @@ Python 3, tip ipuçları (yeni dosyalarda `from __future__ import annotations`),
 |---|---|
 | `python check_all.py --quick` | Modelsiz mantık testleri (saniyeler). **Son durum: 44 OK, 0 hata.** Her değişiklikten sonra çalıştır. |
 | `python check_all.py` | + ortam kontrolü |
-| `python check_all.py --model` | + gerçek model araç seçimi (`tool_check.py`; GPU+Ollama, dakikalar) |
+| `python check_all.py --model` | + gerçek model araç seçimi (`tools/tool_check.py`; GPU+Ollama, dakikalar) |
 | `python check_all.py --vision` | + gerçek ekran görüşü |
-| `python test_<ad>.py` | Tek modül (routes, browser, agent, team, code, agenda, maintenance, island, mascot, memory, mcp, app, dashboard, desktop, mobile, phone, phonelink, ram, router, security, web, window) |
-| `python code_check.py` | Kod ajanı bubblewrap kutusu |
-| `python router_check.py` | Anahtar + gizlilik kapısı |
-| `python phone_check.py [--wifi / --via app / --app-pair / --app-test]` | Telefon/ADB/FCM tanılama |
-| `python ram_report.py [--watch SN --label X]` | Bellek ölçümü |
+| `python tests/test_<ad>.py` | Tek modül (routes, browser, agent, team, code, agenda, maintenance, island, mascot, memory, mcp, app, dashboard, desktop, mobile, phone, phonelink, ram, router, security, web, window) |
+| `python tools/code_check.py` | Kod ajanı bubblewrap kutusu |
+| `python tools/router_check.py` | Anahtar + gizlilik kapısı |
+| `python tools/phone_check.py [--wifi / --via app / --app-pair / --app-test]` | Telefon/ADB/FCM tanılama |
+| `python tools/ram_report.py [--watch SN --label X]` | Bellek ölçümü |
 
-Konvansiyon: testler `JARVIS_DATA`'yı geçici klasöre yönlendirir ve `ollama` yoksa `sys.modules["ollama"]` sahtesi koyar → **GPU/Ollama gerekmez**. Yeni davranış = yeni test vakası (özellikle `test_routes.py`'ye "bu cümle bu aracı çağırmalı / çağırmamalı" satırları).
+Konvansiyon: testler `JARVIS_DATA`'yı geçici klasöre yönlendirir ve `ollama` yoksa `sys.modules["ollama"]` sahtesi koyar → **GPU/Ollama gerekmez**. Yeni davranış = yeni test vakası (özellikle `tests/test_routes.py`'ye "bu cümle bu aracı çağırmalı / çağırmamalı" satırları).
 
-**Claude Code makinede doğrudan çalıştığı için** `--model`, `--vision`, `ram_report.py`, `ollama ps`, `nvidia-smi` gibi ölçümleri kendin yapabilirsin. Yapamayacakların: mikrofon/wake word duyumu, hoparlör sesi, telefon bildirimini görmek, Flutter uygulamasını telefonda denemek → bunlar "HW testi" (bkz. 7).
+**Claude Code makinede doğrudan çalıştığı için** `--model`, `--vision`, `tools/ram_report.py`, `ollama ps`, `nvidia-smi` gibi ölçümleri kendin yapabilirsin. Yapamayacakların: mikrofon/wake word duyumu, hoparlör sesi, telefon bildirimini görmek, Flutter uygulamasını telefonda denemek → bunlar "HW testi" (bkz. 7).
 
 ---
 
@@ -141,7 +144,7 @@ Genel tutum: küçük, geri alınabilir commit'ler; her commit'te testler yeşil
 
 ## 8. Yol haritası (kullanıcı bu sırayı korumamı istedi)
 
-**Ajan serisi (Jarvis'in kendi içindeki ajanlar, `team.py` rolleri olarak):**
+**Ajan serisi (Jarvis'in kendi içindeki ajanlar, `core/team.py` rolleri olarak):**
 1. **Denetçi (test/gözden geçirme) ajanı** — kod ajanı çıktısını ayrı bağlamda çalıştırıp doğrular; yazanın kendi işini notlamaması için.
 2. **Mimar ajanı** — büyük istekleri modüllere böler; kod ajanının küçük-dosya sınırına uygun plan çıkarır.
 3. **Sistem bakım ajanı** — RAM/disk/Ollama/log sağlığını izler, öneri üretir (kendi başına riskli şey yapmaz; onay kapılı).
@@ -149,7 +152,7 @@ Genel tutum: küçük, geri alınabilir commit'ler; her commit'te testler yeşil
 **Sonra:**
 4. **Qt "ada" yer paylaşımı** (üst kenarda küçük bir bildirim/onay çubuğu; **Evet/Hayır** butonlarıyla `_confirm`'e bağlanır). Cinnamon appleti/desklet alternatifleri değerlendirildi; Qt overlay önerildi.
 5. **FTS5 / anlamsal hafıza** — FTS5 bitti (`skills/memory.py`, `data/memory.db`); ikinci aşama yerel gömme (anlamsal arama) bekliyor.
-6. **MCP istemcisi** — bitti (`mcp_client.py`, `skills/mcp.py`, `data/mcp.json`; gizli + onay kapılı + uzaktan kapalı).
+6. **MCP istemcisi** — bitti (`core/mcp_client.py`, `skills/mcp.py`, `data/mcp.json`; gizli + onay kapılı + uzaktan kapalı).
 7. **Windows taşıma** (paralel yürüyebilir): `platform_compat.py` soyutlaması; `psutil`, `pycaw` (ses), `pyautogui`, `mss`; `kur.bat`/`install.ps1`; donanım algılayıp hafif profil seçme; Windows'ta kod ajanı kapalı (bubblewrap yok); README'ye Windows bölümü. Linux davranışını bozma.
 8. **Sipariş özelliği** (Getir/Yemeksepeti/Trendyol GO) — site önceliği için kullanıcıya **bir kez** sor; kural: sepeti kur, ödemede dur. — **İPTAL (2026-10-26, kullanıcı kararı).**
 
@@ -162,7 +165,7 @@ Genel tutum: küçük, geri alınabilir commit'ler; her commit'te testler yeşil
 ---
 
 ## 9. Açık/doğrulanmamış noktalar
-- `v2zi` etiketi ve `team.py`/`test_team.py` alt çizgi düzeltmesi + `RAM.md` güncellemesinin commit'lenip push'lanması kullanıcıdan teyit bekliyor → `git status`, `git log`, `git tag -l` ile kontrol et, eksikse tamamla.
+- `v2zi` etiketi ve `core/team.py`/`tests/test_team.py` alt çizgi düzeltmesi + `RAM.md` güncellemesinin commit'lenip push'lanması kullanıcıdan teyit bekliyor → `git status`, `git log`, `git tag -l` ile kontrol et, eksikse tamamla.
 - Kod ajanının ilk başarısız çalışmasındaki ham geçersiz JSON hiç görülmedi (loglama eklendi; sorun tekrarlarsa `[ekip]` loglarına bak).
 - Flutter derlemesi sırasındaki RAM tepesi yakalanmadı (gereksiz bulundu).
 - Qwen 3.5 9B tool-calling ölçülmedi.
