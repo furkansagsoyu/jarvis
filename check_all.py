@@ -701,9 +701,9 @@ def env_checks() -> None:
     desktop = Path.home() / ".config/autostart/jarvis.desktop"
     if desktop.exists():
         text = desktop.read_text()
-        flags = [f for f in ("--wake", "--ui", "--island", "--morning", "--telegram") if f in text]
+        flags = [f for f in ("--wake", "--ui", "--dash", "--island", "--morning", "--telegram") if f in text]
         want_tg = bool(cfg.get("token") and cfg.get("chat_id"))
-        miss = [f for f, want in (("--telegram", want_tg), ("--island", True)) if want and f not in text]
+        miss = [f for f, want in (("--telegram", want_tg), ("--island", True), ("--dash", True)) if want and f not in text]
         record("UYARI" if miss else "OK", "Otomatik başlatma", "kurulu: " + " ".join(flags)
                + (f" — eksik bayrak {', '.join(miss)}: python autostart.py --install" if miss else ""))
     else:
