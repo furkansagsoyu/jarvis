@@ -264,7 +264,8 @@ VIEWS.ayarlar = {
     const tog = (key, label, tip) => { const b = h("button", { class: "pill vo", title: tip }); b.onclick = () => isl(key, !(S && S.durum && S.durum.island && S.durum.island[key])); b._k = key; b._l = label; return b; };
     const sel = (key, opts) => { const s = h("select", { class: "islsel" }, ...opts.map(([v, t]) => h("option", { value: v }, t))); s.onchange = () => isl(key, s.value); s._k = key; return s; };
     body._isl = [tog("enabled", "Ada", "Kapatınca yalnızca ada gizlenir, Jarvis çalışmaya devam eder; tepsi menüsünden de geri açılır"),
-      tog("on_top", "Her zaman üstte", "Açıkken ada diğer pencerelerin üstünde kalır"), tog("mascot", "Maskot", "Çekirdek maskotunu adada göster ya da gizle")];
+      tog("on_top", "Her zaman üstte", "Açıkken ada diğer pencerelerin üstünde kalır"),
+      tog("autohide", "Otomatik gizlen", "Açıkken ada beklemede ekranın üstüne saklanır; “Hey Jarvis” deyince kayarak gelir, cevaptan birkaç saniye sonra yine saklanır. Onay sorusunda her zaman görünür"), tog("mascot", "Maskot", "Çekirdek maskotunu adada göster ya da gizle")];
     body._islSel = [sel("position", [["center", "Konum: üst orta"], ["left", "Konum: üst sol"], ["right", "Konum: üst sağ"]]),
       sel("size", [["small", "Boyut: küçük"], ["normal", "Boyut: normal"], ["large", "Boyut: büyük"]]),
       sel("theme", [["auto", "Tema: panoyu izle"], ...Object.entries(THEME_META).map(([id, [label]]) => [id, "Tema: " + label])])];

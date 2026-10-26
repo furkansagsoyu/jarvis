@@ -32,7 +32,9 @@ WIDE, NARROW = 580, 210
 MASCOT_PX = 34
 ACTIVE_PX = 76           # etkin halde (uyandı / düşünüyor / konuşuyor) ortadaki büyük maskot
 ACTIVE_W = 250
-GROW_MS = 320            # büyüme/küçülme süresi (yaylanan geçiş; coucou'nun "çentikten çıkma" fikri)
+GROW_MS = 320
+HIDE_AFTER = 6.0         # sn: cevap bittikten sonra bu kadar sessizlikte ada yukarı saklanır (autohide)
+SLIDE_IN_MS, SLIDE_OUT_MS = 420, 360            # büyüme/küçülme süresi (yaylanan geçiş; coucou'nun "çentikten çıkma" fikri)
 ACTIVE_MASCOTS = ("listening", "thinking", "speaking")
 FRAME_MS = 66            # maskot kare süresi (~15 kare/sn; küçük çizim, CPU yükü düşük)
 REDUCED = os.environ.get("JARVIS_REDUCED_MOTION") == "1"   # hareket azaltma: yalnızca durağan kare
@@ -51,6 +53,17 @@ PALETTES = {
 }
 SCALES = {"small": .85, "normal": 1.0, "large": 1.25}
 EDGE = 12   # sol/sağ konumda ekran kenarından boşluk
+
+
+def should_show(v: dict, last_active: float, now: float) -> bool:
+    """Otomatik gizlenmede ada görünmeli mi? Konuşma (dinliyor/düşünüyor/konuşuyor), onay sorusu, uyarı ya da hata varken
+    her zaman; bunlar bittikten sonra HIDE_AFTER sn daha. Bekleme ("Hey Jarvis"i dinliyor) uzarsa saklanır.
+    autohide kapalıysa her zaman görünür (Qt'siz test edilir)."""
+    if (v.get("cfg") or {}).get("autohide", True) is False:
+        return True
+    if v.get("mode") in ("active", "confirm") or v.get("mascot") in ("alert", "error"):
+        return True
+    return now - last_active < HIDE_AFTER
 
 
 def palette(name: str) -> tuple:
@@ -270,13 +283,17 @@ def run_qt(client: Client, parent: int | None) -> int:
                 f"font-size:{fs(13)};}} QPushButton:hover{{border-color:{acc};}}"
                 "#yes{color:#ffffff;background:rgba(52,168,83,190);border-color:rgba(52,168,83,230);} #yes:hover{background:rgba(52,168,83,230);}")
 
-    cur = {"qid": "", "busy": False, "dead": 0, "last": None, "mode": "", "cfg": None, "theme": "cyan"}
+    cur = {"qid": "", "busy": False, "dead": 0, "last": None, "mode": "", "cfg": None, "theme": "cyan",
+           "hidden": False, "last_active": time.monotonic(), "width": NARROW}
     win.setStyleSheet(style("cyan", {}))
     grow = QtCore.QPropertyAnimation(win, b"geometry")
     curve = QtCore.QEasingCurve.Type if hasattr(QtCore.QEasingCurve, "Type") else QtCore.QEasingCurve
 
+    def screen_rect():
+        return (win.screen() if hasattr(win, "screen") and win.screen() else app.primaryScreen()).availableGeometry()
+
     def target(width: int):
-        scr = (win.screen() if hasattr(win, "screen") and win.screen() else app.primaryScreen()).availableGeometry()
+        scr = screen_rect()
         # yükseklik yalnızca görünen bölümden (satır ya da sahne) hesaplanır; düzen önbelleği temizlenir, yoksa küçülürken eski
         # (büyük) yükseklikte kalıyordu
         part = stage if stage.isVisibleTo(win) else rowbox
@@ -289,6 +306,8 @@ def run_qt(client: Client, parent: int | None) -> int:
         return QtCore.QRect(x, y, width, h)
 
     def place(width: int, animate: bool):
+        if cur["hidden"]:   # saklıyken yerleşim sessizce güncellenir; görünürken kayarak gelir (slide_in)
+            return
         to = target(scaled(cur["cfg"] or {}, width))
         grow.stop()
         if animate and not REDUCED and win.isVisible():   # büyürken hafif yaylanır, küçülürken yumuşak iner
@@ -299,6 +318,64 @@ def run_qt(client: Client, parent: int | None) -> int:
             grow.start()
         else:
             win.setGeometry(to)
+
+    # Kayma: pencere yöneticisi (Cinnamon) pencereyi ekranın üstüne çıkarmıyor (y 0'da kesiliyor; ölçüldü), bu yüzden pencere
+    # yerinde kalır ve İÇİNDEKİ hap kaydırılır: saydam pencerenin üst kenarının arkasından çıkıyormuş gibi görünür.
+    slide = QtCore.QVariantAnimation()
+    slide.valueChanged.connect(lambda k: pill.move(0, round(-(1.0 - float(k)) * (pill.height() + 8))))
+
+    def slide_in():
+        """'Hey Jarvis' (ya da onay/hata): saklandığı yerden (üst kenarın arkası) kayarak gelir, hafifçe yaylanır."""
+        cur["hidden"] = False
+        to = target(scaled(cur["cfg"] or {}, cur["width"]))
+        grow.stop()
+        slide.stop()
+        win.setGeometry(to)
+        if REDUCED:
+            pill.move(0, 0)
+            win.show()
+            return
+        pill.move(0, -(to.height() + 8))
+        win.show()
+        slide.setDuration(SLIDE_IN_MS)
+        slide.setEasingCurve(curve.OutBack)
+        slide.setStartValue(0.0)
+        slide.setEndValue(1.0)
+        slide.start()
+
+    def slide_out():
+        """Sessizlik: hap yukarı kayıp üst kenarın arkasına saklanır, sonra pencere gizlenir (çizim/CPU yok)."""
+        cur["hidden"] = True
+        grow.stop()
+        slide.stop()
+        if REDUCED or not win.isVisible():
+            win.hide()
+            return
+        slide.setDuration(SLIDE_OUT_MS)
+        slide.setEasingCurve(curve.InCubic)
+        slide.setStartValue(1.0)
+        slide.setEndValue(0.0)
+        slide.start()
+
+    def slid():
+        if cur["hidden"]:
+            win.hide()
+        pill.move(0, 0)
+
+    slide.finished.connect(slid)
+
+    def visibility(v: dict):
+        """Otomatik gizlenme: her yoklamada (değişiklik olmasa da) süre dolmuş mu bakılır."""
+        if (v.get("cfg") or {}).get("enabled") is False:
+            return
+        now = time.monotonic()
+        if v.get("mode") in ("active", "confirm") or v.get("mascot") in ("alert", "error"):
+            cur["last_active"] = now
+        show = should_show(v, cur["last_active"], now)
+        if show and cur["hidden"]:
+            slide_in()
+        elif not show and not cur["hidden"]:
+            slide_out()
 
     def set_mode(mode: str):
         """Maskotu satır ile sahne arasında taşır (tek gösterge)."""
@@ -342,6 +419,7 @@ def run_qt(client: Client, parent: int | None) -> int:
         changed = mode != cur["mode"]
         set_mode(mode)
         cur["mode"] = mode
+        cur["width"] = v["width"]
         place(v["width"], animate=changed)
 
     def apply_cfg(cfg: dict):
@@ -355,7 +433,7 @@ def run_qt(client: Client, parent: int | None) -> int:
         if cfg.get("enabled") is False:
             grow.stop()
             win.hide()                             # yalnızca ada gizlenir; Jarvis çalışmaya devam eder
-        elif not win.isVisible():
+        elif not win.isVisible() and not cur["hidden"]:
             win.show()
         if face is not None and cur.get("mascot"):
             face.load(mascot_svg(cur["mascot"], time.monotonic(), cur.get("since", 0.0), cur["theme"]))
@@ -384,7 +462,9 @@ def run_qt(client: Client, parent: int | None) -> int:
             return
         cur["dead"] = 0
         if not cur["busy"]:
-            render(view(client.snapshot()))
+            v = view(client.snapshot())
+            render(v)
+            visibility(v)
 
     timer = QtCore.QTimer()
     timer.timeout.connect(tick)

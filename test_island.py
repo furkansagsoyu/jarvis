@@ -143,7 +143,8 @@ for k, v in (("position", "right"), ("mascot", False), ("on_top", False), ("them
     ui_state.set_island(k, v)
 st_json = json.loads((Path(os.environ["JARVIS_DATA"]) / "settings.json").read_text(encoding="utf-8"))
 check("ayarlar settings.json'da kalır (yeniden başlatınca korunur)", st_json["island"] == {"enabled": True, "on_top": False, "mascot": False,
-                                                                                      "position": "right", "size": "large", "theme": "amber"})
+                                                                                      "position": "right", "size": "large", "theme": "amber",
+                                                                                      "autohide": True})
 check("ada anlık durumu ve pano durumu ayarları taşır", state.island_snapshot(ctx)["cfg"]["position"] == "right" and state._durum(ctx)["island"]["size"] == "large")
 ui_state.set_island("theme", "auto")
 ui_state.set_theme("violet")
@@ -161,6 +162,19 @@ check("maskot rengi temayı izler; uyarı/hata kendi rengini korur",
 check("her pano temasının ada paleti var", set(ui_state.THEMES) <= set(island.PALETTES))
 check("görünüm ayarları adaya geçer", island.view({"state": "listening", "mascot": "idle", "cfg": {"size": "small"}})["cfg"] == {"size": "small"})
 ui_state.set_island("enabled", True)
+# otomatik gizlenme: beklemede saklan, "Hey Jarvis"te gel, cevaptan HIDE_AFTER sn sonra yine saklan
+SS, H = island.should_show, island.HIDE_AFTER
+idle = {"mode": "compact", "mascot": "idle", "cfg": {}}
+check("beklemede: son konuşmadan HIDE_AFTER sn sonra saklanır, öncesinde görünür", SS(idle, 100.0, 100.0 + H - 0.1) and not SS(idle, 100.0, 100.0 + H + 0.1))
+check("'Hey Jarvis' (dinliyor/düşünüyor/konuşuyor) her zaman görünür", all(SS({"mode": "active", "mascot": m, "cfg": {}}, 0.0, 1e6) for m in ("listening", "thinking", "speaking")))
+check("onay sorusu, uyarı ve hata saklı kalmaz (soruyu kaçırmazsın)", SS({"mode": "confirm", "mascot": "alert", "cfg": {}}, 0.0, 1e6)
+      and SS({"mode": "compact", "mascot": "error", "cfg": {}}, 0.0, 1e6))
+check("'Otomatik gizlen' kapalıysa hep görünür", SS({**idle, "cfg": {"autohide": False}}, 0.0, 1e6))
+check("autohide ayarı doğrulanır ve kaydedilir", not ui_state.set_island("autohide", "evet") and ui_state.set_island("autohide", False)
+      and ui_state.island_settings()["autohide"] is False and ui_state.set_island("autohide", True))
+src = (HERE / "island.py").read_text(encoding="utf-8")
+check("kayma: gelirken yaylanır (OutBack), giderken yukarı kayıp gizlenir; hareket azaltmada animasyonsuz",
+      "def slide_in" in src and "def slide_out" in src and "curve.OutBack" in src and "curve.InCubic" in src and "if REDUCED:" in src)
 
 # ---------------------------------------------------------------- uçtan uca: gerçek Brain, sahte riskli araç
 import brain as B  # noqa: E402

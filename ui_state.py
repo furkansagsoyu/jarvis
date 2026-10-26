@@ -165,7 +165,8 @@ def set_theme(name: str) -> bool:
 
 
 # Üst kenar adası ayarları (settings.json "island"): pano Ayarlar > ADA ve tepsi menüsü değiştirir, ada her yoklamada okur.
-ISLAND_DEFAULTS = {"enabled": True, "on_top": True, "mascot": True, "position": "center", "size": "normal", "theme": "auto"}
+ISLAND_DEFAULTS = {"enabled": True, "on_top": True, "mascot": True, "position": "center", "size": "normal", "theme": "auto",
+                   "autohide": True}   # autohide: beklemede ekranın üstüne saklanır, "Hey Jarvis" ile kayarak gelir
 ISLAND_CHOICES = {"position": ("center", "left", "right"), "size": ("small", "normal", "large"), "theme": ("auto", *THEMES)}
 
 
