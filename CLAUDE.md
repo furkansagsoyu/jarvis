@@ -19,7 +19,7 @@ Dil: arayüz metinleri, sesli cevaplar, yorumlar ve kullanıcıyla yazışma **T
 - `data/` kullanıcının kişisel verisidir: okuma/yazma/silme yok.
 - Onay kapılarını (`skills/_confirm.py`), yasaklı yüzeyleri, `privacy.py` kapısını gevşetme. Model onay veremez. Dış içerikten (dosya/web/ekran) sonra araç listesi boş kalır.
 - Kişisel veri (hafıza, rehber, takvim, dosya, ekran, kamera, konuşma) buluta gitmez.
-- Sipariş akışı: kullanıcı giriş yapar, sepet kurulur, **ödemeden önce durulur**; parola/kart saklanmaz.
+- Sipariş akışı: kullanıcı giriş yapar, sepet kurulur, **ödemeden önce durulur**; parola/kart saklanmaz. (Özellik 2026-10-26'da iptal edildi; yeniden açılırsa geçerli.)
 - Kod ajanı yalnızca `workspace/` içinde; `eval/exec/os.system/shell=True/pickle` ve kapalı TLS doğrulaması yok (`test_security.py` tarar).
 
 ## Kod konvansiyonları

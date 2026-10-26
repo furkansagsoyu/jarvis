@@ -34,10 +34,10 @@ Maskot **"Çekirdek"** (kullanıcı seçti). Hazır varlıklar: `assets/cekirdek
 ## 6. Platform ve özellik
 - [ ] [YAZILIM] **Windows taşıma (1. aşama):** `platform_compat.py`; ses (`pycaw`), fare/klavye (`pyautogui`), ekran (`mss`), `psutil` bellek; `kur.bat`/`install.ps1`; donanım algılayıp hafif profil; Windows'ta kod ajanı kapalı; README Windows bölümü. Linux'u bozma. **Bölüm 3-5 bittikten sonra başla.**
 - [ ] [HW] Windows'ta gerçek deneme (kullanıcı ya da Win11 kullanan arkadaşlar).
-- [ ] [SOR→YAZILIM] **Sipariş özelliği:** önce kullanıcıya TEK soru: hangi site önce (Getir / Yemeksepeti / Trendyol GO)? Sonra Playwright ile sepet kurma, ödemeden önce dur, parola/kart saklama yok.
+- [x] ~~[SOR→YAZILIM] **Sipariş özelliği:** önce kullanıcıya TEK soru: hangi site önce (Getir / Yemeksepeti / Trendyol GO)? Sonra Playwright ile sepet kurma, ödemeden önce dur, parola/kart saklama yok.~~ **İPTAL** (2026-10-26, kullanıcı kararı)
 
 ## 7. Küçük işler / fikirler (sıra esnek)
-- [ ] README'ye kredi bölümü; yeni özellikler "Neler yapabiliyor" tablosuna
+- [x] README'ye kredi bölümü; yeni özellikler "Neler yapabiliyor" tablosuna (2026-10-26)
 - [ ] `vm.swappiness=10` (RAM.md'de komut var; kullanıcı sistemine uygular)
 - [ ] Qwen 3.5 9B araç çağırma ölçümü (önce ollama.com/library'de etiketi doğrula; `model_bench.py`)
 - [ ] Zamanlanmış/proaktif ajan görevleri; Google Takvim senkronu; ntfy bildirimi
@@ -64,3 +64,5 @@ Maskot **"Çekirdek"** (kullanıcı seçti). Hazır varlıklar: `assets/cekirdek
 - 2026-10-26 · Ayarlar > ADA HW: kullanıcı doğruladı (çalışıyor) → push.
 - 2026-10-26 · Ada otomatik gizlenme (kullanıcı isteği): `island.should_show` — konuşma (dinliyor/düşünüyor/konuşuyor), onay, uyarı, hata varken görünür; bunlar bittikten HIDE_AFTER=6 sn sonra saklanır; ayar `autohide` (varsayılan açık, Ayarlar > ADA "Otomatik gizlen"). Kayma: ölçüldü ki Cinnamon pencereyi ekranın üstüne çıkarmıyor (y 0'da kesiliyor) → pencere yerinde, içindeki hap kaydırılır (QVariantAnimation; gelişte 420 ms OutBack, gidişte 360 ms InCubic, sonra pencere gizlenir = çizim yok). Gerçek ekranda zaman çizelgesi ve kare kare görüntüyle doğrulandı (6 sn'de saklanma, Hey Jarvis'te üst kenardan kayarak gelme, cevaptan 3 sn sonra görünür, 6 sn'de yeniden saklanma). HW denemesi bekliyor.
 - 2026-10-26 · Ada otomatik gizlenme HW: kullanıcı doğruladı (saklanıyor, Hey Jarvis'te kayarak geliyor, sonra yine saklanıyor) → push. Bölüm 5 tamam.
+- 2026-10-26 · Sipariş özelliği iptal edildi (kullanıcı kararı). Önce yapılan keşif (kod yok): Yemeksepeti ana sayfada bot doğrulamasıyla otomasyonu engelliyor (aşılmaz); Getir ve Trendyol GO doğrulamasız açılıyor, Trendyol GO'da restoranlar yalnızca girişten sonra görünüyor.
+- 2026-10-26 · README: "Teşekkür" bölümü genişletildi (fikir kaynakları Mark-LV ve coucou — kod/görsel alınmadı; bileşen tablosu: STT, uyanma, modeller, TTS, tarayıcı, Qt arayüz, SQLite FTS5, bubblewrap, MCP, telefon/Tailscale). "Neler yapabiliyor" tablosuna Telefon satırı; Uzaktan (telefon web sayfası, uzaktan onay kapalı) ve Konfor (ada, otomatik başlatma pano + ada) güncellendi.

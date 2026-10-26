@@ -140,8 +140,9 @@ Telefon tarayıcısında (ana ekrana eklenebilir) çalışan sayfa: **yazışma*
 | MCP araçları | "mcp araçları", "mcp: zaman get_current_time timezone=Europe/Istanbul" (JSON sonuç sesli okunur cümleye çevrilir; yalnızca senin `data/mcp.json`'da tanımladığın yerel sunucular; her çağrı onay ister) |
 | Sistem bakımı | "Sistem bakımı yap", "Bilgisayarım neden yavaş" (bellek, swap, VRAM, modeller, disk, günlük, unutulmuş derleme süreçleri; kendi başına değişiklik yapmaz, güvenli düzeltmeleri onayla önerir) |
 | Günaydın özeti | "Günaydın" (tarih, hava, hatırlatıcılar), sabahları kendiliğinden |
-| Uzaktan | Telegram botu üzerinden metin komutları (hassas araçlar kapalı) |
-| Konfor | Eller serbest mod, durum penceresi ve tepsi simgesi, Sustur, otomatik başlatma |
+| Telefon | "Annemi ara", "telefonu çaldır", "rehbere ekle: …" (ADB ya da Jarvis Telefon uygulaması; her arama onaylı) |
+| Uzaktan | Telegram botu ve telefon web sayfası (Tailscale) üzerinden yazışma, ajanda, durum (hassas araçlar ve uzaktan onay kapalı) |
+| Konfor | Eller serbest mod, otomatik gizlenen ada, tepsi simgesi, Sustur, odak modu, otomatik başlatma (pano + ada) |
 
 ## Güvenlik tasarımı
 
@@ -286,10 +287,24 @@ Yeni bir beceri eklemek için `skills/` altına, `SKILLS` listesi tanımlayan bi
 
 ## Teşekkür
 
-Fikirler [Mark-LV](https://github.com/FaithMakes/Mark-LV) projesinin özellik listesinden esinlenmiştir (kod alınmadı).
-Kullanılan açık kaynak bileşenler: [faster-whisper](https://github.com/SYSTRAN/faster-whisper), [Ollama](https://ollama.com),
-[openWakeWord](https://github.com/dscripka/openWakeWord), EMA Lightning, [Playwright](https://playwright.dev), Gemma ve Qwen modelleri
-(kendi lisanslarıyla).
+**Fikir kaynakları (kod ya da görsel alınmadı):**
+- [Mark-LV](https://github.com/FaithMakes/Mark-LV): özellik listesi.
+- [coucou](https://github.com/louis-cfm/coucou) (louis-cfm): üst kenar adası ve "çentikten çıkan" genişleme fikri. Ada ve Çekirdek maskotu bu projeye özgüdür.
+
+**Kullanılan açık kaynak bileşenler ve hizmetler** (her biri kendi lisansıyla):
+
+| Alan | Bileşen |
+|---|---|
+| Konuşma tanıma | [faster-whisper](https://github.com/SYSTRAN/faster-whisper) (Whisper large-v3-turbo) |
+| Uyanma sözcüğü | [openWakeWord](https://github.com/dscripka/openWakeWord) |
+| Dil modelleri | [Ollama](https://ollama.com) üzerinde Gemma (Google) ve Qwen (Alibaba); isteğe bağlı ücretsiz bulut: [Groq](https://groq.com) |
+| Ses sentezi | EMA Lightning; yedek Freya TTS |
+| Tarayıcı | [Playwright](https://playwright.dev) (Chromium) |
+| Masaüstü arayüz | Qt ([qtpy](https://github.com/spyder-ide/qtpy) / PyQt), [pywebview](https://pywebview.flowrl.com), [pystray](https://github.com/moses-palmer/pystray) |
+| Hafıza | SQLite FTS5 |
+| Kod ajanı kutusu | [bubblewrap](https://github.com/containers/bubblewrap) |
+| MCP | [Model Context Protocol](https://modelcontextprotocol.io) (istemci kendi yazıldı) |
+| Telefon | Android ADB, Flutter, Firebase Cloud Messaging; uzak erişim [Tailscale](https://tailscale.com) |
 
 ## Lisans
 

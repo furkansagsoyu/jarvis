@@ -21,7 +21,7 @@ Bu belgedeki her teknik iddia kod tabanından doğrulanmıştır; yine de deği�
 
 1. **Gizlilik:** Ücretsiz bulut modelleri yalnızca kişisel veri olmadan kullanılabilir. Hafıza, konuşma kaydı, ekran, kamera, rehber, takvim, dosya içeriği **asla** buluta gitmez. Kapı: `privacy.py`.
 2. **Sırlar:** API anahtarları/sırlar kullanıcı tarafından `data/` altındaki dosyalara konur (`data/keys.env`, `data/fcm_service_account.json`…). **Asla sohbette/komutta/commit'te** görünmez. Repo public: `data/`, `*.env`, `keys.env`, `fcm_service_account.json`, `phone_app/android/app/google-services.json`, `workspace/`, `*.zip` `.gitignore`'dadır; **bunları asla `git add -f` yapma.** (`google-services.json` eski geçmişte duruyor; Firebase API anahtarı Google Cloud'da `com.furkan.jarvisphone` paketi + SHA-1 ile kısıtlandı.)
-3. **Sipariş (Getir / Yemeksepeti / Trendyol GO):** kullanıcı kendi giriş yapar; ajan sepeti kurar ve **ödemeden önce DURUR**. Parola/kart saklanmaz. Hangi site(ler)in öncelikli olduğu henüz **cevaplanmadı**.
+3. **Sipariş (Getir / Yemeksepeti / Trendyol GO):** kullanıcı kendi giriş yapar; ajan sepeti kurar ve **ödemeden önce DURUR**. Parola/kart saklanmaz. Hangi site(ler)in öncelikli olduğu henüz **cevaplanmadı**. **2026-10-26: özellik kullanıcı tarafından iptal edildi**; kural, yeniden gündeme gelirse geçerlidir.
 4. **Kod ajanı yalnızca `workspace/` içinde** çalışır (bubblewrap kutusu, internet yok).
 5. **Onay kapıları** (`skills/_confirm.py`) hassas işlemlerde kalır; modelin "onayladım" demesi/onay vermesi mümkün olmamalı. Bu kapıları gevşeten hiçbir değişiklik yapma.
 6. Model, dış içerikten (dosya, web, ekran, kamera) gelen talimatlara uymaz: o turdan sonra araç listesi **boştur**.
@@ -151,7 +151,7 @@ Genel tutum: küçük, geri alınabilir commit'ler; her commit'te testler yeşil
 5. **FTS5 / anlamsal hafıza** — FTS5 bitti (`skills/memory.py`, `data/memory.db`); ikinci aşama yerel gömme (anlamsal arama) bekliyor.
 6. **MCP istemcisi** — bitti (`mcp_client.py`, `skills/mcp.py`, `data/mcp.json`; gizli + onay kapılı + uzaktan kapalı).
 7. **Windows taşıma** (paralel yürüyebilir): `platform_compat.py` soyutlaması; `psutil`, `pycaw` (ses), `pyautogui`, `mss`; `kur.bat`/`install.ps1`; donanım algılayıp hafif profil seçme; Windows'ta kod ajanı kapalı (bubblewrap yok); README'ye Windows bölümü. Linux davranışını bozma.
-8. **Sipariş özelliği** (Getir/Yemeksepeti/Trendyol GO) — site önceliği için kullanıcıya **bir kez** sor; kural: sepeti kur, ödemede dur.
+8. **Sipariş özelliği** (Getir/Yemeksepeti/Trendyol GO) — site önceliği için kullanıcıya **bir kez** sor; kural: sepeti kur, ödemede dur. — **İPTAL (2026-10-26, kullanıcı kararı).**
 
 **Piyasa karşılaştırmasından çıkan eksikler** (diğer Jarvis/agent projeleri ve `louis-cfm/coucou` incelendi): MCP istemcisi, FTS5/anlamsal hafıza, zamanlanmış/proaktif ajan görevleri, e-posta/takvim entegrasyonu (Google Calendar), OCR/erişilebilirlik tabanlı tıklama, paylaşılabilir yetenek paketleme. coucou: AI kodlama ajanları için üst kenar (notch) onay arkadaşı, MIT lisanslı; görselleri sahibine ait → **kodu/varlıkları kopyalama, yalnızca fikir al.**
 
@@ -166,7 +166,7 @@ Genel tutum: küçük, geri alınabilir commit'ler; her commit'te testler yeşil
 - Kod ajanının ilk başarısız çalışmasındaki ham geçersiz JSON hiç görülmedi (loglama eklendi; sorun tekrarlarsa `[ekip]` loglarına bak).
 - Flutter derlemesi sırasındaki RAM tepesi yakalanmadı (gereksiz bulundu).
 - Qwen 3.5 9B tool-calling ölçülmedi.
-- Windows ve sipariş özellikleri tasarım aşamasında; kod yok.
+- Windows tasarım aşamasında; kod yok. Sipariş özelliği iptal edildi (2026-10-26).
 
 ---
 
