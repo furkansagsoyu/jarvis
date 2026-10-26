@@ -20,6 +20,7 @@ Bir öğrenci projesidir; Linux Mint (X11), RTX 3070 Ti (8 GB VRAM) ve 15 GB RAM
 |---|---|
 | Sohbet ve günlük işler | "Saat kaç?", "Yarın hava nasıl?", "Sesi yüzde otuza ayarla", "Günaydın" (sabah özeti) |
 | Takvim, görev, hatırlatıcı | "Yarın 14'te toplantı ekle", "görev ekle: raporu bitir, cuma", "20 dakika sonra beni uyar" |
+| Zamanlanmış görevler | "her gün 9'da hava nasıl", "hafta içi her gün 8:30'da günün özeti", "zamanlanmış görevler" (kurmak onaylı, gözetimsiz kısıtlı kipte çalışır) |
 | Hafıza | "Şunu hatırla: kedimin adı Pamuk", "kedimin adı neydi" (Türkçe ekleri tolere eden yerel arama) |
 | Dosyalar | "rapor.pdf'yi oku", "masaüstünde faturaları bul", taşıma/çöpe atma onaylı ve "geri al" ile geri döner |
 | Web ve tarayıcı | "Ankara'nın nüfusunu araştır", "github.com'a git", "sayfayı oku", "Sezen Aksu şarkısı aç" |

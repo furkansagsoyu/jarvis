@@ -147,8 +147,14 @@ VIEWS.gorevler = {
     body._c = h("div", { class: "scroll" }); fill(body, f, body._c);
   },
   update(s, body, key) {
-    const tasks = (s.ajanda || {}).all_tasks || []; if (!changed(key, tasks)) return;
-    fill(body._c, tasks.length ? h("ul", { class: "rows", style: "height:auto" }, tasks.map((t) => h("li", { class: t.overdue ? "UYARI" : "" },
+    const tasks = (s.ajanda || {}).all_tasks || [], sched = s.zamanlanmis || []; if (!changed(key, [tasks, sched])) return;
+    /* zamanlanmış görevler: sesle kurulur ("her gün 9'da hava nasıl"), burada görülür ve silinir */
+    const sch = h("div", { class: "daygrp" }, h("h5", {}, "ZAMANLANMIŞ GÖREVLER ", h("span", { class: "muted" }, sched.length)),
+      sched.length ? h("ul", { class: "rows", style: "height:auto" }, sched.map((j) => h("li", {}, SVG("cal"),
+        h("div", {}, h("b", {}, j.id + ". " + j.text), h("small", {}, j.last ? "Son çalışma: " + dayLabel(j.last) : "Henüz çalışmadı")),
+        confirmBtn("Sil", () => agendaCall({ op: "schedule_delete", id: j.id })))))
+        : h("div", { class: "empty" }, "Zamanlanmış görev yok. Sesle kur: “her gün 9'da hava nasıl”, “hafta içi her gün 8:30'da günün özeti”."));
+    fill(body._c, sch, tasks.length ? h("ul", { class: "rows", style: "height:auto" }, tasks.map((t) => h("li", { class: t.overdue ? "UYARI" : "" },
       h("i", { class: "pri " + t.priority }), h("div", {}, h("b", {}, t.title), h("small", {}, (t.due ? dayLabel(t.due) : "Tarihsiz") + " · " + t.priority + (t.overdue ? " · GECİKMİŞ" : ""))),
       h("button", { class: "mini", onclick: () => agendaCall({ op: "done_task", id: t.id }) }, "Bitti"),
       confirmBtn("Sil", () => agendaCall({ op: "delete_task", id: t.id }))))) : h("div", { class: "empty" }, "Açık görev yok. Yukarıdan ekleyebilirsin."));

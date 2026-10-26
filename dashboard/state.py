@@ -234,6 +234,12 @@ def _hafiza(ctx):
             "summary": bool(getattr(ctx.brain, "summary", ""))}
 
 
+@provider("zamanlanmis")
+def _zamanlanmis(ctx):
+    from core import scheduler  # noqa: PLC0415
+    return [{"id": j["id"], "text": scheduler.describe(j), "last": j.get("last", "")} for j in scheduler.load()]
+
+
 @provider("ajanda")
 def _ajanda(ctx):
     return agenda.snapshot()
@@ -289,6 +295,7 @@ def _akis(ctx):
 
 
 TOOL_LABELS = {  # pano 'Araçlar ve Beceriler': iç araç adı -> kullanıcıya gösterilen Türkçe ad
+    "schedule_add": "Zamanlanmış görev kur", "schedule_list": "Zamanlanmış görevleri listele", "schedule_delete": "Zamanlanmış görevi sil",
     "agenda_add": "Takvime etkinlik ekle", "agenda_cancel": "Etkinliği iptal et", "agenda_list": "Takvimi göster",
     "browser_back": "Tarayıcıda geri git", "browser_click": "Sayfada tıkla", "browser_close": "Tarayıcıyı kapat",
     "browser_open": "Siteyi aç", "browser_play": "Şarkı/video oynat", "browser_read": "Sayfayı oku",

@@ -69,7 +69,7 @@ SESSION_TTL = 12 * 3600  # bundan eski konuşma geçmişi yüklenmez
 REMOTE_BLOCKED = {"move_file", "trash_file", "undo_last_action", "phone_ring", "phone_call", "phone_hangup", "phone_answer", "phone_status", "contact_add", "contacts_sync", "code_list", "code_read", "code_write", "code_run", "read_file", "recall", "look_at_screen", "look_at_camera", "browser_open", "browser_play", "browser_read", "browser_click",
                   "browser_type", "browser_back", "browser_close", "mouse_move", "mouse_click", "scroll",
                   "keyboard_type", "press_key", "system_health", "mcp_list", "mcp_call",
-                  "find_files", "forget"}  # dosya adları/yolları Telegram'a gitmesin; hafıza uzaktan onaysız silinmesin
+                  "find_files", "forget", "schedule_add", "schedule_list", "schedule_delete"}  # dosya adları/yolları Telegram'a gitmesin; hafıza uzaktan onaysız silinmesin
 
 # Ölçümle (tool_diag.py, tool_check.py; kural kural ölçen tool_diag2.py 2026-10'da silindi, git geçmişinde) doğrulandı: SADECE bu kısa hal 8/8 araç çağırıyor.
 # Kural eklemek (sayıları yazıyla yaz, anlık bilgiyi uydurma, yetenek listesi, cümle sınırı...) tek tek
@@ -91,7 +91,7 @@ ACTION_CLAIM = re.compile(
     r"açıldı|kapatıldı|ayarlandı|yapıldı|kısıldı|kısıldı|artırıldı|azaltıldı|arandı|başlatıldı|çalıştırıldı|"
     r"iptal edildi|iptal ettim|sonlandırıldı|sonlandırdım|kapattım|bitirdim|durduruldu|durdurdum)\b|"
     r"\baraç|"
-    r"\b(open_app|set_volume|change_volume|get_time|get_date|web_search|list_abilities|remember|recall|forget|set_reminder|list_reminders|cancel_reminders|get_weather|get_battery|morning_brief|look_at_screen|look_at_camera|browser_open|browser_play|browser_read|browser_click|browser_type|browser_back|browser_close|mouse_move|mouse_click|keyboard_type|press_key|get_system_status|system_health|mcp_list|mcp_call|find_files|read_file|move_file|trash_file|undo_last_action)\b",
+    r"\b(open_app|set_volume|change_volume|get_time|get_date|web_search|list_abilities|remember|recall|forget|set_reminder|list_reminders|cancel_reminders|get_weather|get_battery|morning_brief|look_at_screen|look_at_camera|browser_open|browser_play|browser_read|browser_click|browser_type|browser_back|browser_close|mouse_move|mouse_click|keyboard_type|press_key|get_system_status|system_health|mcp_list|mcp_call|schedule_add|schedule_list|schedule_delete|find_files|read_file|move_file|trash_file|undo_last_action)\b",
     re.IGNORECASE,
 )
 # Saat/tarih gibi anlık bilgilerde modele karar bırakılmaz (gemma tarihi uydurdu: "25 Mayıs 2024").
@@ -110,6 +110,10 @@ WORD_SCREEN = re.compile(r"\bekran\w*\b.*\b(ne var|bak\w*|oku\w*|anlat\w*|özetl
 WORD_CAMERA = re.compile(r"\b(kamera\w*|web\s?(?:cam|kam)\w*)\b.*\b(bak\w*|ne var|görüyor\w*|anlat\w*|göster\w*)\b|\bbana bak\b|\belimde ne var\b|\bkarşında ne var\b", re.I)
 WORD_CAMERA_NOT = re.compile(r"\b(aç|kapat|ayarla|kur|indir|yükle)\w*\b", re.I)
 WORD_SCREEN_NOT = re.compile(r"karart|aydınlat|parlak|kapat|kilitle|görüntüsü al|ekran görüntüsü|kaydet", re.I)
+# Zamanlanmış görevler (skills/schedule.py): kurma onaylı; hava/saat gibi kurallardan ÖNCE bakılır ("her gün 9'da hava nasıl")
+SCHED_ADD = re.compile(r"^\W*(?:her\s+(?:gün|sabah|akşam|gece|öğlen?|pazartesi|salı|çarşamba|perşembe|cuma|cumartesi|pazar)|hafta\s+(?:içi|sonu)(?:\s+her\s+gün)?)\s+(?:saat\s+)?\d", re.I)
+SCHED_LIST = re.compile(r"^\W*zamanlanm[ıi]ş\s+görev(?:ler)?(?:im)?\b(?!.*\bsil)", re.I)
+SCHED_DEL = re.compile(r"zamanlanm[ıi]ş\s+görev\w*\s+(?:\w+\s+)?sil\w*\s*(?P<n>\d+)|(?P<n2>\d+)\s*(?:numaralı|\.)\s*zamanlanm[ıi]ş\s+görev\w*\s+sil", re.I)
 # MCP (skills/mcp.py): yalnızca açık komutla; çağrı her zaman onay ister
 MCP_LIST = re.compile(r"^\W*mcp\b[^:]*\b(?:araç|sunucu|listele|neler)\w*", re.I)
 MCP_CALL = re.compile(r"^\W*mcp\s*:\s*(?P<server>[\w-]+)\s+(?P<tool>[\w.-]+)\s*(?P<args>.*)$", re.I | re.S)
@@ -440,6 +444,15 @@ class Brain:
     def _fast_route(self, text: str) -> list[tuple[str, dict]]:
         """Kural tabanlı hızlı yol: (araç adı, argümanlar) listesi döndürür (boşsa model karar verir)."""
         calls = []
+        if "schedule_add" in self.tools:
+            t = text.strip()
+            if SCHED_ADD.match(t):
+                return [("schedule_add", {"text": t})]
+            m = SCHED_DEL.search(t)
+            if m:
+                return [("schedule_delete", {"number": int(m.group("n") or m.group("n2"))})]
+            if SCHED_LIST.match(t):
+                return [("schedule_list", {})]
         if "mcp_call" in self.tools:
             m = MCP_CALL.match(text.strip())
             if m:

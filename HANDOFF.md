@@ -56,7 +56,7 @@ Bu belgedeki her teknik iddia kod tabanından doğrulanmıştır; yine de deği�
 Kökte yalnızca giriş noktaları (`main.py`, `app.py`, `check_all.py`). Kod paketleri: `core/` (brain, agent, team, router, privacy, memguard, convlog, mcp_client), `voice/` (stt, tts, wake), `desktop/` (ui_state, ui, island), `connect/` (telegram_bot, remote, remote_setup, phonelink), `tools/` (kurulum/tanılama/ölçüm betikleri), `tests/` (test_*.py), ayrıca `skills/`, `dashboard/`, `assets/`, `phone_app/`. İçe aktarmalar paket yoluyla (`from core import brain`); `tools/` ve `tests/` betikleri başta depo kökünü `sys.path`'e ekler; ada `-m desktop.island` ile başlatılır. Her klasörde README.md var; ayrıntılı özellik anlatımları oralarda.
 
 ### 3.1 Veri
-Tüm kalıcı veri `data/` altında (`JARVIS_DATA` ile değişir; testler geçici klasör kullanır). Dosyalar 0600, klasör 0700. Erişim `skills/_store.py` üzerinden (`load/save/path/runtime_path`). Bilinen dosyalar: `mcp.json (kullanıcının MCP sunucuları), memory.db (SQLite FTS5; eski memory.json göçte memory.json.bak olur), reminders.json, agenda.json, contacts.json, settings.json, status.json, control.json, dashboard.json, briefing.json, router_stats.json, models.json, phone.json, phone_push.json, remote.json, secret.json, session.json, telegram.json, browser_sites.json, conversations.jsonl, team_runs.jsonl, keys.env, fcm_service_account.json, browser_profile/, ram_watch.csv`. Kilit/pid dosyaları `$XDG_RUNTIME_DIR` altındadır.
+Tüm kalıcı veri `data/` altında (`JARVIS_DATA` ile değişir; testler geçici klasör kullanır). Dosyalar 0600, klasör 0700. Erişim `skills/_store.py` üzerinden (`load/save/path/runtime_path`). Bilinen dosyalar: `schedules.json (zamanlanmış görevler), mcp.json (kullanıcının MCP sunucuları), memory.db (SQLite FTS5; eski memory.json göçte memory.json.bak olur), reminders.json, agenda.json, contacts.json, settings.json, status.json, control.json, dashboard.json, briefing.json, router_stats.json, models.json, phone.json, phone_push.json, remote.json, secret.json, session.json, telegram.json, browser_sites.json, conversations.jsonl, team_runs.jsonl, keys.env, fcm_service_account.json, browser_profile/, ram_watch.csv`. Kilit/pid dosyaları `$XDG_RUNTIME_DIR` altındadır.
 
 ### 3.2 Model ve donanım gerçekleri (ölçüldü, `RAM.md`)
 - Sesli sohbette VRAM **6,8/8 GB** (sıkışık). Gemma+Whisper+TTS birlikte rahat; ek büyük model eklemek VRAM'i aşar.
@@ -93,11 +93,11 @@ Python 3, tip ipuçları (yeni dosyalarda `from __future__ import annotations`),
 
 | Komut | Ne yapar |
 |---|---|
-| `python check_all.py --quick` | Modelsiz mantık testleri (saniyeler). **Son durum: 44 OK, 0 hata.** Her değişiklikten sonra çalıştır. |
+| `python check_all.py --quick` | Modelsiz mantık testleri (saniyeler). **Son durum: 45 OK, 0 hata.** Her değişiklikten sonra çalıştır. |
 | `python check_all.py` | + ortam kontrolü |
 | `python check_all.py --model` | + gerçek model araç seçimi (`tools/tool_check.py`; GPU+Ollama, dakikalar) |
 | `python check_all.py --vision` | + gerçek ekran görüşü |
-| `python tests/test_<ad>.py` | Tek modül (routes, browser, agent, team, code, agenda, maintenance, island, mascot, memory, mcp, app, dashboard, desktop, mobile, phone, phonelink, ram, router, security, web, window) |
+| `python tests/test_<ad>.py` | Tek modül (routes, browser, agent, team, code, agenda, maintenance, island, mascot, memory, mcp, schedule, app, dashboard, desktop, mobile, phone, phonelink, ram, router, security, web, window) |
 | `python tools/code_check.py` | Kod ajanı bubblewrap kutusu |
 | `python tools/router_check.py` | Anahtar + gizlilik kapısı |
 | `python tools/phone_check.py [--wifi / --via app / --app-pair / --app-test]` | Telefon/ADB/FCM tanılama |
@@ -178,7 +178,7 @@ Kullanıcı Claude Code'u **Claude masaüstü uygulamasından (Code sekmesi)** k
 ```bash
 cd ~/jarvis
 git status && git log --oneline -5 && git tag -l | tail -3
-python check_all.py --quick | tail -3      # 44 OK bekleniyor (conda env freya)
+python check_all.py --quick | tail -3      # 45 OK bekleniyor (conda env freya)
 cat TASKS.md                               # sıradaki görev
 ```
 `.claude/settings.json` (repoda) izin listesini ve `data/**`, `*.env`, `fcm_service_account.json`, `google-services.json` okuma yasağını tanımlar. İlk iş doğrula: `data/` altından bir dosya okumayı dene → reddedilmeli. Reddedilmezse kullanıcıya söyle (uygulama dosyayı okumuyor demektir). Sonra `TASKS.md` bölüm 0'dan başla.

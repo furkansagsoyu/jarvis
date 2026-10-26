@@ -21,6 +21,7 @@ Kurallar:
 | `test_code` | kod ajanı araçları ve kutu |
 | `test_router` | bulut yönlendirici ve gizlilik kapısı |
 | `test_browser`, `test_web`, `test_desktop` | tarayıcı (gerçek Chromium, yerel site), web arama, fare/klavye (sahte xdotool) |
+| `test_schedule` | zamanlanmış görevler: ayrıştırma, zamanlayıcı, onaylı kurma, kısıtlı kipte çalışma |
 | `test_agenda`, `test_memory`, `test_maintenance`, `test_mcp` | takvim/görev, hafıza (FTS5), bakım ajanı, MCP (sahte sunucu) |
 | `test_dashboard`, `test_window`, `test_mobile` | pano, pencere/tepsi, telefon sayfası |
 | `test_island`, `test_mascot` | ada (Qt duman testi dahil) ve maskot |

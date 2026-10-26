@@ -34,4 +34,5 @@ SKILLS = [{"name": "get_time", "description": "Saati söyler. ...", "parameters"
 | `phone.py` | Telefon araması, rehber, alarm (ADB ya da uygulama). |
 | `maintenance.py` | Sistem bakım raporu ("sistem bakımı yap"); kendi başına değişiklik yapmaz. |
 | `mcp.py` | MCP araçları (gizli, her çağrı onaylı). |
+| `schedule.py` | Zamanlanmış görev kur (onaylı) / listele / sil; çalıştırma `core/scheduler.py` + `main.py`. |
 | `reminders.py`, `briefing.py`, `weather.py`, `clock.py`, `battery.py`, `hardware.py`, `volume.py`, `brightness.py`, `apps.py`, `help.py` | Hatırlatıcı, günaydın özeti, hava, saat/tarih, pil, donanım, ses, parlaklık, uygulama açma, yetenek listesi. |

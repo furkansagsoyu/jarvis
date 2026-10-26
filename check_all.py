@@ -533,6 +533,13 @@ def logic_tests() -> None:
         assert r.returncode == 0, "\n".join(l for l in r.stdout.splitlines() if l.startswith("HATA"))[:400] or r.stderr[-300:]
         return f"{r.stdout.count('OK   ')} OK"
 
+    @check("Zamanlanmış görevler: ayrıştırma, zamanı gelme, yeniden deneme, onaylı kurma, kısıtlı kipte çalışma, pano (test_schedule)")
+    def _():
+        r = subprocess.run([sys.executable, str(HERE / "tests" / "test_schedule.py")], capture_output=True, text=True, cwd=str(HERE),
+                           env={**os.environ, "PYTHONPATH": str(HERE)}, timeout=120)
+        assert r.returncode == 0, "\n".join(l for l in r.stdout.splitlines() if l.startswith("HATA"))[:400] or r.stderr[-300:]
+        return f"{len({l for l in r.stdout.splitlines() if l.startswith('OK   ')})} OK"   # main içe aktarılınca stt süreci bir kez yeniden başlatır
+
     @check("MCP istemcisi: protokol, izin listesi, onay kapısı, anahtar sızmaz, zaman aşımı, yeniden başlatma, uzaktan kapalı (test_mcp)")
     def _():
         r = subprocess.run([sys.executable, str(HERE / "tests" / "test_mcp.py")], capture_output=True, text=True, cwd=str(HERE),

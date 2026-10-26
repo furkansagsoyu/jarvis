@@ -171,6 +171,9 @@ class Dashboard:
                 msg = "Görev silindi." if agenda.delete_task_id(int(d.get("id", 0))) else "Hata: görev bulunamadı."
             elif op == "cancel_event":
                 msg = "Etkinlik silindi." if agenda.cancel_event_id(int(d.get("id", 0))) else "Hata: etkinlik bulunamadı."
+            elif op == "schedule_delete":   # yalnızca yerel pano (telefonun REMOTE_AGENDA_OPS listesinde yok)
+                from core import scheduler  # noqa: PLC0415
+                msg = "Zamanlanmış görev silindi." if scheduler.remove(int(d.get("id", 0))) else "Hata: zamanlanmış görev bulunamadı."
             else:
                 return {"ok": False, "msg": "Bilinmeyen işlem."}
         except (TypeError, ValueError):

@@ -11,6 +11,7 @@ Jarvis'in düşünen kısmı: cümleyi anlar, araç seçer, gerekirse çok adım
 | `privacy.py` | Gizlilik kapısı: kişisel veri içeren hiçbir şey buluta gitmez. |
 | `memguard.py` | Bellek koruması: düşük bellekte uyarı, ağır işi başlatmama. |
 | `convlog.py` | Kalıcı konuşma günlüğü (panodaki Konuşmalar; süreli otomatik silme). |
+| `scheduler.py` | **Zamanlanmış görevler**: Türkçe zaman ayrıştırma, "zamanı geldi mi" kuralı, arka plan zamanlayıcı (`data/schedules.json`). |
 | `mcp_client.py` | Yerel MCP istemcisi (stdio JSON-RPC; ek bağımlılık yok). Araçlar `skills/mcp.py`'de. |
 
 ## Hızlı yol ve araç seçimi
@@ -49,3 +50,11 @@ python -m venv ~/.local/share/jarvis/mcp-venv && ~/.local/share/jarvis/mcp-venv/
                        "tools": ["get_current_time", "convert_time"], "timeout": 30}}}
 ```
 "mcp araçları", "mcp: zaman get_current_time timezone=Europe/Istanbul". Her çağrı onay ister, sonuç modele gitmez, uzaktan kapalı; sunucuya Jarvis'in anahtarları geçmez. Yalnızca güvendiğin yerel sunucuları ekle.
+
+## Zamanlanmış görevler
+"her gün 9'da hava nasıl", "hafta içi her gün 8:30'da günün özeti", "her cuma 17'de görevlerim", "her akşam 7'de pil kaç" (19:00).
+Listeleme "zamanlanmış görevler", silme "zamanlanmış görevi sil 2" ya da pano > Görevler.
+- **Kurmak onay ister**; araçlar gizli (model kendi başına kuramaz) ve uzaktan kapalı.
+- Zamanı gelen görev, kullanıcının kendi cümlesi olarak **Telegram ile aynı kısıtlı kipte** çalışır (dosya, tarayıcı, fare/klavye, kod, telefon araması, MCP kapalı; bilgisayarda bekleyen onay verilemez). Ajan/ekip/kod/MCP görevleri onay gerektirdiği için zamanlanamaz.
+- Sonuç "Zamanlanmış görev. …" diye bildirilir (odak modunda yalnızca panoya; Telegram açıksa telefona da).
+- Bilgisayarda onay bekleyen işlem varsa ya da Jarvis meşgulse görev ertelenir; en fazla 10 dk gecikme tanınır, bilgisayar kapalıyken kaçırılanlar sonradan topluca çalışmaz.

@@ -83,6 +83,29 @@ def run_remote(brain, text: str, tag: str, timeout: float | None = None) -> str:
         brain.lock.release()
 
 
+def run_scheduled(brain, notify, job: dict) -> bool:
+    """Zamanı gelen görev: kullanıcının kendi cümlesi Telegram ile aynı KISITLI kipte çalışır (bilgisayarın başında olmayabilir).
+    Bilgisayarda onay bekleyen işlem varsa ya da beyin meşgulse False -> zamanlayıcı pencere içinde yeniden dener."""
+    from skills import _confirm  # noqa: PLC0415
+
+    if _confirm.has_pending():
+        return False
+    try:
+        reply = run_remote(brain, job["cmd"], "Zamanlanmış", timeout=30)
+    except TimeoutError:
+        return False
+    notify(f"Zamanlanmış görev. {reply}")
+    return True
+
+
+def start_scheduler(brain, notify):
+    from core import scheduler  # noqa: PLC0415
+
+    sch = scheduler.Scheduler(lambda job: run_scheduled(brain, notify, job))
+    sch.start()
+    return sch
+
+
 def start_dashboard(brain, speaker, listener=None, window: bool = True):
     """Pano sunucusunu (127.0.0.1) başlatır, komut kuyruğunu işleyen iş parçacığını ve pencereyi açar.
     (pencere süreci ya da None, pano adresi) döndürür."""
@@ -247,6 +270,7 @@ def main():
             print("      Telegram kurulu değil (python connect/telegram_bot.py --setup); atlandı.", flush=True)
     notify = wrap_notify(notify)  # akışa yazar; odak modunda sesli söylemez
     reminders.set_notifier(notify)  # süre dolunca arka plan iş parçacığından sesli söyler
+    start_scheduler(brain, notify)  # zamanlanmış görevler: kısıtlı kipte çalışır, sonucu bildirir
     agenda.Monitor(notify).start()  # etkinliğe 10 dk kala sesli uyarır
     battery.Monitor(notify).start()  # pil yüzde 20 ve 10'un altına düşünce bir kez uyarır
     memguard.Monitor(notify).start()  # bellek azalınca bir kez, en çok kullananları sayarak uyarır
