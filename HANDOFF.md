@@ -1,7 +1,7 @@
 # JARVIS — Devir Teslim Dokümanı (Claude Code için)
 
 Bu belge projenin mimarisini, alınan kararları, gelinen noktayı ve geçmişini Claude Code'a aktarır. Okuyan: **sen, Claude Code**. Sahip: **Furkan** (aşağıda "kullanıcı"). Kurallar `CLAUDE.md`'de, görev sırası `TASKS.md`'de.
-Belge ile kod çelişirse **kod haklıdır**; çelişkiyi bu dosyada düzelt. Son güncelleme: **2026-11-06** (son commit öncesi `acb02aa`, `check_all.py --quick` 45 OK).
+Belge ile kod çelişirse **kod haklıdır**; çelişkiyi bu dosyada düzelt. Son güncelleme: **2026-11-06** (oturum devri; `check_all.py --quick` 45 OK).
 
 ---
 
@@ -115,7 +115,7 @@ Testler `JARVIS_DATA`'yı geçici klasöre yönlendirir, `ollama` yoksa sahtesin
 | Ücretsiz bulut yalnız kişisel veri yokken | Gizlilik > güç. |
 | Yetenekleri modelden saklamak (hidden) | Araç sayısı arttıkça Gemma araç seçimi bozuluyor. |
 | Onay ve yasaklı yüzeyler **kodda**; uzaktan kip yerel onaya dokunamaz | Güvenlik modelin iyi niyetine bırakılmaz (güvenlik taraması YÜKSEK bulgusu). |
-| Kod ajanı bubblewrap + workspace; sınırlar `MAX_CALLS 30`, `max_rounds 14`, `max_tokens 1800`, `VIEW_BUDGET 9000` karakter, `MAX_STDIN 2000` | İnternetsiz, ev klasörü görünmez; bulutun ~5K jeton sınırı. Büyük projeler için Claude Code. |
+| Kod ajanı bubblewrap + workspace; sınırlar `MAX_CALLS 30`, `max_rounds 14`, `max_tokens 1800`, bağlam `VIEW_BUDGET 9000` karakter (Kod Ajanı ve Denetçi rolünde `view_budget=7000`), `MAX_STDIN 2000` | İnternetsiz, ev klasörü görünmez; bulutun ~5K jeton sınırı. Büyük projeler için Claude Code. |
 | `gpt-oss:20b` reddedildi | Gecikme ve VRAM. |
 | Maskot "Çekirdek" (özgün SVG) | Kullanıcı seçti; başka projeden görsel yok. |
 | Ada: Qt overlay (Cinnamon applet/desklet değil) | Taşınabilir, `_confirm`'e doğrudan bağlanır. |
@@ -133,17 +133,44 @@ Kurallar `CLAUDE.md`'de. Özet: `TASKS.md` sırasıyla, sormadan; [YAZILIM] → 
 ---
 
 ## 8. Yol haritası
-Ayrıntılı ve güncel sıra `TASKS.md`'de. Sıradaki büyük işler: **Windows taşıma** (`platform_compat.py`; `pycaw`, `pyautogui`, `mss`, `psutil`; `kur.bat`/`install.ps1`; hafif profil; Windows'ta kod ajanı kapalı), **ders reposu iş akışı** (Issue → Branch → PR), **asistanın yeniden adlandırılması**, anlamsal hafıza (yerel gömme), Google Takvim, ntfy, ders/Git ajanı, kod ajanında "kendi projem" kipi.
+Ayrıntılı ve güncel sıra `TASKS.md`'de. Sıra: önce zamanlanmış görevin gerçek saat [HW] denemesi (kullanıcıda), sonra **ders reposu iş akışı** (Issue → Branch → PR; ilk adım [SOR] kapsam), **asistanın yeniden adlandırılması** ([SOR] ad ve kapsam), küçük işler (anlamsal hafıza, Google Takvim, ntfy, Qwen 3.5 ölçümü, ders/Git ajanı, "kendi projem" kipi) ve **en son Windows taşıma** (`platform_compat.py`; `pycaw`, `pyautogui`, `mss`, `psutil`; `kur.bat`/`install.ps1`; hafif profil; Windows'ta kod ajanı kapalı) — kullanıcı "Windows en son" dedi.
 
 Piyasa karşılaştırmasından kalan eksikler: e-posta/takvim entegrasyonu, OCR/erişilebilirlik tabanlı tıklama, paylaşılabilir yetenek paketleme.
 
 ---
 
 ## 9. Açık / doğrulanmamış noktalar
+**Kullanıcıya bırakılan [HW] testleri:**
+- Zamanlanmış görevin gerçek saatte çalışması (bkz. `TASKS.md` "Şimdi"): "her gün HH:MM'de saat kaç" → saatinde sesli okunmalı. Kullanıcıdan geri bildirim gelmedi.
+- (Onaylananlar: ada, maskot, etkin hal, otomatik gizlenme, Ayarlar > ADA, UI düzeltmeleri, klasör düzeni sonrası yeniden başlatma — hepsi "çalışıyor".)
+
 - Kod ajanının ilk başarısız çalışmasındaki ham geçersiz JSON görülmedi (loglama var; `[ekip]` loglarına bak).
 - Ekip rolleri bulut yolunda denenmedi (anahtar geçici klasöre bağlanamadı).
 - Zamanlanmış görevler gerçek saatle beklenerek denenmedi.
 - Qwen 3.5 9B araç çağırma ölçülmedi. Flutter derlemesindeki RAM tepesi yakalanmadı (gereksiz bulundu).
+
+### 9.1 Bu oturumun teknik kararları (2026-10-25 … 11-06)
+| Karar | Neden |
+|---|---|
+| Zamanlanmış görev `run_remote` ile **kısıtlı kipte**; kurmak onaylı, araçlar gizli + `REMOTE_BLOCKED`; bilgisayarda onay bekliyorsa ertelenir; 10 dk pencere, kaçırılan toplu çalışmaz | Gözetimsiz çalışan iş kişisel veriyi Telegram'a taşımasın, kendi onayını veremesin. |
+| Zamanlama hızlı yolu hava/saat kurallarından **önce** | "her gün 9'da hava nasıl" hava kuralına düşüyordu. |
+| Ada kayması: pencere yerinde, içteki hap `QVariantAnimation` ile kaydırılır | Ölçüldü: Cinnamon pencereyi y<0'a çıkarmıyor, ilk sürüm yerinde zıplıyordu. |
+| Ada maskotu Python'da kare kare (`mascot_svg(state, t, since, theme)`) | QtSvg CSS animasyonu/değişkeni çalıştırmıyor; QWebEngine adada fazla ağır. |
+| Maskot SVG'si kapsamlandı (`svg.cekirdek`, `ck-` önekleri), panoya DOMParser ile | Pano `--bg` ve `.dots` adlarıyla çakışıyordu; panoda HTML olarak ekleme yasak (XSS testi). |
+| `team._repair` son çare JSON onarımı; dizge ortasında kesilmiş cevap yalnızca `final` ise kabul | Ölçüm: yerel modelde bozukluk bağlam taşması değil yazım hatası; yarım dosya yazılmasın. |
+| `code_run` sarmalayıcısına yalnız `XDG_RUNTIME_DIR`/`DBUS_SESSION_BUS_ADDRESS`; program ortamı `bwrap --clearenv` | Temiz ortamda `systemd-run --user` bus'a ulaşamıyor, her çalıştırma çıkış 1 veriyordu. |
+| Ekip araç argümanları şemaya uydurulur (`ARG_ALIASES`), kılavuzda gerçek parametre adları | gemma4 `path` yerine `file` veriyordu. |
+| Klasör düzeni: `tools/` ve `tests/` başında kök `sys.path` satırı; ada/durum penceresi `-m desktop.island`/`-m desktop.ui` | Doğrudan çalıştırılan betikler paketleri bulsun. |
+| `check_all` test sayacı benzersiz OK satırı sayar | `main` içe aktarılınca `voice/stt.py` süreci bir kez `os.execv` ile yeniden başlatıyor; çıktının bir kısmı iki kez görünüyor (zararsız). |
+
+### 9.2 Bilinen tuhaflıklar ve denenip işe yaramayan yollar
+- **Bulut yolu denenemedi:** gerçek `data/keys.env`'i geçici veri klasörüne bağlama (symlink) izin sistemince reddedildi; ekip/kod denemeleri yalnız yerel gemma4:e4b ile yapıldı.
+- **Yerel modelde kalan:** model "çalıştırmadan 2'den fazla yazma" uyarısına rağmen aynı dosyayı yazmayı sürdürebiliyor (1/9 turda kod parçası tur sınırında düştü).
+- **"4096 bağlam taşması" varsayımı yanlış çıktı** (190 cevabın yalnız 2'si `done=length`, o da tekrar döngüsü).
+- Ekran ölçümünde piksel yöntemi güvenilmez (arka plandaki koyu pencereler karışıyor); `xdotool search --pid` ilk sonucu Qt'nin 10×10 yardımcı penceresi — genişliği >100 olan pencereyi seç.
+- Claude Code'un Bash aracında bazen `python -c '...'` "Argument expected" veriyor; kısa betiği dosyaya yazıp çalıştır.
+- Yemeksepeti ana sayfası bot doğrulamasıyla engelliyor (aşılmaz); Getir/Trendyol GO açılıyor, Trendyol GO'da restoranlar girişten sonra görünüyor (sipariş iptal).
+- Tarayıcı bölmesinde mobil öykünmede bir tıklama bir kez kaçtı; tekrarlanmadı (uygulama hatası değil).
 
 ---
 
